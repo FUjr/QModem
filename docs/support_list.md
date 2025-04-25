@@ -67,3 +67,9 @@ Model | Platform | USB  | PCIe
 --- | --- | --- | ---
 t99w175 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
 t99w373 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
+
+# huawei
+Model | Platform | USB  | PCIe 
+--- | --- | --- | ---
+mh5000-31 | hisilicon |✔ usb(ecm,ncm) | ✘
+mh5000-82 | hisilicon |✔ usb(ecm,ncm) | ✘
