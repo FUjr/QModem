@@ -8,15 +8,48 @@
                 "data_interface": "usb",
                 "define_connect": "1",
                 "wcdma_band": "1/2/4/5/6/8/19",
-                "lte_band": "1/2/3/4/5/7/8/12/13/14/18/19/20/25/26/28/66/71/38/39/40/41",
+                "lte_band": "1/2/3/4/5/7/8/12/13/14/18/19/20/25/26/28/66/71/38/39/40/41/66/71",
                 "nsa_band": "0",
                 "sa_band": "0",
                 "modes": [
                     "qmi",
                     "ecm",
                     "mbim",
-                    "rndis",
-                    "ncm"
+                    "rndis"
+                ]
+            },
+            "ep06": {
+                "manufacturer_id": "2c7c",
+                "manufacturer": "quectel",
+                "platform": "lte",
+                "data_interface": "usb",
+                "define_connect": "1",
+                "wcdma_band": "1/3/5/8",
+                "lte_band": "1/3/5/7/8/20/28/32/38/40/41",
+                "nsa_band": "0",
+                "sa_band": "0",
+                "modes": [
+                    "qmi",
+                    "ecm",
+                    "mbim",
+                    "rndis"
+                ]
+            },
+            "em12": {
+                "manufacturer_id": "2c7c",
+                "manufacturer": "quectel",
+                "platform": "lte",
+                "data_interface": "usb",
+                "define_connect": "1",
+                "wcdma_band": "1/2/3/4/5/8/9/19",
+                "lte_band": "1/2/3/4/5/7/8/9/12/13/14/17/18/19/20/21/25/26/28/29/30/32/66",
+                "nsa_band": "0",
+                "sa_band": "0",
+                "modes": [
+                    "qmi",
+                    "ecm",
+                    "mbim",
+                    "rndis"
                 ]
             },
             "em120k": {
@@ -25,7 +58,7 @@
                 "platform": "lte12",
                 "data_interface": "usb",
                 "define_connect": "1",
-                "wcdma_band": "1/2/4/5/6/8/19",
+                "wcdma_band": "1/2/3/4/5/6/8/19",
                 "lte_band": "1/2/3/4/5/7/8/12/13/14/17/18/19/20/25/26/28/29/30/31/34/38/39/40/41/42/43/46/48/66/71",
                 "nsa_band": "0",
                 "sa_band": "0",
@@ -33,8 +66,7 @@
                     "qmi",
                     "ecm",
                     "mbim",
-                    "rndis",
-                    "ncm"
+                    "rndis"
                 ]
             },
             "rg200u-cn": {
