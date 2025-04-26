@@ -935,17 +935,18 @@
 				}	
 			}
 			let tr_left = this.createTD(text);
-			let tr_right = this.create_copy_btn_td(rat,cell_info.pci,cell_info.arfcn);
+			let tr_right = this.create_copy_btn_td(rat,cell_info);
 			let tr = this.createTR();
 			tr.appendChild(tr_left);
 			tr.appendChild(tr_right);
 			this.neighborcell_table.appendChild(tr);
 		}
 
-		create_copy_btn_td(rat,pci,arfcn){
+		create_copy_btn_td(rat,cell_info){
 			var copy_btn = this.createBTN("<%:Copy%>",() => {
-				this.pci_input.value = pci;
-				this.arfcn_input.value = arfcn;
+				this.pci_input.value = cell_info.pci;
+				this.arfcn_input.value = cell_info.arfcn;
+				this.band_input.value = cell_info.band;
 				this.rat_input.selectedIndex = rat;
 				this.nr_options()
 			});
