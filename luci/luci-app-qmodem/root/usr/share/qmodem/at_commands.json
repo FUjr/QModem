@@ -598,6 +598,12 @@
 				"关闭sim热插拔 > AT+UIMHOTSWAPON=0": "AT+UIMHOTSWAPON=0"
 			},
 			{
+				"解除LTE小区锁定 > AT+CCELLCFG=0": "AT+CCELLCFG=0"
+			},
+			{
+				"解除5G小区锁定 > AT+C5GCELLCFG=\"unlock\"": "AT+C5GCELLCFG=\"unlock\""
+			},
+			{
 				"更改imei > AT+SIMEI=imei": "AT+SIMEI=imei"
 			},
 			{

@@ -548,8 +548,8 @@ get_neighborcell_qualcomm(){
     local at_command='AT+CPSI?'
     nr_lock_check="AT+C5GCELLCFG?"
     lte_lock_check="AT+CCELLCFG?"
-    lte_status=$(at $at_port $lte_lock_check | grep "+CCELLCFG:")
-    if [ "$lte_status" != "+CCELLCFG: 0,0" ]; then
+    lte_status=$(at $at_port $lte_lock_check | grep "+CCELLCFG:")    
+    if [ ! -z "$lte_status" ]; then
         lte_lock_status="locked"
     else
         lte_lock_status=""
@@ -557,19 +557,28 @@ get_neighborcell_qualcomm(){
     lte_lock_freq=$(echo $lte_status | awk -F',' '{print $2}' | sed 's/\r//g')
     lte_lock_pci=$(echo $lte_status | awk -F',' '{print $1}' | sed 's/+CCELLCFG: //g' | sed 's/\r//g')
     nr_status=$(at $at_port $nr_lock_check | grep "+C5GCELLCFG:")
-    nr_lock_status=$(echo $nr_status | awk -F': ' '{print $2}' | sed 's/\r//g')
-    nr_lock_pci=$(echo $nr_status | awk -F',' '{print $2}' | sed 's/\r//g')
-    nr_lock_freq=$(echo $nr_status | awk -F',' '{print $3}' | sed 's/\r//g')
-    nr_lock_scs=$(echo $nr_status | awk -F',' '{print $4}' | sed 's/\r//g')
-    nr_lock_band=$(echo $nr_status | awk -F',' '{print $5}' | sed 's/\r//g')
+    nr_lock_status=$(echo "$nr_status" | awk -F': ' '{print $2}' | xargs)
+    nr_lock_pci=$(echo "$nr_status" | awk -F',' '{print $2}' | xargs)
+    nr_lock_freq=$(echo "$nr_status" | awk -F',' '{print $3}' | xargs)
+    nr_lock_scs=$(echo "$nr_status" | awk -F',' '{print $4}' | xargs)
+    nr_lock_band=$(echo "$nr_status" | awk -F',' '{print $5}' | xargs)
     if [ "$nr_lock_status" != "0" ]; then
         nr_lock_status="locked"
     else
         nr_lock_status=""
     fi
 
-
-    at $at_port $at_command > /tmp/neighborcell
+    modem_status=$(at $at_port $at_command)
+    modem_status_net=$(echo "$modem_status"|grep "+CPSI:"|awk -F',' '{print $1}'|awk -F':' '{print $2}'|xargs)
+    modem_status_band=$(echo "$modem_status"|grep "+CPSI:"|awk -F',' '{print $7}'|awk -F'_' '{print $2}'|sed 's/BAND//g'|xargs)
+    if [ $modem_status_net == "NR5G_SA" ];then
+    	scans=$(at $at_port "AT+CNWSEARCH=\"nr5g\"")
+    	sleep 10
+    	at $at_port "AT+CNWSEARCH=\"nr5g\",3" > /tmp/neighborcell
+    elif [ $modem_status_net == "LTE" ];then
+        at $at_port "AT+CNWSEARCH=\"lte\",1" > /tmp/neighborcell
+        sleep 5
+    fi
     json_add_object "Feature"
     json_add_string "Unlock" "2"
     json_add_string "Lock PCI" "1"
@@ -599,9 +608,9 @@ get_neighborcell_qualcomm(){
     fi
     json_close_object
     while read line; do
-        if [ -n "$(echo $line | grep "+CPSI:")" ]; then
+        if [ -n "$(echo $line | grep "+NR_NGH_CELL:")" ] || [ -n "$(echo $line | grep "+LTE_CELL:")" ]; then
             # CPSI: NR5G_SA,Online,460-01,0x6F4700,29869309958,95,NR5G_BAND78,627264,-800,-110,14
-            line=$(echo $line | sed 's/+CPSI: //g')
+	    
             case $line in
                 *WCDMA*)
                     type="WCDMA"
@@ -611,37 +620,34 @@ get_neighborcell_qualcomm(){
                     rscp=$(echo $line | awk -F',' '{print $11}')
                     ecno=$(echo $line | awk -F',' '{print $10}')
                     ;;
-                *LTE*)
+                *LTE_CELL*)
                     type="LTE"
-                    arfcn=$(echo $line | awk -F',' '{print $8}')
-                    pci=$(echo $line | awk -F',' '{print $6}')
-                    rsrp=$(echo $line | awk -F',' '{print $12}')
-                    rsrq=$(echo $line | awk -F',' '{print $11}')
+                    arfcn=$(echo $line | awk -F',' '{print $6}')
+                    pci=$(echo $line | awk -F',' '{print $7}')
+                    rsrp=$(echo $line | awk -F',' '{print $8}')
+                    rsrq=$(echo $line | awk -F',' '{print $9}')
+		    band=$(echo $line | awk -F',' '{print $5}')
+		    mnc=$(echo $line | awk -F',' '{print $2}')
                     ;;
-                *NR5G_SA*)
-                    type="NR5G_SA"
-                    arfcn=$(echo $line | awk -F',' '{print $8}')
-                    pci=$(echo $line | awk -F',' '{print $6}')
-                    rsrp=$(echo $line | awk -F',' '{print $9}')
-                    rsrq=$(echo $line | awk -F',' '{print $10}')
-                    ;;
-                *NR5G_NSA*)
-                    type="NR5G_NSA"
-                    arfcn=$(echo $line | awk -F',' '{print $4}')
+                *NR_NGH_CELL*)
+                    type="NR"
+                    arfcn=$(echo $line | awk -F',' '{print $1}'| awk -F':' '{print $2}'| xargs)
                     pci=$(echo $line | awk -F',' '{print $2}')
-                    rsrp=$(echo $line | awk -F',' '{print $5}')
-                    rsrq=$(echo $line | awk -F',' '{print $6}')
+                    rsrp=$(echo $line | awk -F',' '{print $3}')
+                    rsrq=$(echo $line | awk -F',' '{print $4}')
+		    band=$modem_status_band
                     ;;
             esac
             json_select $type
             json_add_object ""
-            json_add_string "neighbourcell" "neighbourcell"
+	    json_add_string "mnc" "$mnc"
             json_add_string "arfcn" "$arfcn"
             json_add_string "pci" "$pci"
             json_add_string "rscp" "$rscp"
             json_add_string "ecno" "$ecno"
             json_add_string "rsrp" "$rsrp"
             json_add_string "rsrq" "$rsrq"
+            json_add_string "band" "$band"
             json_close_object
             json_select ".."
         fi
@@ -695,8 +701,8 @@ lockcell_qualcomm(){
         res2=$(at $at_port $unlock4g)
         res=$res1,$res2
     else
-        lock4g="AT+CCELLCFG=1,$arfcn,$pci;+CNMP=38"
-        locknr="AT+C5GCELLCFG="pci",$pci,$arfcn,$(get_scs $scs),$band;+CNMP=71"
+        lock4g="AT+CCELLCFG=1,$pci,$arfcn;+CNMP=38"
+        locknr="AT+C5GCELLCFG=\"pci\",$pci,$arfcn,$scs,$band;+CNMP=71"
         if [ $rat = "1" ]; then
             res=$(at $at_port $locknr)
         else

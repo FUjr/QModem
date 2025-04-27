@@ -749,10 +749,6 @@
 			this.set_action = "set_neighborcell";
 			this.task = null;
 			this.init_nc_table();
-			//add scan button
-			this.scan_btn = this.createBTN("<%:Scan%>",() => {
-				this.scan_neighborcell();
-			});
 		}
 		
 		scan_neighborcell(){
@@ -874,14 +870,20 @@
 				this.set_config(JSON.stringify(config));
 			});
 
+                        //add scan button
+                        var scan_btn = this.createBTN("<%:Scan%>",() => {
+                                this.scan_neighborcell();
+                        });
+
+
 			this.setting_table.appendChild(header);
 			this.setting_table.appendChild(rat_tr);
 			this.setting_table.appendChild(pci_tr);
 			this.setting_table.appendChild(arfcn_tr);
 			this.setting_table.appendChild(band_tr);
 			this.setting_table.appendChild(scs_tr);
+			this.setting_table.appendChild(scan_btn);
 			this.setting_table.appendChild(submit_btn);
-			this.setting_table.appendChild(this.scan_btn);
 		}
 
 		render_neighborcell(){
@@ -945,8 +947,8 @@
 		create_copy_btn_td(rat,cell_info){
 			var copy_btn = this.createBTN("<%:Copy%>",() => {
 				this.pci_input.value = cell_info.pci;
-				this.arfcn_input.value = cell_info.arfcn;
-				this.band_input.value = cell_info.band;
+ 				this.arfcn_input.value = cell_info.arfcn;
+ 				this.band_input.value = cell_info.band;
 				this.rat_input.selectedIndex = rat;
 				this.nr_options()
 			});
