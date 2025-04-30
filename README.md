@@ -22,7 +22,7 @@
 
 ```shell
 echo >> feeds.conf.default
-echo 'src-git modem https://github.com/FUjr/QModem.git;main' >> feeds.conf.default
+echo 'src-git qmodem https://github.com/FUjr/QModem.git;main' >> feeds.conf.default
 ./scripts/feeds update qmodem
 ./scripts/feeds install -a -p qmodem
 ```
