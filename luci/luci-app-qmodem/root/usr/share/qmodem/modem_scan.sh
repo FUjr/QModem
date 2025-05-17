@@ -351,6 +351,9 @@ match_config()
 
     #rg200u-cn
     [[ "$name" = *"rg200u-cn"* ]] && name="rg200u-cn"
+    
+    #nu313-m2
+    [[ "$name" = *"nu313-m2"* ]] && name="srm821"
 
     modem_config=$(echo $modem_support | jq '.modem_support."'$slot_type'"."'$name'"')
     [ "$modem_config" == "null"  ] && return
