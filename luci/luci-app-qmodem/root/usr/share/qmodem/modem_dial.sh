@@ -249,6 +249,9 @@ check_ip()
                     "qualcomm")
                         check_ip_command="AT+CGPADDR=1"
                         ;;
+                    "unisoc")
+                        check_ip_command="AT+CGPADDR=1"
+                        ;;
                 esac
                 ;;
         esac
@@ -812,6 +815,10 @@ at_dial()
         "meig")
             case $platform in
                 "qualcomm")
+                    at_command=""
+                    cgdcont_command="AT+CGDCONT=1,\"$pdp_type\",\"$apn\""
+                    ;;
+                "unisoc")
                     at_command=""
                     cgdcont_command="AT+CGDCONT=1,\"$pdp_type\",\"$apn\""
                     ;;
