@@ -517,6 +517,59 @@
 			{
 				"重启模组 > AT+RESET": "AT+RESET"
 			}
+		],
+		"unisoc": [
+			{
+				"获取SIM卡卡槽状态 > AT^SIMSLOT?": "AT^SIMSLOT?"
+			},
+			{
+				"设置当前使用的为卡1 > AT^SIMSLOT=1": "AT^SIMSLOT=1"
+			},
+			{
+				"设置当前使用的为卡2 > AT^SIMSLOT=2": "AT^SIMSLOT=2"
+			},
+			{
+				"查询网络信息 > AT^SYSINFOEX": "AT^SYSINFOEX"
+			},
+			{
+				"查询载波聚合小区信息 > AT^CELLINFO=1": "AT^CELLINFO=1"
+			},
+			{
+				"查询当前拨号模式 > AT+SER?": "AT+SER?"
+			},
+			{
+				"ECM拨号模式 > AT+SER=2,1": "AT+SER=2,1"
+			},
+			{
+				"MBIM拨号模式 > AT+SER=3,1": "AT+SER=3,1"
+			},
+			{
+				"RNDIS拨号模式 > AT+SER=3,1": "AT+SER=3,1"
+			},
+			{
+				"NCM拨号模式 > AT+SER=1,1": "AT+SER=1,1"
+			},
+			{
+				"锁4G > AT^SYSCFGEX=\"03\",all,0,2,all,all,all,all,1": "AT^SYSCFGEX=\"03\",all,0,2,all,all,all,all,1"
+			},
+			{
+				"锁5G > AT^SYSCFGEX=\"04\",all,0,2,all,all,all,all,1": "AT^SYSCFGEX=\"04\",all,0,2,all,all,all,all,1"
+			},
+			{
+				"恢复自动搜索网络 > AT^SYSCFGEX=\"00\",all,0,2,all,all,all,all,1": "AT^SYSCFGEX=\"00\",all,0,2,all,all,all,all,1"
+			},
+			{
+				"查询模组IMEI > AT+LCTSN=0,7": "AT+LCTSN=0,7"
+			},
+			{
+				"更改模组IMEI > AT+LCTSN=1,7,\"IMEI\"": "AT+LCTSN=1,7,\"在此设置IMEI\""
+			},
+			{
+				"获取模组温度 > AT+TEMP": "AT+TEMP"
+			},
+			{
+				"重启模组 > AT+RESET": "AT+RESET"
+			}
 		]
 	},
 	"foxconn": {
