@@ -44,11 +44,19 @@ get_mode()
                 *) mode="${mode_num}" ;;
             esac
         ;;
-        "unisoc"|"lte12"|"lte")
+        "lte12"|"lte")
             case "$mode_num" in
                 "2") mode="ecm" ;;
                 "3") mode="rndis" ;;
                 "2") mode="ncm" ;;
+                *) mode="${mode_num}" ;;
+            esac
+        ;;
+        "unisoc")
+            case "$mode_num" in
+                "2") mode="ecm" ;;
+                "3") mode="rndis" ;;
+                "1") mode="ncm" ;;
                 *) mode="${mode_num}" ;;
             esac
         ;;
@@ -73,11 +81,19 @@ set_mode()
 {
     local mode=$1
     case "$platform" in
-        "qualcomm"|"unisoc"|"lte12"|"lte")
+        "qualcomm"|"lte12"|"lte")
             case "$mode" in
                 "ecm") mode_num="2" ;;
                 "rndis") mode_num="3" ;;
                 "ncm") mode_num="2" ;;
+                *) mode_num="1" ;;
+            esac
+        ;;
+        "unisoc")
+            case "$mode" in
+                "ecm") mode_num="2" ;;
+                "rndis") mode_num="3" ;;
+                "ncm") mode_num="1" ;;
                 *) mode_num="1" ;;
             esac
         ;;
@@ -176,12 +192,30 @@ get_voltage()
 get_temperature()
 {   
     at_command="AT+TEMP"
-    local response=$(at ${at_port} ${at_command} | grep 'TEMP: "cpu0-0-usr"' | awk -F'"' '{print $4}')
+    local response
     local temp
-    if [ -n "$response" ]; then
-        temp="${response}$(printf "\xc2\xb0")C"
+    local degree_symbol=$(printf "\xc2\xb0")C 
+
+# 根据平台选择不同的AT命令并提取温度值
+if [ "$platform" = "unisoc" ]; then
+    response=$(at ${at_port} ${at_command} | grep 'TEMP: "soc-thmzone"' | awk -F'"' '{print $4}')
+else
+    response=$(at ${at_port} ${at_command} | grep 'TEMP: "cpu0-0-usr"' | awk -F'"' '{print $4}')
+ fi
+
+# 处理响应值
+if [ -n "$response" ]; then
+    if [ "$platform" = "unisoc" ]; then
+        # Unisoc平台需要将原始值除以1000并保留两位小数
+        temp_value=$(echo "scale=2; $response / 1000" | bc)
+        temp="${temp_value}${degree_symbol}"
     else
-        temp="NaN $(printf "\xc2\xb0")C"
+        # 其他平台直接使用原始值
+        temp="${response}${degree_symbol}"
+    fi
+else
+    # 无响应时显示NaN
+    temp="NaN ${degree_symbol}"
     fi
     add_plain_info_entry "temperature" "$temp" "Temperature"
 }
