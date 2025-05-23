@@ -6,7 +6,6 @@ USE_PROCD=1
 . /lib/functions.sh
 
 start_service() {
-    
 	config_load qmodem
     config_foreach _mk_rundir modem-device
     config_get block_auto_probe main block_auto_probe 0
@@ -16,7 +15,10 @@ start_service() {
     config_get try_preset_pcie main try_preset_pcie 1
     #once enabled, skip all check or scan
     [ "$block_auto_probe" -eq 1 ] && return
-    
+
+    #auto add option driver for usb device
+    config_foreach _usb_option_driver modem-device
+
     #enabled by default
     if [ "$try_preset_pcie" -eq 1 ];then
         _try_vendor_preset_pcie
@@ -129,5 +131,24 @@ _try_device()
     esac
     if [ ! -d "$path" ]; then
         /usr/share/qmodem/modem_scan.sh disable "$1"
+    fi
+}
+
+_usb_option_driver()
+{
+    [ "$(config_get "$1" data_interface)" = "usb" ] && [ "$(config_get "$1" option_driver)" = "1" ] || return
+
+    local path=$(config_get "$1" path)
+    local slot_vid=$(cat "${path}/idVendor" 2>/dev/null)
+    local slot_pid=$(cat "${path}/idProduct" 2>/dev/null)
+
+    if [ -n "$slot_vid" ] && [ -n "$slot_pid" ]; then
+        if echo "$slot_vid $slot_pid" > /sys/bus/usb-serial/drivers/option1/new_id 2>/dev/null; then
+            logger -t modem_init "Set option driver for $1 (VID:$slot_vid PID:$slot_pid)"
+        else
+            logger -t modem_init "Failed to set option driver for $1 (VID:$slot_vid PID:$slot_pid)"
+        fi
+    else
+        logger -t modem_init "Unable to get VID/PID for device $1"
     fi
 }

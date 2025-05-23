@@ -495,6 +495,7 @@ EOF
     for at_port in $at_ports; do
         uci add_list qmodem.$section_name.ports="/dev/$at_port"
     done
+    [ "$option_driver" == "1" ] && uci set qmodem.$section_name.option_driver="1"
     uci commit qmodem
     mkdir -p /var/run/qmodem/${section_name}_dir
     lock -u /tmp/lock/modem_add_$slot

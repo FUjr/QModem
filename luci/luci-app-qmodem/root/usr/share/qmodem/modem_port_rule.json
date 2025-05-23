@@ -36,6 +36,10 @@
             "3466:3301": {
                 "name": "mt5700m-cn",
                 "option_driver": 1
+            },
+            "2c7c:8101": {
+                "name": "rg801",
+                "option_driver": 1
             }
         }
     }
