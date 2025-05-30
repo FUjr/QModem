@@ -565,6 +565,9 @@
 				"更改模组IMEI > AT+LCTSN=1,7,\"IMEI\"": "AT+LCTSN=1,7,\"在此设置IMEI\""
 			},
 			{
+				"开启转网口 > AT+MGCFGEX=“ETH_SWITCH",1": "AT+MGCFGEX="ETH_SWITCH",1"
+			},
+			{
 				"获取模组温度 > AT+TEMP": "AT+TEMP"
 			},
 			{
