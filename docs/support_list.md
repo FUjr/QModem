@@ -78,3 +78,9 @@ Model | Platform | USB  | PCIe
 --- | --- | --- | ---
 t99w175 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
 t99w373 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
+t99w640 | qualcomm |✘ | ✔ pcie(mbim)
+
+# neoway
+Model | Platform | USB  | PCIe 
+--- | --- | --- | ---
+n510m | unisoc |✔ usb(ecm) | ✘

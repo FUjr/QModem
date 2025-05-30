@@ -4,6 +4,16 @@
 source /usr/share/qmodem/generic.sh
 debug_subject="quectel_ctrl"
 
+name=$(uci -q get qmodem.$config_section.name)
+case "$name" in
+    "t99w640")
+        at_pre="AT+"
+    ;;
+    *)
+        at_pre="AT^"
+    ;;
+esac
+
 function get_imei(){
     imei=$(at $at_port "ATI" | awk -F': ' '/^IMEI:/ {print $2}' | xargs)
     json_add_string imei $imei
@@ -11,21 +21,26 @@ function get_imei(){
 
 function set_imei(){
     imei=$1
-    extended="80A$imei"  # 添加 80A 前缀
-    formatted=""
+    # 添加 80A 前缀
+    extended="80A${imei}"
+    swapped=""
+    len=${#extended}
     i=0
-    while [ $i -lt ${#extended} ]; do
-        byte=$(echo "$extended" | cut -c$((i+1))-$((i+2)))  # 获取两个字符
-        formatted="$formatted$byte,"
+    while [ $i -lt $len ]; do
+        pair=$(echo "$extended" | cut -c$((i+1))-$((i+2)))
+        if [ ${#pair} -eq 2 ]; then
+            swapped="${swapped}${pair:1:1}${pair:0:1}"
+        elif [ ${#pair} -eq 1 ]; then
+            swapped="${swapped}${pair:0:1}"
+        fi
         i=$((i+2))
     done
 
-    # 去除最后的逗号
-    formatted=$(echo ${formatted%,}|xargs)
-    #echo "$formatted"
+    # 两位分组加逗号，并转小写
+    formatted=$(echo "$swapped" | sed 's/../&,/g' | sed 's/,$//' | tr 'A-Z' 'a-z')
 
-    at_command="at^nv=550,9,$formatted"
-    res=$(at $at_port \"$at_command\")
+    at_command=$at_pre'nv=550,9,"'$formatted'"'
+    res=$(at $at_port "$at_command")
     json_select "result"
     json_add_string "set_imei" "$res"
     json_close_object
@@ -35,14 +50,14 @@ function set_imei(){
 function get_mode(){
     local mode_num
     local mode
-    cfg=$(at $at_port "AT^PCIEMODE?")
+    cfg=$(at $at_port $at_pre"PCIEMODE?")
     config_type=`echo -e "$cfg" | grep -o '[0-9]'`
     if [ "$config_type" = "1" ]; then
         mode_num="0"
 	json_add_int disable_mode_btn 1
 
     else
-      	ucfg=$(at $at_port "AT+USBSWITCH?")
+      	ucfg=$(at $at_port $at_pre"USBSWITCH?")
       	config_type=$(echo "$ucfg" | grep USBSWITCH: |cut -d':' -f2|xargs)
       	if [ "$config_type" = "9025" ]; then
         	 mode_num="1"
@@ -90,7 +105,7 @@ set_mode(){
         ;;
     esac
     #设置模组
-    at_command="AT+USBSWITCH=${mode_num}"
+    at_command=$at_pre"USBSWITCH=${mode_num}"
     res=$(at "${at_port}" "${at_command}")
     json_select "result"
     json_add_string "set_mode" "$res"
@@ -98,7 +113,7 @@ set_mode(){
 }
 
 function get_network_prefer(){
-    res=$(at $at_port "AT^SLMODE?"| grep -o '[0-9]\+' | tr -d '\n' | tr -d ' ')
+    res=$(at $at_port $at_pre"SLMODE?"| grep -o '[0-9]\+' | tr -d '\n' | tr -d ' ')
 # (RAT index): 
 # 0 Automatically 
 # 1 WCDMA Only
@@ -187,7 +202,7 @@ function set_network_prefer(){
             code="10"
             ;;
     esac
-    res=$(at $at_port "AT^SLMODE=$(echo "$code" | awk '{print substr($0,1,1) "," substr($0,2,1)}')")
+    res=$(at $at_port $at_pre"SLMODE=$(echo "$code" | awk '{print substr($0,1,1) "," substr($0,2,1)}')")
     json_add_string "code" "$code"
     json_add_string "result" "$res"
 }
@@ -211,7 +226,7 @@ function sim_info()
     #IMEI（国际移动设备识别码）
     imei=$(at $at_port "ATI" | awk -F': ' '/^IMEI:/ {print $2}' | xargs)
     
-    at_command="at^switch_slot?"
+    at_command=$at_pre"switch_slot?"
     sim_slot=$(at $at_port $at_command | grep ENABLE|grep -o 'SIM[0-9]*')
 
     #SIM Status（SIM状态）
@@ -299,98 +314,105 @@ function network_info() {
         local rat_num=$(at ${at_port} ${at_command} | grep "+COPS:" | awk -F',' '{print $4}' | sed 's/\r//g')
         network_type=$(get_rat ${rat_num})
     }
-    #at_command='AT^debug?'
+    #at_command='AT+debug?'
     #response=$(at $at_port $at_command)
     #lte_sinr=$(echo "$response"|awk -F'lte_snr:' '{print $2}'|awk '{print $1}|xargs)
     add_plain_info_entry "Network Type" "$network_type" "Network Type"
 }
 
 function vendor_get_disabled_features(){
-    json_add_string "" "IMEI"
     json_add_string "" "NeighborCell"
 }
 
 get_lockband_nr()
 {
-    #local at_port="$1"
     m_debug  "Quectel sdx55 get lockband info"
-    wcdma_avalible_band="1,2,3,4,5,6,7,8,9,19"
-    lte_avalible_band="1,2,3,4,5,7,8,12,13,14,17,18,19,20,25,26,28,29,30,32,34,38,39,40,41,42,66,71"
-    sa_nr_avalible_band="1,2,3,5,7,8,12,20,25,28,38,40,41,48,66,71,77,78,79"
-    bands_command="AT^BAND_PREF?"
+    bands_command=$at_pre"BAND_PREF?"
     get_lockbans=$(at $at_port $bands_command)
-    gw_band=$(echo "$get_lockbans" | grep "WCDMA,Enable Bands" | cut -d':' -f2 | tr -d ' '|tr ',' ' '|xargs)
-    lte_band=$(echo "$get_lockbans" | grep "LTE,Enable Bands" | cut -d':' -f2 | tr -d ' '|tr ',' ' ')
-    sa_nr_band=$(echo "$get_lockbans" | grep "NR5G,Enable Bands" | cut -d':' -f2 | tr -d ' '|tr ',' ' ')
+
+    # WCDMA
+    wcdma_enable=$(echo "$get_lockbans" | grep "WCDMA,Enable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
+    wcdma_disable=$(echo "$get_lockbans" | grep "WCDMA,Disable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
+    wcdma_enable=$(echo "$wcdma_enable" | tr ' ' '\n' | grep -v '^$')
+    wcdma_disable=$(echo "$wcdma_disable" | tr ' ' '\n' | grep -v '^$')
+    wcdma_all=$(echo "$wcdma_enable $wcdma_disable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
+
+    # LTE
+    lte_enable=$(echo "$get_lockbans" | grep "LTE,Enable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
+    lte_disable=$(echo "$get_lockbans" | grep "LTE,Disable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
+    lte_enable=$(echo "$lte_enable" | tr ' ' '\n' | grep -v '^$')
+    lte_disable=$(echo "$lte_disable" | tr ' ' '\n' | grep -v '^$')
+    lte_all=$(echo "$lte_enable $lte_disable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
+
+    # NR5G_NSA
+    nr_nsa_enable=$(echo "$get_lockbans" | grep "NR5G_NSA,Enable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
+    nr_nsa_disable=$(echo "$get_lockbans" | grep "NR5G_NSA,Disable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
+    nr_nsa_enable=$(echo "$nr_nsa_enable" | tr ' ' '\n' | grep -v '^$')
+    nr_nsa_disable=$(echo "$nr_nsa_disable" | tr ' ' '\n' | grep -v '^$')
+    nr_nsa_all=$(echo "$nr_nsa_enable $nr_nsa_disable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
+
+    # NR5G_SA
+    nr_sa_enable=$(echo "$get_lockbans" | grep "NR5G_SA,Enable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
+    nr_sa_disable=$(echo "$get_lockbans" | grep "NR5G_SA,Disable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
+    nr_sa_enable=$(echo "$nr_sa_enable" | tr ' ' '\n' | grep -v '^$')
+    nr_sa_disable=$(echo "$nr_sa_disable" | tr ' ' '\n' | grep -v '^$')
+    nr_sa_all=$(echo "$nr_sa_enable $nr_sa_disable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
+
+    # UMTS
     json_add_object "UMTS"
     json_add_array "available_band"
+    for i in $wcdma_all; do
+        echo "$i" | grep -Eq '^[0-9]+$' && add_avalible_band_entry "$i" "UMTS_$i"
+    done
     json_close_array
     json_add_array "lock_band"
-    json_close_object
-    json_close_object
-    json_add_object "LTE"
-    json_add_array "available_band"
-    json_close_array
-    json_add_array "lock_band"
-    json_close_array
-    json_close_object
-    json_add_object "NR"
-    json_add_array "available_band"
-    json_close_array
-    json_add_array "lock_band"
+    for i in $wcdma_enable; do
+        echo "$i" | grep -Eq '^[0-9]+$' && json_add_string "" "$i"
+    done
     json_close_array
     json_close_object
 
-    for i in $(echo "$wcdma_avalible_band" | awk -F"," '{for(j=1; j<=NF; j++) print $j}'); do
-        json_select "UMTS"
-        json_select "available_band"
-        add_avalible_band_entry  "$i" "UMTS_$i"
-        json_select ..
-        json_select ..
-    done
-    for i in $(echo "$lte_avalible_band" | awk -F"," '{for(j=1; j<=NF; j++) print $j}'); do
-        json_select "LTE"
-        json_select "available_band"
-        add_avalible_band_entry  "$i" "LTE_B$i"
-        json_select ..
-        json_select ..
-    done
-    for i in $(echo "$sa_nr_avalible_band" | awk -F"," '{for(j=1; j<=NF; j++) print $j}'); do
-        json_select "NR"
-        json_select "available_band"
-        add_avalible_band_entry  "$i" "NR_N$i"
-        json_select ..
-        json_select ..
-    done
-    #+QNWPREFCFG: "nr5g_band",1:3:7:20:28:40:41:71:77:78:79
-    for i in $(echo "$gw_band"); do
-        if [ -n "$i" ]; then
-            json_select "UMTS"
-            json_select "lock_band"
-            json_add_string "" "$i"
-            json_select ..
-            json_select ..
-        fi
-    done
-    for i in $(echo "$lte_band" | cut -d, -f2|tr -d '\r' | awk -F":" '{for(j=1; j<=NF; j++) print $j}'); do
-        if [ -n "$i" ]; then
-            json_select "LTE"
-            json_select "lock_band"
-            json_add_string "" "$i"
-            json_select ..
-            json_select ..
-        fi
-    done
-    for i in $(echo "$sa_nr_band" | cut -d, -f2|tr -d '\r' | awk -F":" '{for(j=1; j<=NF; j++) print $j}'); do
-        if [ -n "$i" ]; then
-            json_select "NR"
-            json_select "lock_band"
-            json_add_string "" "$i"
-            json_select ..
-            json_select ..
-        fi
+    # LTE
+    json_add_object "LTE"
+    json_add_array "available_band"
+    for i in $lte_all; do
+        echo "$i" | grep -Eq '^[0-9]+$' && add_avalible_band_entry "$i" "LTE_B$i"
     done
     json_close_array
+    json_add_array "lock_band"
+    for i in $lte_enable; do
+        echo "$i" | grep -Eq '^[0-9]+$' && json_add_string "" "$i"
+    done
+    json_close_array
+    json_close_object
+
+    # NR_NSA
+    json_add_object "NR_NSA"
+    json_add_array "available_band"
+    for i in $nr_nsa_all; do
+        echo "$i" | grep -Eq '^[0-9]+$' && add_avalible_band_entry "$i" "NR_NSA_N$i"
+    done
+    json_close_array
+    json_add_array "lock_band"
+    for i in $nr_nsa_enable; do
+        echo "$i" | grep -Eq '^[0-9]+$' && json_add_string "" "$i"
+    done
+    json_close_array
+    json_close_object
+
+    # NR_SA
+    json_add_object "NR_SA"
+    json_add_array "available_band"
+    for i in $nr_sa_all; do
+        echo "$i" | grep -Eq '^[0-9]+$' && add_avalible_band_entry "$i" "NR_SA_N$i"
+    done
+    json_close_array
+    json_add_array "lock_band"
+    for i in $nr_sa_enable; do
+        echo "$i" | grep -Eq '^[0-9]+$' && json_add_string "" "$i"
+    done
+    json_close_array
+    json_close_object
 }
 
 set_lockband_nr(){
@@ -398,15 +420,15 @@ set_lockband_nr(){
     case "$band_class" in
         "UMTS") 
 	    lock_band=$(echo $lock_band)
-            at_command="AT^BAND_PREF=WCDMA,2,$lock_band"
+            at_command=$at_pre"BAND_PREF=WCDMA,2,$lock_band"
             res=$(at $at_port $at_command)
             ;;
         "LTE") 
-            at_command="AT^BAND_PREF=LTE,2,$lock_band"
+            at_command=$at_pre"BAND_PREF=LTE,2,$lock_band"
             res=$(at $at_port $at_command)
             ;;
         "NR")
-            at_command="AT^BAND_PREF=NR5G,2,$lock_band"
+            at_command=$at_pre"BAND_PREF=NR5G,2,$lock_band"
             res=$(at $at_port $at_command)
             ;;
     esac
@@ -440,7 +462,7 @@ function _get_voltage(){
 }
 
 function _get_temperature(){
-    temperature=$(at $at_port "at^temp?" | sed -n 's/.*TSENS: \([0-9]*\)C.*/\1/p' )
+    temperature=$(at $at_port $at_pre"temp?" | sed -n 's/.*TSENS: \([0-9]*\)C.*/\1/p' )
     [ -n "$temperature" ] && {
         add_plain_info_entry "temperature" "$temperature C" "Temperature" 
     }
@@ -506,11 +528,10 @@ function _band_list_to_mask()
 
 cell_info(){
     class="Cell Information"
-    at_command='AT^debug?'
+    at_command=$at_pre"debug?"
     response=$(at $at_port $at_command)
     network_mode=$(echo "$response"|awk -F'RAT:' '{print $2}'|xargs)
     #add_plain_info_entry "network_mode" "$network_mode" "Network Mode"
-
 
     case $network_mode in
     "LTE")
@@ -549,21 +570,36 @@ cell_info(){
         #add_plain_info_entry "Srxlev" "$lte_srxlev" "Serving Cell Receive Level"
         ;;
     "NR5G_SA")
+        has_ca=$(echo "$response" | grep -c "nr_scc1:")
+        nr_display_mode="$network_mode"
+        
         nr_mcc=$(echo "$response"|awk -F'mcc:' '{print $2}'|awk -F',' '{print $1}'|xargs)
         nr_mnc=$(echo "$response"|awk -F'mnc:' '{print $2}'|xargs)
         nr_earfcn=$(echo "$response"|awk -F'channel:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
         nr_physical_cell_id=$(echo "$response"|awk -F'pci:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
         nr_cell_id=$(echo "$response"|awk -F'nr_cell_id:' '{print $2}'|xargs)
         nr_band=$(echo "$response"|awk -F'nr_band:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
+        nr_band_width=$(echo "$response"|awk -F'nr_band_width:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
         nr_freq_band_ind=$(echo "$response"|awk -F'lte_band_width:' '{print $2}'|xargs)
         nr_sinr=$(echo "$response"|awk -F'nr_snr:' '{print $2}'|awk '{print $1}'|xargs)
         nr_rsrq=$(echo "$response"|awk -F'rsrq:' '{print $2}'|xargs)
-	nr_rsrp=$(echo "$response"|awk -F'rsrp:' '{print $2}'|awk '{print $1}'|xargs)
-        lte_rssi=$(echo "$response"|awk -F'nr_rssi:' '{print $2}'|awk -F',' '{print $1}'|xargs)
-        #lte_rssnr=$(echo "$response"|
+        nr_rsrp=$(echo "$response"|awk -F'rsrp:' '{print $2}'|awk '{print $1}'|xargs)
+        nr_rssi=$(echo "$response"|awk -F'nr_rssi:' '{print $2}'|awk -F',' '{print $1}'|xargs)
         nr_tac=$(echo "$response"|awk -F'nr_tac:' '{print $2}'|xargs)
-        #nr_tx_power=$(echo "$response"|awk -F'lte_tx_pwr:' '{print $2}'|xargs)
 
+        if [ "$has_ca" -gt 0 ]; then
+            nr_display_mode="NR5G_SA-CA"
+
+            scc1_band=$(echo "$response" | awk -F'nr_scc1:' '{print $2}' | awk -F'nr_band:' '{print $2}' | awk -F' ' '{print $1}' | xargs)
+            scc1_band_width=$(echo "$response" | awk -F'nr_scc1:' '{print $2}' | awk -F'nr_band_width:' '{print $2}' | awk -F' ' '{print $1}' | xargs)
+
+            nr_band="$nr_band $scc1_band"
+            nr_band_width="$nr_band_width $scc1_band_width"
+        fi
+
+        add_plain_info_entry "Network Mode" "$nr_display_mode" "Network Mode"
+        add_plain_info_entry "Band" "$nr_band" "Band"
+        add_plain_info_entry "DL Bandwidth" "$nr_band_width" "DL Bandwidth"
         add_plain_info_entry "MCC" "$nr_mcc" "Mobile Country Code"
         add_plain_info_entry "MNC" "$nr_mnc" "Mobile Network Code"
         #add_plain_info_entry "Duplex Mode" "$lte_duplex_mode" "Duplex Mode"
@@ -571,22 +607,12 @@ cell_info(){
         add_plain_info_entry "Physical Cell ID" "$nr_physical_cell_id" "Physical Cell ID"
         add_plain_info_entry "EARFCN" "$nr_earfcn" "E-UTRA Absolute Radio Frequency Channel Number"
         add_plain_info_entry "Freq band indicator" "$nr_freq_band_ind" "Freq band indicator"
-        add_plain_info_entry "Band" "$nr_band" "Band"
-        #add_plain_info_entry "UL Bandwidth" "$nr_ul_bandwidth" "UL Bandwidth"
-        #add_plain_info_entry "DL Bandwidth" "$nr_dl_bandwidth" "DL Bandwidth"
         add_plain_info_entry "TAC" "$nr_tac" "Tracking area code of cell served by neighbor Enb"
-        add_bar_info_entry "RSRQ" "$nr_rsrq" "Reference Signal Received Quality" -20 40 dBm
-	add_bar_info_entry "RSRP" "$nr_rsrp" "Reference Signal Received Power" -187 -29 dBm
-        #add_bar_info_entry "RSSI" "$nr_rssi" "Received Signal Strength Indicator" -140 -44 dBm
+        add_bar_info_entry "RSRQ" "$nr_rsrq" "Reference Signal Received Quality" -43 20 dBm
+        add_bar_info_entry "RSRP" "$nr_rsrp" "Reference Signal Received Power" -187 -29 dBm
         add_bar_info_entry "SINR" "$nr_sinr" "Signal to Interference plus Noise Ratio Bandwidth" -23 40 dB
-        #add_plain_info_entry "RxLev" "$nr_rxlev" "Received Signal Level"
         add_plain_info_entry "RSSNR" "$nr_rssnr" "Radio Signal Strength Noise Ratio"
-        #add_plain_info_entry "CQI" "$nr_cql" "Channel Quality Indicator"
         add_plain_info_entry "TX Power" "$nr_tx_power" "TX Power"
-        #add_plain_info_entry "Srxlev" "$nr_srxlev" "Serving Cell Receive Level"
         ;;
     esac
 }
-
-
-

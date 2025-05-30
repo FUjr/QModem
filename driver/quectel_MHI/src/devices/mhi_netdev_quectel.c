@@ -208,7 +208,7 @@ static void qmap_hex_dump(const char *tag, unsigned char *data, unsigned len) {
 
 #define MBIM_MUX_ID_SDX7X	112	//sdx7x is 112-126, others is 0-14
 
-static uint __read_mostly mhi_mbim_enabled = 0;
+static uint __read_mostly mhi_mbim_enabled = 1;
 module_param(mhi_mbim_enabled, uint, S_IRUGO);
 int mhi_netdev_mbin_enabled(void) { return mhi_mbim_enabled; }
 
@@ -712,13 +712,20 @@ static struct sk_buff * add_mbim_hdr(struct sk_buff *skb, u8 mux_id) {
 static struct sk_buff * add_qhdr(struct sk_buff *skb, u8 mux_id) {
 	struct qmap_hdr *qhdr;
 	int pad = 0;
+	struct sk_buff *new_skb = NULL;
 
 	pad = skb->len%4;
 	if (pad) {
 		pad = 4 - pad;
 		if (skb_tailroom(skb) < pad) {
-			printk("skb_tailroom small!\n");
-			pad = 0;
+			new_skb = skb_copy_expand(skb, skb_headroom(skb) + sizeof(struct qmap_hdr),
+						  pad, GFP_ATOMIC);
+			if (!new_skb) {
+				printk("Failed to expand skb for padding\n");
+				return NULL;
+			}
+			dev_kfree_skb_any(skb);
+			skb = new_skb;
 		}
 		if (pad)
 			__skb_put(skb, pad);
@@ -736,14 +743,23 @@ static struct sk_buff * add_qhdr_v5(struct sk_buff *skb, u8 mux_id) {
 	struct rmnet_map_header *map_header;
 	struct rmnet_map_v5_csum_header *ul_header;
 	u32 padding, map_datalen;
+	struct sk_buff *new_skb = NULL;
 
 	map_datalen = skb->len;
 	padding = map_datalen%4;
 	if (padding) {
 		padding = 4 - padding;
 		if (skb_tailroom(skb) < padding) {
-			printk("skb_tailroom small!\n");
-			padding = 0;
+			new_skb = skb_copy_expand(skb, skb_headroom(skb) + 
+						 sizeof(struct rmnet_map_header) + 
+						 sizeof(struct rmnet_map_v5_csum_header),
+						 padding, GFP_ATOMIC);
+			if (!new_skb) {
+				printk("Failed to expand skb for padding\n");
+				return NULL;
+			}
+			dev_kfree_skb_any(skb);
+			skb = new_skb;
 		}
 		if (padding)
 			__skb_put(skb, padding);
@@ -1708,7 +1724,7 @@ static struct net_device * rmnet_vnd_register_device(struct mhi_netdev *pQmapDev
 
 out_free_newdev:
 	free_netdev(qmap_net);
-	return qmap_net;
+	return NULL;
 }
 
 static void  rmnet_vnd_unregister_device(struct net_device *qmap_net) {
@@ -3286,6 +3302,7 @@ static int mhi_netdev_probe(struct mhi_device *mhi_dev,
 		|| (mhi_dev->vendor == 0x17cb && mhi_dev->dev_id == 0x011a)
 		|| (mhi_dev->vendor == 0x1eac && mhi_dev->dev_id == 0x100b)
 		|| (mhi_dev->vendor == 0x17cb && mhi_dev->dev_id == 0x0309)
+		|| (mhi_dev->vendor == 0x105b && mhi_dev->dev_id == 0xe0f5)
 	) {
 		mhi_netdev->qmap_version = 9;
 	}

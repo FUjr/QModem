@@ -124,7 +124,7 @@ update_config()
     update_sim_slot
     case $sim_slot in
         1)
-        config_get apn $modem_config apn
+        config_get apn $modem_config apn "auto"
         config_get username $modem_config username
         config_get password $modem_config password
         config_get auth $modem_config auth
@@ -136,7 +136,7 @@ update_config()
         config_get password $modem_config password2
         config_get auth $modem_config auth2
         config_get pincode $modem_config pincode2
-        [ -z "$apn" ] && config_get apn $modem_config apn
+        [ -z "$apn" ] && config_get apn $modem_config apn "auto"
         [ -z "$username" ] && config_get username $modem_config username
         [ -z "$password" ] && config_get password $modem_config password
         [ -z "$auth" ] && config_get auth $modem_config auth
@@ -161,6 +161,15 @@ check_dial_prepare()
 {
     cpin=$(at "$at_port" "AT+CPIN?")
     get_sim_status "$cpin"
+    [ "$manufacturer" = "neoway" ] && {
+        local res
+        res=$(at $at_port 'AT$MYCCID' | grep -q "ERROR")
+        if [ $? -ne 0 ]; then
+            sim_state_code="1"
+        else
+            sim_state_code="0"
+        fi
+    }
     case $sim_state_code in
         "0")
             m_debug "info sim card is miss"
@@ -254,6 +263,16 @@ check_ip()
                         ;;
                 esac
                 ;;
+            "neoway")
+                case $platform in
+                    "unisoc")
+                        check_ip_command='AT$MYUSBNETACT?'
+                        ;;
+                esac
+                ;;
+            *)
+                check_ip_command="AT+CGPADDR=1"
+                ;;
         esac
 
         if [ "$driver" = "mtk_pcie" ]; then
@@ -261,6 +280,9 @@ check_ip()
             local config=$(umbim -d $mbim_port config)
             ipaddr=$(echo "$config" | grep "ipv4address:" | awk '{print $2}' | cut -d'/' -f1)
             ipaddr="$ipaddr $(echo "$config" | grep "ipv6address:" | awk '{print $2}' | cut -d'/' -f1)"
+        elif [ "$manufacturer" = "neoway" ]; then
+            # $MYURCACT: 0,1,"10.92.220.73"
+            ipaddr=$(at "$at_port" "$check_ip_command" | grep '$MYUSBNETACT:')
         else
             ipaddr=$(at "$at_port" "$check_ip_command" | grep +CGPADDR:)
         fi
@@ -617,22 +639,33 @@ wwan_hang()
 
 ecm_hang()
 {
-    if [ "$manufacturer" = "quectel" ]; then
-        at_command="AT+QNETDEVCTL=1,2,1"
-    elif [ "$manufacturer" = "fibocom" ]; then
-        #联发科平台（广和通FM350-GL）
-        if [ "$platform" = "mediatek" ]; then
-            at_command="AT+CGACT=0,3"
-        else
-            at_command="AT+GTRNDIS=0,1"
-        fi
-    elif [ "$manufacturer" = "meig" ]; then
-        at_command="AT$QCRMCALL=0,1,1,2,1"
-    elif [ "$manufacturer" = "huawei" ]; then
-        at_command="AT^NDISDUP=0,0"
-    else
-        at_command='ATI'
-    fi
+    case "$manufacturer" in
+        "quectel")
+            at_command="AT+QNETDEVCTL=1,2,1"
+            ;;
+        "fibocom")
+            case "$platform" in
+                "mediatek")
+                    at_command="AT+CGACT=0,3"
+                    ;;
+                *)
+                    at_command="AT+GTRNDIS=0,1"
+                    ;;
+            esac
+            ;;
+        "meig")
+            at_command='AT$QCRMCALL=0,0,1,2,1'
+            ;;
+        "huawei")
+            at_command="AT^NDISDUP=0,0"
+            ;;
+        "neoway")
+            at_command='AT$MYUSBNETACT=0,0'
+            ;;
+        *)
+            at_command="ATI"
+            ;;
+    esac
 
     fastat "${at_port}" "${at_command}"
 }
@@ -815,7 +848,15 @@ at_dial()
         "meig")
             case $platform in
                 "qualcomm")
-                    at_command=""
+                    at_command='AT$QCRMCALL=1,0,1,2,1'
+                    cgdcont_command="AT+CGDCONT=1,\"$pdp_type\",\"$apn\""
+                    ;;
+            esac
+            ;;
+        "neoway")
+            case $platform in
+                "unisoc")
+                    at_command='AT$MYUSBNETACT=0,1'
                     cgdcont_command="AT+CGDCONT=1,\"$pdp_type\",\"$apn\""
                     ;;
                 "unisoc")

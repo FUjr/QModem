@@ -4,7 +4,9 @@ return {
         simcom = "Simcom",
         sierra = "Sierra Wireless",
         fibocom = "Fibocom",
-        meig = "Meig"
+        meig = "Meig",
+        huawei = "Huawei",
+        neoway = "Neoway"
     },
     platforms = {
         lte = "LTE",

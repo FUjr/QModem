@@ -625,6 +625,9 @@ msgstr "广和通"
 msgid "Meig"
 msgstr "美格"
 
+msgid "Neoway"
+msgstr "有方"
+
 msgid "Platform"
 msgstr "平台"
 

@@ -11,7 +11,6 @@ at()
 	tom_modem -d $at_port -o a -c "$atcmd"
 }
 
-
 fastat()
 {
     local at_port=$1
@@ -136,6 +135,23 @@ at_get_slot()
 					sim_slot="1"
 					;;
 				"0")
+					sim_slot="2"
+					;;
+				*)
+					sim_slot="1"
+					;;
+			*)
+				sim_slot="1"
+				;;
+			esac
+			;;
+		"neoway")
+			at_res=$(at $at_port 'AT+SIMCROSS?' | grep "+SIMCROSS:" | awk -F'[ ,]' '{print $2}' | sed 's/\r//g')
+			case $at_res in
+				"1")
+					sim_slot="1"
+					;;
+				"2")
 					sim_slot="2"
 					;;
 				*)

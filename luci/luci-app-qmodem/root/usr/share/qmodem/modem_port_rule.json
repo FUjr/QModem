@@ -40,6 +40,14 @@
             "2c7c:8101": {
                 "name": "rg801",
                 "option_driver": 1
+            },
+            "3763:3c93": {
+                "name": "nari-m601",
+                "mode": "ecm",
+                "option_driver": 1,
+                "include": [
+                    "1.1"
+                ]
             }
         }
     }

@@ -347,6 +347,8 @@ match_config()
 
     [[ "$name" = *"T99W373"* ]] && name="t99w373"
 
+    [[ "$name" = *"dp25-42843-47"* ]] && name="t99w640"
+
     [[ "$name" = *"SIM8380G"* ]] && name="SIM8380G-M2"
 
     #rg200u-cn
@@ -354,6 +356,9 @@ match_config()
     
     #nu313-m2
     [[ "$name" = *"nu313-m2"* ]] && name="srm821"
+
+    #nari-m601
+    [[ "$name" = *"m601"* ]] && name="n510m"
 
     modem_config=$(echo $modem_support | jq '.modem_support."'$slot_type'"."'$name'"')
     [ "$modem_config" == "null"  ] && return

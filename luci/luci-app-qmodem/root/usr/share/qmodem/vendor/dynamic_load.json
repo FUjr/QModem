@@ -6,5 +6,6 @@
     "sierra" : "sierra.sh",
     "simcom" : "simcom.sh",
     "huawei" : "huawei.sh",
-    "foxconn" : "foxconn.sh"
+    "foxconn" : "foxconn.sh",
+    "neoway" : "neoway.sh"
 }

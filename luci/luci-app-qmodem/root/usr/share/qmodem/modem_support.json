@@ -853,6 +853,16 @@
                     "mbim",
                     "rmnet"
                 ]
+            },
+            "n510m": {
+                "manufacturer_id": "3763",
+                "manufacturer": "neoway",
+                "platform": "unisoc",
+                "data_interface": "usb",
+                "define_connect": "1",
+                "modes": [
+                    "ecm"
+                ]
             }
         },
         "pcie": {
@@ -877,6 +887,15 @@
                 ]
             },
             "t99w373": {
+                "manufacturer": "foxconn",
+                "platform": "qualcomm",
+                "data_interface": "pcie",
+                "define_connect": "1",
+                "modes": [
+                    "mbim"
+                ]
+            },
+            "t99w640": {
                 "manufacturer": "foxconn",
                 "platform": "qualcomm",
                 "data_interface": "pcie",
@@ -1335,6 +1354,16 @@
                         "90d5",
                         "9025",
                         "e0ab"
+                    ]
+                }
+            },
+            "neoway": {
+                "unisoc": {
+                    "vendor_id": [
+                        "3763"
+                    ],
+                    "product_id": [
+                        "3c93"
                     ]
                 }
             }
