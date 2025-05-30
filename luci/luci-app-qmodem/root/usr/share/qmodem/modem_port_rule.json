@@ -41,6 +41,30 @@
                 "name": "rg801",
                 "option_driver": 1
             },
+            "1782:4039": {
+                "name": "nu313-m2",
+                "mode": "ecm",
+                "option_driver": 1,
+                "include": [
+                    "1.2.3"
+                ]
+            },
+            "1782:4038": {
+                "name": "nu313-m2",
+                "mode": "rndis",
+                "option_driver": 1,
+                "include": [
+                    "1.2.3"
+                ]
+            },
+            "1782:4040": {
+                "name": "nu313-m2",
+                "mode": "ncm",
+                "option_driver": 1,
+                "include": [
+                    "1.2.3"
+                ]
+            },
             "3763:3c93": {
                 "name": "nari-m601",
                 "mode": "ecm",
