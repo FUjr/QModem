@@ -163,7 +163,7 @@ check_dial_prepare()
     get_sim_status "$cpin"
     [ "$manufacturer" = "neoway" ] && {
         local res
-        res=$(at $at_port 'AT$MYCCID' | grep -q "ERROR")
+        res=$(at $at_port 'AT+SIMCROSS=1,1;$MYCCID' | grep -q "ERROR")
         if [ $? -ne 0 ]; then
             sim_state_code="1"
         else

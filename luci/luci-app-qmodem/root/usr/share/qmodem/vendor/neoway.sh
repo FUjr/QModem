@@ -154,7 +154,7 @@ sim_info()
     #SIM Slot（SIM卡卡槽）
     at_command="AT+SIMCROSS?"
     sim_slot=$(at $at_port $at_command | grep "+SIMCROSS:" | awk -F'[ ,]' '{print $2}' | sed 's/\r//g')
-    m_debug "SIM Slot: $sim_slot"
+    # m_debug "SIM Slot: $sim_slot"
     #IMEI（国际移动设备识别码）
     at_command="AT+CGSN"
 	imei=$(at $at_port $at_command | sed -n '3p' | awk -F'"' '{print $2}')

@@ -39,6 +39,7 @@ function set_imei(){
     # 两位分组加逗号，并转小写
     formatted=$(echo "$swapped" | sed 's/../&,/g' | sed 's/,$//' | tr 'A-Z' 'a-z')
 
+    at $at_port $at_pre'nv=550,"0"'
     at_command=$at_pre'nv=550,9,"'$formatted'"'
     res=$(at $at_port "$at_command")
     json_select "result"
