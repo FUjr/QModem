@@ -46,7 +46,7 @@
                 "mode": "ecm",
                 "option_driver": 1,
                 "include": [
-                    "1.3"
+                    "1.2"
                 ]
             },
             "1782:4038": {
@@ -54,7 +54,7 @@
                 "mode": "rndis",
                 "option_driver": 1,
                 "include": [
-                    "1.3"
+                    "1.2"
                 ]
             },
             "1782:4040": {
@@ -62,7 +62,7 @@
                 "mode": "ncm",
                 "option_driver": 1,
                 "include": [
-                    "1.3"
+                    "1.2"
                 ]
             },
             "3763:3c93": {
