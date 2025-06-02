@@ -88,9 +88,24 @@ get_at_cfg(){
     json_close_array
     json_add_string using_port $(uci get qmodem.$config_section.at_port)
     json_add_array cmds
-    general_cmd=$(jq -rc '.general[]|to_entries| .[] | @sh "key=\(.key) value=\(.value)"' /usr/share/qmodem/at_commands.json)
-    platform_cmd=$(jq -rc ".${vendor}.${platform}[]|to_entries| .[] | @sh \"key=\(.key) value=\(.value)\"" /usr/share/qmodem/at_commands.json)
-    [ -z "$platform_cmd" ] && platform_cmd=$(jq -rc ".$vendor.general[]|to_entries| .[] | @sh \"key=\(.key) value=\(.value)\"" /usr/share/qmodem/at_commands.json)
+    
+    # Determine language and select appropriate AT commands file
+    lang=$(uci get luci.main.lang 2>/dev/null || echo "en")
+    case "$lang" in
+        zh*|cn)
+            at_commands_file="/usr/share/qmodem/at_commands_zh.json"
+            ;;
+        *)
+            at_commands_file="/usr/share/qmodem/at_commands_en.json"
+            ;;
+    esac
+    
+    # Fallback to default file if language-specific file doesn't exist
+    [ ! -f "$at_commands_file" ] && at_commands_file="/usr/share/qmodem/at_commands.json"
+    
+    general_cmd=$(jq -rc '.general[]|to_entries| .[] | @sh "key=\(.key) value=\(.value)"' "$at_commands_file")
+    platform_cmd=$(jq -rc ".${vendor}.${platform}[]|to_entries| .[] | @sh \"key=\(.key) value=\(.value)\"" "$at_commands_file")
+    [ -z "$platform_cmd" ] && platform_cmd=$(jq -rc ".$vendor.general[]|to_entries| .[] | @sh \"key=\(.key) value=\(.value)\"" "$at_commands_file")
     cmds=$(echo -e "$general_cmd\n$platform_cmd")
     IFS=$'\n'
     for cmd in $cmds; do

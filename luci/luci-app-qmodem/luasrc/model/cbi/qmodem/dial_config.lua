@@ -97,11 +97,25 @@ apn = s:taboption("advanced", Value, "apn", translate("APN"))
 apn.default = ""
 apn.rmempty = true
 apn:value("", translate("Auto Choose"))
-apn:value("cmnet", translate("China Mobile"))
-apn:value("3gnet", translate("China Unicom"))
-apn:value("ctnet", translate("China Telecom"))
-apn:value("cbnet", translate("China Broadcast"))
-apn:value("5gscuiot", translate("Skytone"))
+apn:value("cmnet", translate("China Mobile (CN)"))
+apn:value("3gnet", translate("China Unicom (CN)"))
+apn:value("ctnet", translate("China Telecom (CN)"))
+apn:value("cbnet", translate("China Broadcast (CN)"))
+apn:value("5gscuiot", translate("Skytone (CN)"))
+
+-- Switzerland (CH)
+apn:value("gprs.swisscom.ch", translate("Swisscom (CH)"))
+apn:value("internet", "Salt (CH), Sunrise (CH), O2 (DE), 1&1 (DE)")
+
+-- Germany (DE)
+apn:value("web.vodafone.de", translate("Vodafone (DE)"))
+apn:value("internet.telekom", translate("Telekom (DE)"))
+apn:value("internet.eplus.de", translate("E-Plus (DE)"))
+
+-- Austria (AT)
+apn:value("A1.net", translate("A1 (AT)"))
+apn:value("drei.at", translate("Drei (AT)"))
+apn:value("internet.t-mobile.at", translate("Magenta (AT)"))
 
 auth = s:taboption("advanced", ListValue, "auth", translate("Authentication Type"))
 auth.default = "none"
@@ -129,39 +143,30 @@ pincode.description = translate("If the PIN code is not set, leave it blank.")
 
 --卡2
 apn = s:taboption("advanced", Value, "apn2", translate("APN").." 2")
-apn.description = translate("If solt 2 config is not set,will use slot 1 config.")
+apn.description = translate("If slot 2 config is not set,will use slot 1 config.")
 apn.default = ""
 apn.rmempty = true
 apn:value("", translate("Auto Choose"))
-apn:value("cmnet", translate("China Mobile"))
-apn:value("3gnet", translate("China Unicom"))
-apn:value("ctnet", translate("China Telecom"))
-apn:value("cbnet", translate("China Broadcast"))
-apn:value("5gscuiot", translate("Skytone"))
+apn:value("cmnet", translate("China Mobile (CN)"))
+apn:value("3gnet", translate("China Unicom (CN)"))
+apn:value("ctnet", translate("China Telecom (CN)"))
+apn:value("cbnet", translate("China Broadcast (CN)"))
+apn:value("5gscuiot", translate("Skytone (CN)"))
 
-auth = s:taboption("advanced", ListValue, "auth2", translate("Authentication Type").. " 2")
-auth.default = "none"
-auth.rmempty = false
-auth:value("none", translate("NONE"))
-auth:value("both", translate("PAP/CHAP (both)"))
-auth:value("pap", "PAP")
-auth:value("chap", "CHAP")
+-- Switzerland (CH)
+apn:value("gprs.swisscom.ch", translate("Swisscom (CH)"))
+apn:value("internet", "Salt (CH), Sunrise (CH), O2 (DE), 1&1 (DE)")
 
-username = s:taboption("advanced", Value, "username2", translate("PAP/CHAP Username").. " 2")
-username.rmempty = true
-username:depends("auth2", "both")
-username:depends("auth2", "pap")
-username:depends("auth2", "chap")
+-- Germany (DE)
+apn:value("web.vodafone.de", translate("Vodafone (DE)"))
+apn:value("internet.telekom", translate("Telekom (DE)"))
+apn:value("internet.eplus.de", translate("E-Plus (DE)"))
 
-password = s:taboption("advanced", Value, "password2", translate("PAP/CHAP Password").. " 2")
-password.rmempty = true
-password.password = true
-password:depends("auth2", "both")
-password:depends("auth2", "pap")
-password:depends("auth2", "chap")
+-- Austria (AT)
+apn:value("A1.net", translate("A1 (AT)"))
+apn:value("drei.at", translate("Drei (AT)"))
+apn:value("internet.t-mobile.at", translate("Magenta (AT)"))
 
-pincode = s:taboption("advanced", Value, "pincode2", translate("PIN Code").. " 2")
-pincode.description = translate("If the PIN code is not set, leave it blank.")
 
 metric = s:taboption("advanced", Value, "metric", translate("Metric"))
 metric.description = translate("The metric value is used to determine the priority of the route. The smaller the value, the higher the priority. Cannot duplicate.")

@@ -57,19 +57,56 @@ msgstr ""
 msgid "Auto Choose"
 msgstr ""
 
-msgid "China Mobile"
+msgid "China Mobile (CN)"
 msgstr ""
 
-msgid "China Unicom"
+msgid "China Unicom (CN)"
 msgstr ""
 
-msgid "China Telecom"
+msgid "China Telecom (CN)"
 msgstr ""
 
-msgid "China Broadcast"
+msgid "China Broadcast (CN)"
 msgstr ""
 
-msgid "Skytone"
+msgid "Skytone (CN)"
+msgstr ""
+
+msgid "Sunrise (CH)"
+msgstr ""
+
+msgid "Swisscom (CH)"
+msgstr ""
+
+msgid "Salt (CH)"
+msgstr "Salt (CH)"
+
+
+msgid "Vodafone (DE)"
+msgstr ""
+
+msgid "Telekom (DE)"
+msgstr ""
+
+msgid "O2 (DE)"
+msgstr ""
+
+msgid "E-Plus (DE)"
+msgstr ""
+
+msgid "1&1 (DE)"
+msgstr ""
+
+msgid "A1 (AT)"
+msgstr ""
+
+msgid "Drei (AT)"
+msgstr ""
+
+msgid "Magenta (AT)"
+msgstr ""
+
+msgid "T-Mobile (AT)"
 msgstr ""
 
 msgid "Authentication Type"

@@ -54,20 +54,54 @@ msgstr "Тип PDP"
 msgid "Auto Choose"
 msgstr "Авто выбор"
 
-msgid "China Mobile"
-msgstr "Китайский мобильный"
+msgid "China Mobile (CN)"
+msgstr "Китайский мобильный (CN)"
 
-msgid "China Unicom"
-msgstr "Китайский Юником"
+msgid "China Unicom (CN)"
+msgstr "Китайский Юником (CN)"
 
-msgid "China Telecom"
-msgstr "Китайский Телеком"
+msgid "China Telecom (CN)"
+msgstr "Китайский Телеком (CN)"
 
-msgid "China Broadcast"
-msgstr "Китайское вещание"
+msgid "China Broadcast (CN)"
+msgstr "Китайское вещание (CN)"
 
-msgid "Skytone"
-msgstr "Скайтон"
+msgid "Skytone (CN)"
+msgstr "Скайтон (CN)"
+
+msgid "Swisscom (CH)"
+msgstr "Swisscom (CH)"
+
+msgid "Sunrise (CH)"
+msgstr "Sunrise (CH)"
+
+msgid "Salt (CH)"
+msgstr "Salt (CH)"
+
+msgid "Vodafone (DE)"
+msgstr "Vodafone (DE)"
+
+msgid "Telekom (DE)"
+msgstr "Telekom (DE)"
+
+
+msgid "O2 (DE)"
+msgstr "O2 (DE)"
+
+msgid "E-Plus (DE)"
+msgstr "E-Plus (DE)"
+
+msgid "1&1 (DE)"
+msgstr "1&1 (DE)"
+
+msgid "A1 (AT)"
+msgstr "A1 (AT)"
+
+msgid "Drei (AT)"
+msgstr "Drei (AT)"
+
+msgid "Magenta (AT)"
+msgstr "Magenta (AT)"
 
 msgid "Authentication Type"
 msgstr "Тип аутентификации"

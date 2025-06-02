@@ -73,20 +73,53 @@ msgstr "PDP类型"
 msgid "Auto Choose"
 msgstr "自动选择"
 
-msgid "China Mobile"
-msgstr "中国移动"
+msgid "China Mobile (CN)"
+msgstr "中国移动 (CN)"
 
-msgid "China Unicom"
-msgstr "中国联通"
+msgid "China Unicom (CN)"
+msgstr "中国联通 (CN)"
 
-msgid "China Telecom"
-msgstr "中国电信"
+msgid "China Telecom (CN)"
+msgstr "中国电信 (CN)"
 
-msgid "China Broadcast"
-msgstr "中国广电"
+msgid "China Broadcast (CN)"
+msgstr "中国广电 (CN)"
 
-msgid "Skytone"
-msgstr "天际通"
+msgid "Skytone (CN)"
+msgstr "天际通 (CN)"
+
+msgid "Sunrise (CH)"
+msgstr "Sunrise (CH)"
+
+msgid "Swisscom(CH)"
+msgstr "Swisscom (CH)"
+
+msgid "Salt (CH)"
+msgstr "Salt (CH)"
+
+msgid "Vodafone (DE)"
+msgstr "Vodafone (DE)"
+
+msgid "Telekom (DE)"
+msgstr "Telekom (DE)"
+
+msgid "O2 (DE)"
+msgstr "O2 (DE)"
+
+msgid "E-Plus (DE)"
+msgstr "E-Plus (DE)"
+
+msgid "1&1 (DE)"
+msgstr "1&1 (DE)"
+
+msgid "A1 (AT)"
+msgstr "A1 (AT)"
+
+msgid "Drei (AT)"
+msgstr "Drei (AT)"
+
+msgid "Magenta (AT)"
+msgstr "Magenta (AT)"
 
 msgid "Authentication Type"
 msgstr "认证类型"
