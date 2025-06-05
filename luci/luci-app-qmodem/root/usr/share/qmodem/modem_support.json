@@ -831,18 +831,6 @@
                     "ncm"
                 ]
             },
-            "nu313-m2": {
-                "manufacturer_id": "1782",
-                "manufacturer": "chinaunicom",
-                "platform": "unisoc",
-                "data_interface": "usb",
-                "define_connect": "1",
-                "modes": [
-                    "ecm",
-                    "rndis",
-                    "ncm"
-                ]
-            },
             "t99w373": {
                 "manufacturer_id": "05c6",
                 "manufacturer": "foxconn",
