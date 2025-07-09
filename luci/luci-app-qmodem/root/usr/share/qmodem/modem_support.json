@@ -914,6 +914,16 @@
                 "modes": [
                     "ecm"
                 ]
+             },
+            "n511": {
+                "manufacturer_id": "3763",
+                "manufacturer": "neoway",
+                "platform": "unisoc",
+                "data_interface": "usb",
+                "define_connect": "1",
+                "modes": [
+                    "ecm"
+                ]    
             }
         },
         "pcie": {
