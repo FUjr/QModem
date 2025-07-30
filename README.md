@@ -19,6 +19,26 @@ This project aims to provide a stable, extensible, and user-friendly solution fo
 
 For a complete list of features and capabilities, please see the [User Guide](docs/user-guide.md).
 
+## 🏠 Related Project: Home Assistant Integration
+
+Looking to monitor your OpenWrt router and QModem status from Home Assistant? Check out our companion project:
+
+### [OpenWrt Ubus Integration for Home Assistant](https://github.com/FUjr/homeassistant-openwrt-ubus)
+
+A custom Home Assistant integration that connects to OpenWrt routers via the ubus interface, providing:
+
+- **📱 Device Tracking**: Monitor wireless devices and DHCP clients in real-time
+- **📊 System Monitoring**: Track uptime, load averages, memory usage
+- **📡 QModem Support**: Monitor 4G/LTE modem status, signal strength, and connection details
+- **📶 Wireless Stations**: Track station associations and signal information
+- **🔧 Easy Setup**: Simple configuration through Home Assistant UI
+
+![QModem Integration](https://github.com/FUjr/homeassistant-openwrt-ubus/blob/main/imgs/qmodem_info.png)
+
+Perfect for integrating your QModem-powered OpenWrt router into your smart home ecosystem!
+
+[**View on GitHub →**](https://github.com/FUjr/homeassistant-openwrt-ubus)
+
 ## Getting Started
 
 ### Installation

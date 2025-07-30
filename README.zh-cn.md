@@ -18,6 +18,26 @@
 
 有关功能和能力的完整列表，请参阅[用户指南](docs/user-guide.zh-cn.md)。
 
+## 🏠 相关项目：Home Assistant 集成
+
+想要在 Home Assistant 中监控您的 OpenWrt 路由器和 QModem 状态吗？请查看我们的配套项目：
+
+### [OpenWrt Ubus Integration for Home Assistant](https://github.com/FUjr/homeassistant-openwrt-ubus)
+
+一个自定义的 Home Assistant 集成，通过 ubus 接口连接到 OpenWrt 路由器，提供：
+
+- **📱 设备跟踪**: 实时监控无线设备和 DHCP 客户端
+- **📊 系统监控**: 跟踪正常运行时间、负载平均值、内存使用情况
+- **📡 QModem 支持**: 监控 4G/LTE 调制解调器状态、信号强度和连接详情
+- **📶 无线站点**: 跟踪站点关联和信号信息
+- **🔧 简易设置**: 通过 Home Assistant UI 进行简单配置
+
+![QModem Integration](https://github.com/FUjr/homeassistant-openwrt-ubus/blob/main/imgs/qmodem_info.png)
+
+完美地将您的 QModem 驱动的 OpenWrt 路由器集成到智能家居生态系统中！
+
+[**在 GitHub 上查看 →**](https://github.com/FUjr/homeassistant-openwrt-ubus)
+
 ## 快速开始
 
 ### 安装
