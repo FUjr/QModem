@@ -17,8 +17,7 @@ on:
       - main
     paths-ignore:
       - "docs/**"
-      - "README.md"
-      - "README.en.md"
+      - "README*.md"
       - ".github/workflows/**"
       - ".github/**"
 
