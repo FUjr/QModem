@@ -846,13 +846,82 @@ set_lockband()
 set_lockband_nr()
 {
     m_debug "Fibocom set lockband info"
+    echo "DEBUG: config=[$config]" >> /tmp/fibocom_debug.log
+
     get_lockband_config_command="AT+GTACT?"
-    get_lockband_config_res=$(at $at_port $get_lockband_config_command)
-    network_prefer_config=$(echo $get_lockband_config_res |cut -d : -f 2| awk -F"," '{print $1}' |tr -d ' ')
+    get_lockband_config_res=$(at $at_port $get_lockband_config_command | grep "+GTACT:" | head -n1)
+    echo "DEBUG: get_lockband_config_res=[$get_lockband_config_res]" >> /tmp/fibocom_debug.log
+
+    band_params=$(echo "$get_lockband_config_res" | sed 's/+GTACT:[ ]*//' | tr -d '\r')
+    echo "DEBUG: band_params=[$band_params]" >> /tmp/fibocom_debug.log
+
+    prefix=$(echo "$band_params" | cut -d',' -f1-3)
+    echo "DEBUG: prefix=[$prefix]" >> /tmp/fibocom_debug.log
+
+    bands=$(echo "$band_params" | cut -d',' -f4- | tr -d '\r')
+    echo "DEBUG: bands=[$bands]" >> /tmp/fibocom_debug.log
+
+    band_class=$(echo "$config" | jq -r '.band_class')
     lock_band=$(echo "$config" | jq -r '.lock_band')
-    local lock_band="$network_prefer_config,,,$lock_band"
-    local set_lockband_command="AT+GTACT=$lock_band"
-    res=$(at $at_port $set_lockband_command)
+    echo "DEBUG: band_class=[$band_class]" >> /tmp/fibocom_debug.log
+    echo "DEBUG: lock_band=[$lock_band]" >> /tmp/fibocom_debug.log
+
+    lte_bands=""
+    nr_bands=""
+    for b in $(echo "$bands" | tr ',' ' '); do
+        [ -z "$b" ] && continue
+        case "$b" in
+            10*) lte_bands="$lte_bands,$b" ;;
+            50*) nr_bands="$nr_bands,$b" ;;
+        esac
+    done
+    lte_bands="${lte_bands#,}"
+    nr_bands="${nr_bands#,}"
+    echo "DEBUG: lte_bands(before replace)=[$lte_bands]" >> /tmp/fibocom_debug.log
+    echo "DEBUG: nr_bands(before replace)=[$nr_bands]" >> /tmp/fibocom_debug.log
+
+    # 替换对应 band_class
+    case "$band_class" in
+        "LTE")
+            lte_bands="$lock_band"
+            ;;
+        "NR")
+            nr_bands="$lock_band"
+            ;;
+    esac
+    echo "DEBUG: lte_bands(after replace)=[$lte_bands]" >> /tmp/fibocom_debug.log
+    echo "DEBUG: nr_bands(after replace)=[$nr_bands]" >> /tmp/fibocom_debug.log
+
+    bands_str=""
+    [ -n "$lte_bands" ] && bands_str="$lte_bands"
+    [ -n "$nr_bands" ] && [ -n "$bands_str" ] && bands_str="$bands_str,$nr_bands"
+    [ -z "$bands_str" ] && bands_str=""
+    echo "DEBUG: bands_str=[$bands_str]" >> /tmp/fibocom_debug.log
+
+    if [ -z "$prefix" ]; then
+        echo "DEBUG: prefix is empty!" >> /tmp/fibocom_debug.log
+        json_select "result"
+        json_add_string "set_lockband" "ERROR: prefix is empty"
+        json_close_object
+        return 1
+    fi
+
+    if [ "$bands_str" = "101,102,103,105,107,108,134,139,140,141,501,5028,5041,5077,5078,5079" ]; then
+        set_lockband_command="AT+GTACT=17,6"
+    elif [ -n "$bands_str" ]; then
+        set_lockband_command="AT+GTACT=$prefix,$bands_str"
+    else
+        set_lockband_command="AT+GTACT=$prefix"
+    fi
+    echo "DEBUG: set_lockband_command=[$set_lockband_command]" >> /tmp/fibocom_debug.log
+
+    res=$(at $at_port "$set_lockband_command")
+    json_select "result"
+    json_add_string "set_lockband" "$res"
+    json_add_string "config" "$config"
+    json_add_string "band_class" "$band_class"
+    json_add_string "lock_band" "$lock_band"
+    json_close_object
 }
 
 set_lockband_lte()
