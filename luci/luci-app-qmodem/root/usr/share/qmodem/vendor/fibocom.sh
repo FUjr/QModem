@@ -842,46 +842,66 @@ set_lockband()
     json_add_string "lock_band" "$lock_band"
     json_close_object
 }
+
 #设置锁频
 set_lockband_nr()
 {
     m_debug "Fibocom set lockband info"
     echo "DEBUG: config=[$config]" >> /tmp/fibocom_debug.log
 
+    # 获取当前band配置
     get_lockband_config_command="AT+GTACT?"
     get_lockband_config_res=$(at $at_port $get_lockband_config_command | grep "+GTACT:" | head -n1)
-    echo "DEBUG: get_lockband_config_res=[$get_lockband_config_res]" >> /tmp/fibocom_debug.log
-
     band_params=$(echo "$get_lockband_config_res" | sed 's/+GTACT:[ ]*//' | tr -d '\r')
-    echo "DEBUG: band_params=[$band_params]" >> /tmp/fibocom_debug.log
-
     prefix=$(echo "$band_params" | cut -d',' -f1-3)
-    echo "DEBUG: prefix=[$prefix]" >> /tmp/fibocom_debug.log
-
     bands=$(echo "$band_params" | cut -d',' -f4- | tr -d '\r')
+
+    echo "DEBUG: get_lockband_config_res=[$get_lockband_config_res]" >> /tmp/fibocom_debug.log
+    echo "DEBUG: band_params=[$band_params]" >> /tmp/fibocom_debug.log
+    echo "DEBUG: prefix=[$prefix]" >> /tmp/fibocom_debug.log
     echo "DEBUG: bands=[$bands]" >> /tmp/fibocom_debug.log
+
+    # 获取全选band
+    get_available_band_res=$(at $at_port "AT+GTACT=?" | grep "+GTACT:" | head -n1)
+    available_band_params=$(echo "$get_available_band_res" | sed 's/+GTACT:[ ]*//' | tr -d '\r')
+    ALL_UMTS=$(echo "$available_band_params" | awk -F'[()]' '{print $10}' | tr -d ' ')
+    ALL_LTE=$(echo "$available_band_params" | awk -F'[()]' '{print $12}' | tr -d ' ')
+    ALL_NR=$(echo "$available_band_params" | awk -F'[()]' '{print $18}' | tr -d ' ')
+    echo "DEBUG: get_available_band_res=[$get_available_band_res]" >> /tmp/fibocom_debug.log
+    echo "DEBUG: ALL_UMTS=[$ALL_UMTS]" >> /tmp/fibocom_debug.log
+    echo "DEBUG: ALL_LTE=[$ALL_LTE]" >> /tmp/fibocom_debug.log
+    echo "DEBUG: ALL_NR=[$ALL_NR]" >> /tmp/fibocom_debug.log
 
     band_class=$(echo "$config" | jq -r '.band_class')
     lock_band=$(echo "$config" | jq -r '.lock_band')
     echo "DEBUG: band_class=[$band_class]" >> /tmp/fibocom_debug.log
     echo "DEBUG: lock_band=[$lock_band]" >> /tmp/fibocom_debug.log
 
+    umts_bands=""
     lte_bands=""
     nr_bands=""
     for b in $(echo "$bands" | tr ',' ' '); do
         [ -z "$b" ] && continue
-        case "$b" in
-            10*) lte_bands="$lte_bands,$b" ;;
-            50*) nr_bands="$nr_bands,$b" ;;
-        esac
+        if [ "$b" -ge 1 ] && [ "$b" -lt 100 ]; then
+            umts_bands="$umts_bands,$b"
+        elif [ "$b" -ge 100 ] && [ "$b" -lt 500 ]; then
+            lte_bands="$lte_bands,$b"
+        elif { [ "$b" -ge 500 ] && [ "$b" -lt 600 ]; } || [ "$b" -ge 5000 ]; then
+            nr_bands="$nr_bands,$b"
+        fi
     done
+    umts_bands="${umts_bands#,}"
     lte_bands="${lte_bands#,}"
     nr_bands="${nr_bands#,}"
+    echo "DEBUG: umts_bands(before replace)=[$umts_bands]" >> /tmp/fibocom_debug.log
     echo "DEBUG: lte_bands(before replace)=[$lte_bands]" >> /tmp/fibocom_debug.log
     echo "DEBUG: nr_bands(before replace)=[$nr_bands]" >> /tmp/fibocom_debug.log
 
     # 替换对应 band_class
     case "$band_class" in
+        "UMTS")
+            umts_bands="$lock_band"
+            ;;
         "LTE")
             lte_bands="$lock_band"
             ;;
@@ -889,29 +909,41 @@ set_lockband_nr()
             nr_bands="$lock_band"
             ;;
     esac
+    echo "DEBUG: umts_bands(after replace)=[$umts_bands]" >> /tmp/fibocom_debug.log
     echo "DEBUG: lte_bands(after replace)=[$lte_bands]" >> /tmp/fibocom_debug.log
     echo "DEBUG: nr_bands(after replace)=[$nr_bands]" >> /tmp/fibocom_debug.log
 
+    # 拼接所有band
     bands_str=""
-    [ -n "$lte_bands" ] && bands_str="$lte_bands"
+    [ -n "$umts_bands" ] && bands_str="$umts_bands"
+    [ -n "$lte_bands" ] && [ -n "$bands_str" ] && bands_str="$bands_str,$lte_bands"
+    [ -n "$lte_bands" ] && [ -z "$bands_str" ] && bands_str="$lte_bands"
     [ -n "$nr_bands" ] && [ -n "$bands_str" ] && bands_str="$bands_str,$nr_bands"
-    [ -z "$bands_str" ] && bands_str=""
+    [ -n "$nr_bands" ] && [ -z "$bands_str" ] && bands_str="$nr_bands"
+    [ -z "$bands_str" ] && prefix=$(echo "$prefix" | sed 's/,$//')
     echo "DEBUG: bands_str=[$bands_str]" >> /tmp/fibocom_debug.log
 
-    if [ -z "$prefix" ]; then
-        echo "DEBUG: prefix is empty!" >> /tmp/fibocom_debug.log
-        json_select "result"
-        json_add_string "set_lockband" "ERROR: prefix is empty"
-        json_close_object
-        return 1
-    fi
-
-    if [ "$bands_str" = "101,102,103,105,107,108,134,139,140,141,501,5028,5041,5077,5078,5079" ]; then
-        set_lockband_command="AT+GTACT=17,6"
-    elif [ -n "$bands_str" ]; then
-        set_lockband_command="AT+GTACT=$prefix,$bands_str"
+    # 判断全选情况
+    if [ "$nr_bands" = "$ALL_NR" ] && [ "$lte_bands" = "$ALL_LTE" ] && [ "$umts_bands" = "$ALL_UMTS" ]; then
+        set_lockband_command="AT+GTACT=20"
+    elif [ "$nr_bands" = "$ALL_NR" ] && [ -z "$lte_bands" ] && [ -z "$umts_bands" ]; then
+        set_lockband_command="AT+GTACT=14"
+    elif [ "$lte_bands" = "$ALL_LTE" ] && [ -z "$nr_bands" ] && [ -z "$umts_bands" ]; then
+        set_lockband_command="AT+GTACT=2"
+    elif [ "$umts_bands" = "$ALL_UMTS" ] && [ -z "$lte_bands" ] && [ -z "$nr_bands" ]; then
+        set_lockband_command="AT+GTACT=1"
+    elif [ "$nr_bands" = "$ALL_NR" ] && [ "$lte_bands" = "$ALL_LTE" ] && [ -z "$umts_bands" ]; then
+        set_lockband_command="AT+GTACT=17"
+    elif [ "$nr_bands" = "$ALL_NR" ] && [ "$umts_bands" = "$ALL_UMTS" ] && [ -z "$lte_bands" ]; then
+        set_lockband_command="AT+GTACT=16"
+    elif [ "$lte_bands" = "$ALL_LTE" ] && [ "$umts_bands" = "$ALL_UMTS" ] && [ -z "$nr_bands" ]; then
+        set_lockband_command="AT+GTACT=4"
     else
-        set_lockband_command="AT+GTACT=$prefix"
+        if [ -n "$bands_str" ]; then
+            set_lockband_command="AT+GTACT=,,,$bands_str"
+        else
+            set_lockband_command="AT+GTACT=$prefix"
+        fi
     fi
     echo "DEBUG: set_lockband_command=[$set_lockband_command]" >> /tmp/fibocom_debug.log
 
