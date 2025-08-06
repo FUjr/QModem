@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=pcie_mhi
 PKG_VERSION:=1.3.8
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/package.mk
@@ -18,7 +18,7 @@ define KernelPackage/pcie_mhi
   SUBMENU:=WWAN Support
   TITLE:=Kernel pcie driver for MHI device
   FILES:=$(PKG_BUILD_DIR)/pcie_mhi.ko
-  AUTOLOAD:=$(call AutoLoad,90,pcie_mhi)
+# AUTOLOAD:=$(call AutoLoad,90,pcie_mhi)
 endef
 
 define KernelPackage/pcie_mhi/description
@@ -41,6 +41,11 @@ define Build/Compile
 	$(MAKE) -C "$(LINUX_DIR)" \
 		$(MAKE_OPTS) \
 		modules
+endef
+
+define KernelPackage/pcie_mhi/install
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/pcie_mhi $(1)/etc/init.d/pcie_mhi
 endef
 
 $(eval $(call KernelPackage,pcie_mhi))
