@@ -6,12 +6,13 @@ at_port=$(uci get qmodem.$config_section.at_port)
 uci -q get qmodem.$config_section.sms_at_port >/dev/null && sms_at_port=$(uci get qmodem.$config_section.sms_at_port)
 vendor=$(uci get qmodem.$config_section.manufacturer)
 platform=$(uci get qmodem.$config_section.platform)
-define_connect=$(uci get qmodem.$config_section.define_connect)
+pdp_index=$(uci get qmodem.$config_section.pdp_index)
+[ -z "$pdp_index" ] && pdp_index=$(uci get qmodem.$config_section.suggest_pdp_index)
 modem_path=$(uci get qmodem.$config_section.path)
 modem_slot=$(basename $modem_path)
 
-[ -z "$define_connect" ] && {
-    define_connect="1"
+[ -z "$pdp_index" ] && {
+    pdp_index="1"
 }
 
 #please update dynamic_load.json to add new vendor

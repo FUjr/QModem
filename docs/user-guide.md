@@ -110,7 +110,7 @@ These settings are specific to each detected modem.
 | **Alias** (`alias`)                              | `Text`    | A custom, user-friendly name for the modem.                                                                 |
 | **Soft Reboot** (`soft_reboot`)                  | `Flag`    | Enables a soft reboot of the modem instead of a full power cycle.                                           |
 | **V4/V6 Connect Check** (`connect_check`)        | `Flag`    | For AT-dial modems, performs a check to ensure IPv4/IPv6 connectivity is established.                       |
-| **PDP Context Index** (`define_connect`)         | `Integer` | The PDP context index to use for the connection (Default: 1).                                               |
+| **PDP Context Index** (`pdp_index`)         | `Integer` | The PDP context index to use for the connection (Default: 1).                                               |
 | **Manufacturer** (`manufacturer`)                | `List`    | The modem's manufacturer (e.g., Quectel, Fibocom).                                                          |
 | **Platform** (`platform`)                        | `List`    | The modem's chipset platform (e.g., SDX55, SDX62).                                                          |
 | **AT Port** (`at_port`)                          | `Text`    | The device path for the AT command port (e.g.,`/dev/ttyUSB2`).                                              |
