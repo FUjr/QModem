@@ -5,7 +5,7 @@ on:
             - 'main'
         # only run when "luci/luci-app-qmodem/root/usr/share/qmodem/modem_support.json" is changed
         paths:
-            - 'luci/luci-app-qmodem/root/usr/share/qmodem/modem_support.json'
+            - 'application/qmodem/files/usr/share/qmodem/modem_support.json'
 
 env:
     TZ: Asia/Shanghai
@@ -29,7 +29,7 @@ jobs:
                 cd qmodem
                 is_json_invalid=0
                 is_diff=0
-                python3 ./scripts/update_support_list.py temp_support_list ./luci/luci-app-qmodem/root/usr/share/qmodem/modem_support.json || is_json_invalid=1
+                python3 ./scripts/update_support_list.py temp_support_list ./application/qmodem/files/usr/share/qmodem/modem_support.json || is_json_invalid=1
                 diff ./temp_support_list.md ./docs/support_list.md -u > /tmp/file_diff.txt || is_diff=1
                 if [ "$is_json_invalid" == "1" ];then
                     exit 1

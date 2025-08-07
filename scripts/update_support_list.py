@@ -29,7 +29,7 @@ def generate_github_release_notes(result):
 
 if __name__ == "__main__":
     prefix = sys.argv[1] if len(sys.argv) > 1 else 'support_list'
-    file_name = sys.argv[2] if len(sys.argv) > 2 else 'luci/luci-app-qmodem/root/usr/share/qmodem/modem_support.json'
+    file_name = sys.argv[2] if len(sys.argv) > 2 else 'application/qmodem/files/usr/share/qmodem/modem_support.json'
     # 加载 JSON 数据
     with open(file_name, 'r') as file:
         data = json.load(file)

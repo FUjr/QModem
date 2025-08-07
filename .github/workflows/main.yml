@@ -58,7 +58,7 @@ jobs:
         id: update_modem_support_list
         run: |
           cd qmodem
-          python3 ./scripts/update_support_list.py temp_support_list ./luci/luci-app-qmodem/root/usr/share/qmodem/modem_support.json
+          python3 ./scripts/update_support_list.py temp_support_list ./application/qmodem/files/usr/share/qmodem/modem_support.json
           mv temp_support_list_release_notes.md ./release_note.md
       
       - name: Upload Release Note

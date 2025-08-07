@@ -3,7 +3,7 @@ on:
     pull_request:
         # only run when "luci/luci-app-qmodem/root/usr/share/qmodem/modem_support.json" is changed
         paths:
-            - 'luci/luci-app-qmodem/root/usr/share/qmodem/modem_support.json'
+            - 'application/qmodem/files/usr/share/qmodem/modem_support.json'
 
 env:
     TZ: Asia/Shanghai
@@ -31,7 +31,7 @@ jobs:
               run: |
                 cd pr_branch
                 is_json_invalid=0
-                python3 ./scripts/update_support_list.py temp_support_list ./luci/luci-app-qmodem/root/usr/share/qmodem/modem_support.json || is_json_invalid=1
+                python3 ./scripts/update_support_list.py temp_support_list ./application/qmodem/files/usr/share/qmodem/modem_support.json || is_json_invalid=1
                 
                 if [ "$is_json_invalid" = "1" ]; then
                     echo "pr_close=1" >> $GITHUB_OUTPUT
