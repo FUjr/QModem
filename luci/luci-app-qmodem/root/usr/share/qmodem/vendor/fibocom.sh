@@ -569,8 +569,8 @@ network_info()
     # at $at_port $at_command
 
     #CSQ（信号强度）
-    # at_command="AT+CSQ"
-    # response=$(at $at_port $at_command | grep "+CSQ:" | sed 's/+CSQ: //g' | sed 's/\r//g')
+    at_command="AT+CSQ"
+    response=$(at $at_port $at_command | grep "+CSQ:" | sed 's/+CSQ: //g' | sed 's/\r//g')
 
     #RSSI（4G信号强度指示）
     # rssi_num=$(echo $response | awk -F',' '{print $1}')
@@ -584,22 +584,22 @@ network_info()
     # fi
 
     #速率统计
-    # at_command="AT+GTSTATIS?"
-    # response=$(at $at_port $at_command | grep "+GTSTATIS:" | sed 's/+GTSTATIS: //g' | sed 's/\r//g')
+    at_command="AT+GTSTATIS?"
+    response=$(at $at_port $at_command | grep "+GTSTATIS:" | sed 's/+GTSTATIS: //g' | sed 's/\r//g')
 
     #当前上传速率（单位，Byte/s）
-    # tx_rate=$(echo $response | awk -F',' '{print $2}')
+    tx_rate=$(echo $response | awk -F',' '{print $2}')
 
     #当前下载速率（单位，Byte/s）
-    # rx_rate=$(echo $response | awk -F',' '{print $1}')
+    rx_rate=$(echo $response | awk -F',' '{print $1}')
     class="Network Information"
     add_plain_info_entry "Network Type" "$network_type" "Network Type"
-    # add_plain_info_entry "CQI UL" "$cqi_ul" "Channel Quality Indicator for Uplink"
-    # add_plain_info_entry "CQI DL" "$cqi_dl" "Channel Quality Indicator for Downlink"
-    # add_plain_info_entry "AMBR UL" "$ambr_ul" "Access Maximum Bit Rate for Uplink"
-    # add_plain_info_entry "AMBR DL" "$ambr_dl" "Access Maximum Bit Rate for Downlink"
-    # add_speed_entry rx $rx_rate
-    # add_speed_entry tx $tx_rate
+    add_plain_info_entry "CQI UL" "$cqi_ul" "Channel Quality Indicator for Uplink"
+    add_plain_info_entry "CQI DL" "$cqi_dl" "Channel Quality Indicator for Downlink"
+    add_plain_info_entry "AMBR UL" "$ambr_ul" "Access Maximum Bit Rate for Uplink"
+    add_plain_info_entry "AMBR DL" "$ambr_dl" "Access Maximum Bit Rate for Downlink"
+    add_speed_entry rx $rx_rate
+    add_speed_entry tx $tx_rate
 }
 
 get_lockband(){
