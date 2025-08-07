@@ -3,6 +3,8 @@ source /usr/share/libubox/jshn.sh
 method=$1
 config_section=$2
 at_port=$(uci get qmodem.$config_section.at_port)
+override_at_port=$(uci get qmodem.$config_section.override_at_port)
+[ -n "$override_at_port" ] && at_port=$override_at_port
 uci -q get qmodem.$config_section.sms_at_port >/dev/null && sms_at_port=$(uci get qmodem.$config_section.sms_at_port)
 vendor=$(uci get qmodem.$config_section.manufacturer)
 platform=$(uci get qmodem.$config_section.platform)
@@ -87,7 +89,10 @@ get_at_cfg(){
         json_add_string "" "$port"
     done
     json_close_array
-    json_add_string using_port $(uci get qmodem.$config_section.at_port)
+    override_at_port=$(uci get qmodem.$config_section.override_at_port)
+    at_port=$(uci get qmodem.$config_section.at_port)
+    [ -n "$override_at_port" ] && at_port=$override_at_port
+    json_add_string using_port "$at_port"
     json_add_array cmds
     
     # Determine language and select appropriate AT commands file
