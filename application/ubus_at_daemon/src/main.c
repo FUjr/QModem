@@ -31,6 +31,7 @@ enum {
     SENDAT_END_FLAG,
     SENDAT_AT_CMD,
     SENDAT_RAW_AT_CONTENT,
+    SENDAT_SENDONLY,
     __SENDAT_MAX
 };
 
@@ -40,6 +41,7 @@ static const struct blobmsg_policy sendat_policy[] = {
     [SENDAT_END_FLAG] = { .name = "end_flag", .type = BLOBMSG_TYPE_STRING },
     [SENDAT_AT_CMD] = { .name = "at_cmd", .type = BLOBMSG_TYPE_STRING },
     [SENDAT_RAW_AT_CONTENT] = { .name = "raw_at_content", .type = BLOBMSG_TYPE_STRING },
+    [SENDAT_SENDONLY] = { .name = "sendonly", .type = BLOBMSG_TYPE_BOOL },
 };
 
 // Policy for close method
@@ -116,7 +118,6 @@ static int ubus_open_method(struct ubus_context *ctx, struct ubus_object *obj,
     return UBUS_STATUS_OK;
 }
 
-// Ubus method: sendat
 static int ubus_sendat_method(struct ubus_context *ctx, struct ubus_object *obj,
                              struct ubus_request_data *req, const char *method,
                              struct blob_attr *msg) {
@@ -124,6 +125,7 @@ static int ubus_sendat_method(struct ubus_context *ctx, struct ubus_object *obj,
     const char *at_port, *at_cmd = NULL, *raw_at_content = NULL, *end_flag = NULL;
     int timeout = DEFAULT_TIMEOUT;
     int is_raw = 0;
+    int sendonly = 0;
     
     blobmsg_parse(sendat_policy, __SENDAT_MAX, tb, blob_data(msg), blob_len(msg));
     
@@ -137,6 +139,8 @@ static int ubus_sendat_method(struct ubus_context *ctx, struct ubus_object *obj,
         timeout = blobmsg_get_u32(tb[SENDAT_TIMEOUT]);
     if (tb[SENDAT_END_FLAG])
         end_flag = blobmsg_get_string(tb[SENDAT_END_FLAG]);
+    if (tb[SENDAT_SENDONLY])
+        sendonly = blobmsg_get_bool(tb[SENDAT_SENDONLY]);
     
     if (tb[SENDAT_AT_CMD]) {
         at_cmd = blobmsg_get_string(tb[SENDAT_AT_CMD]);
@@ -157,44 +161,65 @@ static int ubus_sendat_method(struct ubus_context *ctx, struct ubus_object *obj,
         }
     }
     
-    // Send AT command with response
     const char *cmd = is_raw ? raw_at_content : at_cmd;
+    int result;
     at_response_t response;
-    int result = send_at_command_with_response(port, cmd, timeout, end_flag, is_raw, &response);
+    
+    if (sendonly) {
+        // Send only without waiting for response
+        result = send_at_command_only(port, cmd, is_raw);
+    } else {
+        // Send AT command with response
+        result = send_at_command_with_response(port, cmd, timeout, end_flag, is_raw, &response);
+    }
     
     struct blob_buf b = {};
     blob_buf_init(&b, 0);
     
     blobmsg_add_string(&b, "port", at_port);
     blobmsg_add_string(&b, "command", cmd);
-    blobmsg_add_u32(&b, "timeout", timeout);
-    blobmsg_add_string(&b, "end_flag", end_flag ? end_flag : "default");
     blobmsg_add_u32(&b, "is_raw", is_raw);
+    blobmsg_add_u32(&b, "sendonly", sendonly);
     
-    // Add debug info about end flags used
-    void *end_flags_array = blobmsg_open_array(&b, "end_flags_used");
-    for (int i = 0; i < port->num_end_flags; i++) {
-        blobmsg_add_string(&b, NULL, port->expected_end_flags[i]);
-    }
-    blobmsg_close_array(&b, end_flags_array);
-    
-    if (result == 0) {
-        blobmsg_add_string(&b, "status", "success");
-        blobmsg_add_string(&b, "response", response.response);
-        blobmsg_add_u32(&b, "response_length", response.response_len);
-        blobmsg_add_string(&b, "end_flag_matched", response.end_flag_matched);
-        blobmsg_add_u32(&b, "response_time_ms", response.response_time_ms);
-    } else if (result == -1) {
-        blobmsg_add_string(&b, "status", "timeout");
-        blobmsg_add_string(&b, "message", "AT command timed out");
-        blobmsg_add_u32(&b, "response_time_ms", response.response_time_ms);
-        if (strlen(response.response) > 0) {
-            blobmsg_add_string(&b, "partial_response", response.response);
+    if (sendonly) {
+        // For send-only mode
+        if (result == 0) {
+            blobmsg_add_string(&b, "status", "success");
+            blobmsg_add_string(&b, "message", "Command sent successfully");
+        } else {
+            blobmsg_add_string(&b, "status", "error");
+            blobmsg_add_string(&b, "message", "Failed to send AT command");
         }
     } else {
-        blobmsg_add_string(&b, "status", "error");
-        blobmsg_add_string(&b, "message", "Failed to send AT command");
-        blobmsg_add_u32(&b, "response_time_ms", response.response_time_ms);
+        // For normal mode with response
+        blobmsg_add_u32(&b, "timeout", timeout);
+        blobmsg_add_string(&b, "end_flag", end_flag ? end_flag : "default");
+        
+        // Add debug info about end flags used
+        void *end_flags_array = blobmsg_open_array(&b, "end_flags_used");
+        for (int i = 0; i < port->num_end_flags; i++) {
+            blobmsg_add_string(&b, NULL, port->expected_end_flags[i]);
+        }
+        blobmsg_close_array(&b, end_flags_array);
+        
+        if (result == 0) {
+            blobmsg_add_string(&b, "status", "success");
+            blobmsg_add_string(&b, "response", response.response);
+            blobmsg_add_u32(&b, "response_length", response.response_len);
+            blobmsg_add_string(&b, "end_flag_matched", response.end_flag_matched);
+            blobmsg_add_u32(&b, "response_time_ms", response.response_time_ms);
+        } else if (result == -1) {
+            blobmsg_add_string(&b, "status", "timeout");
+            blobmsg_add_string(&b, "message", "AT command timed out");
+            blobmsg_add_u32(&b, "response_time_ms", response.response_time_ms);
+            if (strlen(response.response) > 0) {
+                blobmsg_add_string(&b, "partial_response", response.response);
+            }
+        } else {
+            blobmsg_add_string(&b, "status", "error");
+            blobmsg_add_string(&b, "message", "Failed to send AT command");
+            blobmsg_add_u32(&b, "response_time_ms", response.response_time_ms);
+        }
     }
     
     ubus_send_reply(ctx, req, b.head);

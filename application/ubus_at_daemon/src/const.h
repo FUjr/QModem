@@ -12,9 +12,9 @@
 
 // Buffer sizes
 #define MAX_AT_PORTS 32
-#define MAX_BUFFER_SIZE 4096
+#define MAX_BUFFER_SIZE 16384
 #define MAX_QUEUE_SIZE 100
-#define MAX_AT_CMD_SIZE 256
+#define MAX_AT_CMD_SIZE 512
 #define MAX_PORT_PATH_SIZE 64
 #define MAX_SCRIPT_PATH_SIZE 256
 #define MAX_REGEX_SIZE 128

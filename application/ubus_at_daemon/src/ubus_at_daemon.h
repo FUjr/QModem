@@ -103,6 +103,7 @@ void close_at_port(at_port_instance_t *port);
 
 int send_at_command_with_response(at_port_instance_t *port, const char *cmd, int timeout, const char *end_flag, int is_raw, at_response_t *response);
 int send_at_command(at_port_instance_t *port, const char *cmd, int timeout, const char *end_flag, int is_raw);
+int send_at_command_only(at_port_instance_t *port, const char *cmd, int is_raw);
 void *reader_thread_func(void *arg);
 void parse_end_flags(at_port_instance_t *port, const char *end_flag_str);
 

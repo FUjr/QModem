@@ -229,6 +229,49 @@ int send_at_command(at_port_instance_t *port, const char *cmd, int timeout, cons
     return send_at_command_with_response(port, cmd, timeout, end_flag, is_raw, &response);
 }
 
+int send_at_command_only(at_port_instance_t *port, const char *cmd, int is_raw) {
+    if (!port->is_open) {
+        // Auto-open with default parameters
+        if (open_at_port(port, 115200, 8, 0, 1) != 0) {
+            return -1;
+        }
+    }
+    
+    // Send command without waiting for response
+    pthread_mutex_lock(&port->write_mutex);
+    
+    char *send_data;
+    size_t send_len;
+    
+    if (is_raw) {
+        send_data = hex_to_string(cmd);
+        if (!send_data) {
+            pthread_mutex_unlock(&port->write_mutex);
+            return -1;
+        }
+        send_len = strlen(send_data);
+    } else {
+        send_len = strlen(cmd);
+        send_data = malloc(send_len + 1);
+        if (!send_data) {
+            pthread_mutex_unlock(&port->write_mutex);
+            return -1;
+        }
+        strcpy(send_data, cmd);
+    }
+    
+    ssize_t written = write(port->fd, send_data, send_len);
+    free(send_data);
+    
+    pthread_mutex_unlock(&port->write_mutex);
+    
+    if (written != (ssize_t)send_len) {
+        return -1;
+    }
+    
+    return 0;  // Success - command sent
+}
+
 void *reader_thread_func(void *arg) {
     at_port_instance_t *port = (at_port_instance_t *)arg;
     char temp_buffer[1024];
@@ -241,9 +284,21 @@ void *reader_thread_func(void *arg) {
         
         ssize_t bytes_read = read(port->fd, temp_buffer, sizeof(temp_buffer) - 1);
         if (bytes_read > 0) {
-            temp_buffer[bytes_read] = '\0';
+            // First, handle response data if we're waiting for one
+            pthread_mutex_lock(&port->response_mutex);
+            if (port->waiting_for_response) {
+                // Append new data to current response preserving original bytes
+                int current_len = port->current_response.response_len;
+                
+                if (current_len + bytes_read < MAX_BUFFER_SIZE - 1) {
+                    memcpy(port->current_response.response + current_len, temp_buffer, bytes_read);
+                    port->current_response.response_len = current_len + bytes_read;
+                    port->current_response.response[port->current_response.response_len] = '\0';
+                }
+            }
+            pthread_mutex_unlock(&port->response_mutex);
             
-            // Add to buffer
+            // Then handle buffer management and line processing
             pthread_mutex_lock(&port->queue_mutex);
             
             int remaining_space = MAX_BUFFER_SIZE - port->buffer_pos - 1;
@@ -261,29 +316,22 @@ void *reader_thread_func(void *arg) {
                     
                     // Process the line
                     if (strlen(line_start) > 0) {
-                        // Check if we're waiting for a response
+                        int is_echo = (strncmp(line_start, "AT", 2) == 0);
+                        
+                        // Check if we're waiting for a response and this line might be end flag
+                        int should_check_end_flag = 0;
                         pthread_mutex_lock(&port->response_mutex);
-                        if (port->waiting_for_response) {
-                            // Skip command echo (lines that start with "AT")
-                            int is_echo = (strncmp(line_start, "AT", 2) == 0);
-                            
-                            if (!is_echo) {
-                                // Append to current response
-                                int current_len = strlen(port->current_response.response);
-                                int line_len = strlen(line_start);
-                                
-                                if (current_len + line_len + 2 < MAX_BUFFER_SIZE - 1) {
-                                    if (current_len > 0) {
-                                        strcat(port->current_response.response, "\n");
-                                        current_len++;
-                                    }
-                                    strcat(port->current_response.response, line_start);
-                                    port->current_response.response_len = current_len + line_len;
-                                }
-                                
-                                // Check for end flags
-                                char matched_flag[64];
-                                if (check_end_flags(port, line_start, matched_flag)) {
+                        if (port->waiting_for_response && !is_echo) {
+                            should_check_end_flag = 1;
+                        }
+                        pthread_mutex_unlock(&port->response_mutex);
+                        
+                        if (should_check_end_flag) {
+                            // Check for end flags
+                            char matched_flag[64];
+                            if (check_end_flags(port, line_start, matched_flag)) {
+                                pthread_mutex_lock(&port->response_mutex);
+                                if (port->waiting_for_response) {
                                     // Record end time
                                     clock_gettime(CLOCK_REALTIME, &port->current_response.end_time);
                                     
@@ -292,12 +340,12 @@ void *reader_thread_func(void *arg) {
                                     port->waiting_for_response = 0;
                                     pthread_cond_signal(&port->response_cond);
                                 }
+                                pthread_mutex_unlock(&port->response_mutex);
                             }
                         }
-                        pthread_mutex_unlock(&port->response_mutex);
                         
-                        // Process for event callbacks (only when not waiting for response or it's not echo)
-                        if (!port->waiting_for_response || strncmp(line_start, "AT", 2) != 0) {
+                        // Process for event callbacks (only when not echo)
+                        if (!is_echo) {
                             process_incoming_data(port, line_start);
                         }
                     }
