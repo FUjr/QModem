@@ -44,6 +44,8 @@
 #define SMS_SEND_OP_L "sms_send"
 #define SMS_DELETE_OP_S 'd'
 #define SMS_DELETE_OP_L "sms_delete"
+#define AT_SENDONLY_OP_S 'o'
+#define AT_SENDONLY_OP_L "at_sendonly"
 #ifdef USE_SEMAPHORE
 #define CLEANUP_SEMAPHORE_OP_S 'C'
 #define CLEANUP_SEMAPHORE_OP_L "cleanup"
@@ -51,7 +53,7 @@
 #define SET_READ_STORAGE "AT+CPMS=\"%s\""
 #define SET_PDU_FORMAT "AT+CMGF=0"
 #define READ_ALL_SMS "AT+CMGL=4"
-#define SEND_SMS "AT+CMGS=%d"
+#define SEND_SMS "AT+CMGS=%d\r\n"
 #define DELETE_SMS "AT+CMGD=%d"
 
 #define SMS_BUF_SIZE 65536
@@ -155,6 +157,7 @@ enum OPERATIONS {
     SMS_READ_OP,
     SMS_SEND_OP,
     SMS_DELETE_OP,
+    AT_SENDONLY_OP,
     CLEANUP_SEMAPHORE_OP
 };
 

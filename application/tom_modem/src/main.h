@@ -13,6 +13,7 @@
 #include "ttydevice.h"
 #include "modem_types.h"
 #include "utils.h"
+#include "ubus_client.h"
 
 #define DEFAULT_TIMEOUT 3
 // 
@@ -20,15 +21,15 @@
 extern PROFILE_T s_profile;   // global profile     
 
 
-extern  int at(PROFILE_T *profile,FDS_T *fds);
+extern  int at(PROFILE_T *profile);
 
-extern int binary_at(PROFILE_T *profile,FDS_T *fds);
+extern int binary_at(PROFILE_T *profile);
 
-extern  int sms_read(PROFILE_T *profile,FDS_T *fds);
+extern  int sms_read(PROFILE_T *profile);
 
-extern  int sms_send(PROFILE_T *profile,FDS_T *fds);
+extern  int sms_send(PROFILE_T *profile);
 
-extern  int sms_delete(PROFILE_T *profile,FDS_T *fds);
+extern  int sms_delete(PROFILE_T *profile);
 
 extern void dump_profile();
 

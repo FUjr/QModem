@@ -1,8 +1,14 @@
 TARGET = tom_modem
 
-CFLAGS ?= -Wall  -Iextlib
+CFLAGS += -I$(TARGET_DIR)/usr/include
+CFLAGS += -I$(TARGET_DIR)/usr/include/libubox
+CFLAGS += -I$(TARGET_DIR)/usr/include/json-c
 
-SRCS = main.c utils.c operations.c ttydevice.c extlib/pdu.c extlib/ucs2_to_utf8.c
+LDFLAGS = -L$(TARGET_DIR)/usr/lib
+LDFLAGS += -L$(TARGET_DIR)/lib
+LDFLAGS += -lubus -lubox -ljson-c -lblobmsg_json
+
+SRCS = main.c utils.c operations.c ttydevice.c ubus_client.c extlib/pdu.c extlib/ucs2_to_utf8.c
 
 OBJS = $(SRCS:.c=.o)
 

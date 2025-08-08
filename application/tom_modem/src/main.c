@@ -161,20 +161,20 @@ int parse_user_input(int argc, char *argv[], PROFILE_T *profile)
     }
     return SUCCESS;
 }
-int run_op(PROFILE_T *profile,FDS_T *fds)
+int run_op(PROFILE_T *profile)
 {
     switch (profile->op)
     {
     case AT_OP:
-        return at(profile,fds);
+        return at(profile);
     case BINARY_AT_OP:
-        return binary_at(profile,fds);
+        return binary_at(profile);
     case SMS_READ_OP:
-        return sms_read(profile,fds);
+        return sms_read(profile);
     case SMS_SEND_OP:
-        return sms_send(profile,fds);
+        return sms_send(profile);
     case SMS_DELETE_OP:
-        return sms_delete(profile,fds);
+        return sms_delete(profile);
     default:
         err_msg("Invalid operation");
     }
@@ -182,24 +182,10 @@ int run_op(PROFILE_T *profile,FDS_T *fds)
 }
 static void clean_up()
 {
-#ifdef USE_SEMAPHORE
-    if (unlock_at_port(s_profile.tty_dev))
-    {
-        err_msg("Failed to unlock tty device");
-    }
-#endif
     dbg_msg("Clean up success");
-    if (s_fds.tty_fd >= 0)
-    {
-        if (tcsetattr(s_fds.tty_fd, TCSANOW, &s_fds.old_termios) != 0)
-        {
-            err_msg("Error restoring old tty attributes");
-            return;
-        }
-        tcflush(s_fds.tty_fd, TCIOFLUSH);
-
-        close(s_fds.tty_fd);
-    }
+    
+    // Cleanup UBUS client
+    cleanup_global_ubus_client();
 }
 
 int main(int argc, char *argv[])
@@ -208,42 +194,21 @@ int main(int argc, char *argv[])
     FDS_T *fds = &s_fds;
     parse_user_input(argc, argv, profile);
     dump_profile();
-    #ifdef USE_SEMAPHORE
-    if (profile->op == CLEANUP_SEMAPHORE_OP)
-    {
-        if (unlock_at_port(profile->tty_dev))
-        {
-            err_msg("Failed to unlock tty device");
-        }
-        return SUCCESS;
-    }
-    if (profile->tty_dev != NULL)
-    {
-        if (lock_at_port(profile->tty_dev))
-        {
-            err_msg("Failed to lock tty device");
-            return COMM_ERROR;
-        }
-    }
-    #endif
-    // try open tty devices
+    
+    // Initialize UBUS client
     atexit(clean_up);
     signal(SIGINT, clean_up);
     signal(SIGTERM, clean_up);
-    if (tty_open_device(profile,fds))
+    
+    if (init_global_ubus_client() != 0)
     {
-        err_msg("Failed to open tty device");
+        err_msg("Failed to initialize UBUS client");
         return COMM_ERROR;
     }
-    if (run_op(profile,fds))
+    
+    if (run_op(profile))
     {
         err_msg("Failed to run operation %d", profile->op);
-#ifdef USE_SEMAPHORE
-        if (unlock_at_port(profile->tty_dev))
-        {
-            err_msg("Failed to unlock tty device");
-        }
-#endif
         kill(getpid(), SIGINT); 
     }
     

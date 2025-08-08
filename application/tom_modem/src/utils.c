@@ -339,6 +339,8 @@ void escape_json(char *input, char *output)
     char *q = output;
     while (*p)
     {
+        unsigned char c = (unsigned char)*p;
+        
         if (*p == '"')
         {
             *q++ = '\\';
@@ -378,6 +380,15 @@ void escape_json(char *input, char *output)
         {
             *q++ = '\\';
             *q++ = 't';
+        }
+        else if (c < 0x20)  // Control characters (U+0000 through U+001F)
+        {
+            *q++ = '\\';
+            *q++ = 'u';
+            *q++ = '0';
+            *q++ = '0';
+            *q++ = (c >> 4) < 10 ? '0' + (c >> 4) : 'a' + (c >> 4) - 10;
+            *q++ = (c & 0x0F) < 10 ? '0' + (c & 0x0F) : 'a' + (c & 0x0F) - 10;
         }
         else
         {
