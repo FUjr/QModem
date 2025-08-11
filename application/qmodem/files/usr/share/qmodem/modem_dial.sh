@@ -749,6 +749,7 @@ at_dial()
             case $platform in
                 "mediatek")
                     delay=3
+                    [ -z "$pdp_index" ] && pdp_index=3
                     [ "$apn" = "auto" ] && apn="cbnet"
                     at_command="AT+CGACT=1,$pdp_index"
                     cgdcont_command="AT+CGDCONT=$pdp_index,\"$pdp_type\",\"$apn\""
