@@ -60,7 +60,7 @@ for i1,v1 in ipairs(avalible_ports) do
     override_at_port:value(v1,msg)
 end
 
-use_ubus = s:taboption("use_ubus",Flag, "use_ubus",translate("Use Ubus"))
+use_ubus = s:taboption("general",Flag, "use_ubus",translate("Use Ubus"))
 use_ubus.default = "0"
 
 at_port.placeholder = translate("Not null")
