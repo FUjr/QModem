@@ -1,3 +1,4 @@
 luci-app-qmodem
 luci-app-qmodem-sms
+ubus-at-daemon
 qmodem
