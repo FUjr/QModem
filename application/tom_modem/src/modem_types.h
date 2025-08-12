@@ -18,6 +18,7 @@
 #define SMS_PDU_S 'p'
 #define SMS_INDEX_S 'i'
 #define GREEDY_READ_S 'g'
+#define USE_UBUS_S 'u'
 
 #define AT_CMD_L "at_cmd"
 #define TTY_DEV_L "tty_dev"
@@ -32,6 +33,7 @@
 #define SMS_PDU_L "sms_pdu"
 #define SMS_INDEX_L "sms_index"
 #define GREEDY_READ_L "greedy_read"
+#define USE_UBUS_L "use_ubus"
 
 //operations
 #define AT_OP_S 'a'
@@ -65,6 +67,12 @@
 #define SMS_PDU_STR_SIZE 512
 #define SMS_PDU_HEX_SIZE 512
 
+// Transport layer enumeration
+typedef enum {
+    TRANSPORT_TTY = 0,
+    TRANSPORT_UBUS = 1
+} transport_type_t;
+
 // at_tool profile
 typedef struct _PROFILE {
     // AT command
@@ -90,6 +98,8 @@ typedef struct _PROFILE {
     char *sms_pdu;
     int sms_index;
     int greedy_read;
+    transport_type_t transport;  // Choose between TTY and UBUS
+    void *transport_ctx;         // Transport-specific context
 } PROFILE_T;
 
 
@@ -147,7 +157,8 @@ enum OPTIONS {
     DEBUG,
     SMS_PDU,
     SMS_INDEX,
-    GREEDY_READ
+    GREEDY_READ,
+    USE_UBUS
 };
 
 enum OPERATIONS {

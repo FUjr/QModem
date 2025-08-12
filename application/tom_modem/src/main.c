@@ -1,7 +1,7 @@
 #include "main.h"
 
-FDS_T s_fds;
-PROFILE_T s_profile;   // global profile     
+PROFILE_T s_profile;   // global profile
+transport_t s_transport; // global transport
 
 int parse_user_input(int argc, char *argv[], PROFILE_T *profile)
 {
@@ -131,6 +131,14 @@ int parse_user_input(int argc, char *argv[], PROFILE_T *profile)
         case GREEDY_READ:
             profile->greedy_read = 1;
             break;
+        case USE_UBUS:
+#ifdef ENABLE_UBUS_DAEMON
+            profile->transport = TRANSPORT_UBUS;
+#else
+            err_msg("UBUS daemon support not compiled in");
+            return INVALID_PARAM;
+#endif
+            break;
         default:
             err_msg("Invalid option: %s", argv[opt]);
             break;
@@ -159,56 +167,106 @@ int parse_user_input(int argc, char *argv[], PROFILE_T *profile)
     {
         profile->op = AT_OP;
     }
+    
+    // Default transport is TTY
+    if (profile->transport != TRANSPORT_UBUS)
+    {
+        profile->transport = TRANSPORT_TTY;
+    }
+    
     return SUCCESS;
 }
-int run_op(PROFILE_T *profile)
+
+int run_op(PROFILE_T *profile, void *transport)
 {
     switch (profile->op)
     {
     case AT_OP:
-        return at(profile);
+        return at(profile, transport);
     case BINARY_AT_OP:
-        return binary_at(profile);
+        return binary_at(profile, transport);
     case SMS_READ_OP:
-        return sms_read(profile);
+        return sms_read(profile, transport);
     case SMS_SEND_OP:
-        return sms_send(profile);
+        return sms_send(profile, transport);
     case SMS_DELETE_OP:
-        return sms_delete(profile);
+        return sms_delete(profile, transport);
     default:
         err_msg("Invalid operation");
     }
     return UNKNOWN_ERROR;
 }
+
 static void clean_up()
 {
     dbg_msg("Clean up success");
     
-    // Cleanup UBUS client
-    cleanup_global_ubus_client();
+    // Cleanup transport
+    transport_cleanup(&s_transport);
+    
+#ifdef USE_SEMAPHORE
+    if (s_profile.transport == TRANSPORT_TTY && unlock_at_port(s_profile.tty_dev))
+    {
+        err_msg("Failed to unlock tty device");
+    }
+#endif
 }
 
 int main(int argc, char *argv[])
 {
     PROFILE_T *profile = &s_profile;
-    FDS_T *fds = &s_fds;
     parse_user_input(argc, argv, profile);
     dump_profile();
     
-    // Initialize UBUS client
+    // Initialize transport layer
+    if (transport_init(&s_transport, profile->transport) != SUCCESS) {
+        err_msg("Failed to initialize transport layer");
+        return COMM_ERROR;
+    }
+    
+    // Setup cleanup and signal handlers
     atexit(clean_up);
     signal(SIGINT, clean_up);
     signal(SIGTERM, clean_up);
     
-    if (init_global_ubus_client() != 0)
+#ifdef USE_SEMAPHORE
+    if (profile->op == CLEANUP_SEMAPHORE_OP)
     {
-        err_msg("Failed to initialize UBUS client");
+        if (unlock_at_port(profile->tty_dev))
+        {
+            err_msg("Failed to unlock tty device");
+        }
+        return SUCCESS;
+    }
+    
+    // Only use semaphore locking for TTY transport
+    if (profile->transport == TRANSPORT_TTY && profile->tty_dev != NULL)
+    {
+        if (lock_at_port(profile->tty_dev))
+        {
+            err_msg("Failed to lock tty device");
+            return COMM_ERROR;
+        }
+    }
+#endif
+    
+    // Open device
+    if (transport_open_device(&s_transport, profile) != SUCCESS)
+    {
+        err_msg("Failed to open device");
         return COMM_ERROR;
     }
     
-    if (run_op(profile))
+    // Run operation
+    if (run_op(profile, &s_transport))
     {
         err_msg("Failed to run operation %d", profile->op);
+#ifdef USE_SEMAPHORE
+        if (profile->transport == TRANSPORT_TTY && unlock_at_port(profile->tty_dev))
+        {
+            err_msg("Failed to unlock tty device");
+        }
+#endif
         kill(getpid(), SIGINT); 
     }
     
