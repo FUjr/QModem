@@ -10,6 +10,7 @@
 #include <termios.h>
 #include <pthread.h>
 #include <regex.h>
+#include <time.h>
 #include <json-c/json.h>
 #include <libubus.h>
 #include <libubox/uloop.h>
@@ -55,6 +56,12 @@ typedef struct at_port_instance {
     int fd;
     struct termios termios_config;
     
+    // Port configuration for reconnection
+    int configured_baudrate;
+    int configured_databits;
+    int configured_parity;
+    int configured_stopbits;
+    
     // Thread and synchronization
     pthread_t reader_thread;
     pthread_mutex_t queue_mutex;
@@ -82,6 +89,10 @@ typedef struct at_port_instance {
     int is_open;
     int should_stop;
     
+    // Port monitoring
+    time_t last_check_time;
+    int check_interval;  // in seconds
+    
     struct at_port_instance *next;
 } at_port_instance_t;
 
@@ -91,6 +102,10 @@ typedef struct {
     struct ubus_object obj;
     at_port_instance_t *ports;
     pthread_mutex_t ports_mutex;
+    
+    // Port monitoring thread
+    pthread_t monitor_thread;
+    int monitor_should_stop;
 } at_daemon_ctx_t;
 
 // Function declarations
@@ -114,6 +129,12 @@ void process_incoming_data(at_port_instance_t *port, const char *data);
 
 int load_config_from_json(const char *json_path);
 char *hex_to_string(const char *hex_str);
+
+// Port monitoring functions
+void *port_monitor_thread_func(void *arg);
+void check_and_reconnect_port(at_port_instance_t *port);
+void start_port_monitor(void);
+void stop_port_monitor(void);
 
 // Ubus method handlers
 static int ubus_open_method(struct ubus_context *ctx, struct ubus_object *obj,

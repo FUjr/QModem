@@ -33,6 +33,16 @@ at_port_instance_t *create_port_instance(const char *port_path) {
     port->queue_tail = NULL;
     port->callbacks = NULL;
     
+    // Initialize configuration fields
+    port->configured_baudrate = 0;
+    port->configured_databits = 0;
+    port->configured_parity = 0;
+    port->configured_stopbits = 0;
+    
+    // Initialize monitoring fields
+    port->last_check_time = time(NULL);
+    port->check_interval = DEFAULT_CHECK_INTERVAL;
+    
     // Initialize response handling
     memset(&port->current_response, 0, sizeof(at_response_t));
     port->waiting_for_response = 0;
@@ -108,6 +118,12 @@ int open_at_port(at_port_instance_t *port, int baudrate, int databits, int parit
         close_at_port(port);
     }
     
+    // Check if file exists before trying to open
+    if (access(port->port_path, F_OK) != 0) {
+        fprintf(stderr, "Port file %s does not exist\n", port->port_path);
+        return -1;
+    }
+    
     port->fd = open(port->port_path, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (port->fd < 0) {
         fprintf(stderr, "Failed to open %s: %s\n", port->port_path, strerror(errno));
@@ -173,6 +189,12 @@ int open_at_port(at_port_instance_t *port, int baudrate, int databits, int parit
     tcsetattr(port->fd, TCSANOW, &options);
     port->termios_config = options;
     
+    // Store configuration for potential reconnection
+    port->configured_baudrate = baudrate;
+    port->configured_databits = databits;
+    port->configured_parity = parity;
+    port->configured_stopbits = stopbits;
+    
     port->is_open = 1;
     port->should_stop = 0;
     port->buffer_pos = 0;
@@ -205,4 +227,103 @@ void close_at_port(at_port_instance_t *port) {
     }
     
     port->is_open = 0;
+}
+
+// Port monitoring functions
+void check_and_reconnect_port(at_port_instance_t *port) {
+    time_t current_time = time(NULL);
+    
+    // Check if it's time to check this port
+    if (current_time - port->last_check_time < port->check_interval) {
+        return;
+    }
+    
+    port->last_check_time = current_time;
+    
+    if (!port->is_open) {
+        // Port is marked as closed, check if file exists and try to reopen
+        if (access(port->port_path, F_OK) == 0) {
+            // File exists, try to reopen
+            fprintf(stdout, "Port %s exists but is closed, attempting to reopen...\n", port->port_path);
+            
+            // Use stored configuration or defaults
+            int baudrate = (port->configured_baudrate > 0) ? port->configured_baudrate : 115200;
+            int databits = (port->configured_databits > 0) ? port->configured_databits : DEFAULT_DATABITS;
+            int parity = port->configured_parity;
+            int stopbits = (port->configured_stopbits > 0) ? port->configured_stopbits : DEFAULT_STOPBITS;
+            
+            if (open_at_port(port, baudrate, databits, parity, stopbits) == 0) {
+                fprintf(stdout, "Successfully reopened port %s\n", port->port_path);
+            } else {
+                fprintf(stderr, "Failed to reopen port %s\n", port->port_path);
+            }
+        }
+    } else {
+        // Port is marked as open, verify it's still accessible
+        if (access(port->port_path, F_OK) != 0) {
+            // File no longer exists
+            fprintf(stderr, "Port %s no longer exists, marking as closed\n", port->port_path);
+            close_at_port(port);
+        } else {
+            // File exists, check if file descriptor is still valid
+            if (port->fd >= 0) {
+                // Try a simple write to test if the fd is still valid
+                int test_result = fcntl(port->fd, F_GETFL);
+                if (test_result == -1 && errno == EBADF) {
+                    // File descriptor is bad, port needs to be reopened
+                    fprintf(stderr, "Port %s file descriptor is invalid, reopening...\n", port->port_path);
+                    close_at_port(port);
+                    
+                    // Use stored configuration or defaults
+                    int baudrate = (port->configured_baudrate > 0) ? port->configured_baudrate : 115200;
+                    int databits = (port->configured_databits > 0) ? port->configured_databits : DEFAULT_DATABITS;
+                    int parity = port->configured_parity;
+                    int stopbits = (port->configured_stopbits > 0) ? port->configured_stopbits : DEFAULT_STOPBITS;
+                    
+                    if (open_at_port(port, baudrate, databits, parity, stopbits) == 0) {
+                        fprintf(stdout, "Successfully reopened port %s after fd failure\n", port->port_path);
+                    } else {
+                        fprintf(stderr, "Failed to reopen port %s after fd failure\n", port->port_path);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void *port_monitor_thread_func(void *arg) {
+    while (!g_daemon_ctx.monitor_should_stop) {
+        pthread_mutex_lock(&g_daemon_ctx.ports_mutex);
+        
+        at_port_instance_t *current = g_daemon_ctx.ports;
+        while (current) {
+            check_and_reconnect_port(current);
+            current = current->next;
+        }
+        
+        pthread_mutex_unlock(&g_daemon_ctx.ports_mutex);
+        
+        // Sleep for monitoring interval
+        sleep(PORT_MONITOR_INTERVAL);
+    }
+    
+    return NULL;
+}
+
+void start_port_monitor(void) {
+    g_daemon_ctx.monitor_should_stop = 0;
+    if (pthread_create(&g_daemon_ctx.monitor_thread, NULL, port_monitor_thread_func, NULL) != 0) {
+        fprintf(stderr, "Failed to create port monitor thread\n");
+    } else {
+        fprintf(stdout, "Port monitor thread started\n");
+    }
+}
+
+void stop_port_monitor(void) {
+    g_daemon_ctx.monitor_should_stop = 1;
+    if (g_daemon_ctx.monitor_thread) {
+        pthread_join(g_daemon_ctx.monitor_thread, NULL);
+        g_daemon_ctx.monitor_thread = 0;
+        fprintf(stdout, "Port monitor thread stopped\n");
+    }
 }

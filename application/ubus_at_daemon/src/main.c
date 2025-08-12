@@ -85,9 +85,22 @@ static int ubus_open_method(struct ubus_context *ctx, struct ubus_object *obj,
     if (tb[OPEN_TIMEOUT])
         timeout = blobmsg_get_u32(tb[OPEN_TIMEOUT]);
     
-    // Find or create port instance
+    // Find existing port instance
     at_port_instance_t *port = find_port_instance(at_port);
+    int is_new_port = (port == NULL);
+    
     if (!port) {
+        // Check if port file exists before creating instance
+        if (access(at_port, F_OK) != 0) {
+            struct blob_buf b = {};
+            blob_buf_init(&b, 0);
+            blobmsg_add_string(&b, "status", "error");
+            blobmsg_add_string(&b, "message", "Port file does not exist");
+            ubus_send_reply(ctx, req, b.head);
+            blob_buf_free(&b);
+            return UBUS_STATUS_OK;
+        }
+        
         port = create_port_instance(at_port);
         if (!port) {
             return UBUS_STATUS_NO_DATA;
@@ -112,6 +125,11 @@ static int ubus_open_method(struct ubus_context *ctx, struct ubus_object *obj,
         blobmsg_add_string(&b, "status", "error");
         blobmsg_add_string(&b, "message", "Failed to open port");
         ubus_send_reply(ctx, req, b.head);
+        
+        // If this was a new port instance and opening failed, remove it from the list
+        if (is_new_port) {
+            destroy_port_instance(port);
+        }
     }
     
     blob_buf_free(&b);
@@ -245,7 +263,21 @@ static int ubus_list_method(struct ubus_context *ctx, struct ubus_object *obj,
         blobmsg_add_u32(&b, "is_open", current->is_open);
         if (current->is_open) {
             blobmsg_add_u32(&b, "fd", current->fd);
+            if (current->configured_baudrate > 0) {
+                blobmsg_add_u32(&b, "baudrate", current->configured_baudrate);
+                blobmsg_add_u32(&b, "databits", current->configured_databits);
+                blobmsg_add_u32(&b, "parity", current->configured_parity);
+                blobmsg_add_u32(&b, "stopbits", current->configured_stopbits);
+            }
+        } else {
+            // Check if file exists for closed ports
+            if (access(current->port_path, F_OK) == 0) {
+                blobmsg_add_string(&b, "file_status", "exists");
+            } else {
+                blobmsg_add_string(&b, "file_status", "missing");
+            }
         }
+        blobmsg_add_u32(&b, "last_check", (uint32_t)current->last_check_time);
         blobmsg_close_table(&b, port_obj);
         current = current->next;
     }
@@ -331,8 +363,14 @@ static void server_main(void) {
     
     g_daemon_ctx.obj = at_daemon_object;
     
+    // Start port monitoring thread
+    start_port_monitor();
+    
     printf("ubus-at-daemon started\n");
     uloop_run();
+    
+    // Stop port monitoring thread
+    stop_port_monitor();
     
     ubus_free(g_daemon_ctx.ctx);
     uloop_done();

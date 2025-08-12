@@ -10,6 +10,10 @@
 #define DEFAULT_STOPBITS 1
 #define DEFAULT_TIMEOUT 5   // seconds
 
+// Port monitoring settings
+#define DEFAULT_CHECK_INTERVAL 30  // seconds
+#define PORT_MONITOR_INTERVAL 5    // seconds
+
 // Buffer sizes
 #define MAX_AT_PORTS 32
 #define MAX_BUFFER_SIZE 16384

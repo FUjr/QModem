@@ -1,13 +1,13 @@
-# Cross-compile setup for ImmortalWrt
-STAGING_DIR ?= $(HOME)/qwrt_works/immortalwrt/staging_dir
-TARGET_DIR ?= $(STAGING_DIR)/target-aarch64_generic_musl
-TOOLCHAIN_DIR ?= $(STAGING_DIR)/toolchain-aarch64_generic_gcc-13.3.0_musl
+# # Cross-compile setup for ImmortalWrt
+# STAGING_DIR ?= $(HOME)/qwrt_works/immortalwrt/staging_dir
+# TARGET_DIR ?= $(STAGING_DIR)/target-aarch64_generic_musl
+# TOOLCHAIN_DIR ?= $(STAGING_DIR)/toolchain-aarch64_generic_gcc-13.3.0_musl
 
-# Cross-compiler and tools
-CROSS_COMPILE ?= aarch64-openwrt-linux-musl-
-CC = $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)gcc
-AR = $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)ar
-STRIP = $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)strip
+# # Cross-compiler and tools
+# CROSS_COMPILE ?= aarch64-openwrt-linux-musl-
+# CC = $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)gcc
+# AR = $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)ar
+# STRIP = $(TOOLCHAIN_DIR)/bin/$(CROSS_COMPILE)strip
 
 # Include and library paths
 CFLAGS = -Wall -Wextra -std=c99 -D_GNU_SOURCE

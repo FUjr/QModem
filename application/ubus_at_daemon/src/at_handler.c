@@ -367,7 +367,10 @@ void *reader_thread_func(void *arg) {
             
             pthread_mutex_unlock(&port->queue_mutex);
         } else if (bytes_read < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-            // Error reading
+            // Error reading, mark port as closed
+            fprintf(stderr, "Error reading from port %s: %s, marking as closed\n", 
+                    port->port_path, strerror(errno));
+            port->is_open = 0;
             break;
         }
         
