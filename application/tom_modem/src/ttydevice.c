@@ -209,7 +209,7 @@ int tty_read_keyword(FILE *fdi, AT_MESSAGE_T *message, char *key_word, PROFILE_T
     return exitcode;
 }
 
-int tty_write_raw(FILE *fdo, char *input)
+int tty_write_raw(FILE *fdo, const char *input)
 {
     int ret;
     ret = fputs(input, fdo);
@@ -223,7 +223,7 @@ int tty_write_raw(FILE *fdo, char *input)
     return SUCCESS;
 }
 
-int tty_write(FILE *fdo, char *input)
+int tty_write(FILE *fdo, const char *input)
 {
     int cmd_len, ret;
     char *cmd_line;

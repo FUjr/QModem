@@ -1,5 +1,6 @@
 #include "transport.h"
 #include "utils.h"
+#include "operations.h"
 
 // TTY transport operations implementation
 static int tty_send_at_with_response(PROFILE_T *profile, const char *at_cmd, const char *end_flag, int is_raw, char **response_text) {
