@@ -66,6 +66,10 @@ use_ubus.default = "0"
 at_port.placeholder = translate("Not null")
 at_port.rmempty = false
 
+force_set_apn = s:taboption("advanced", Flag, "force_set_apn", translate("Force Set APN"))
+force_set_apn.description = translate("If enabled, the APN will be set even if it matches the current configuration.(only works with tom modified version of quectel-cm)")
+force_set_apn.default = "0"
+
 bridge_mode = s:taboption("advanced", Flag, "en_bridge", translate("Bridge Mode"))
 bridge_mode.description = translate("Caution: Only avalible for quectel sdx 5G Modem.")
 bridge_mode.default = "0"
