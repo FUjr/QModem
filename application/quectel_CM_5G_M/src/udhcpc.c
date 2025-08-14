@@ -248,7 +248,7 @@ static const char *ipv6Str(const UCHAR Address[16]) {
     return str;
 }
 
-void update_ipv4_address(const char *ifname, const char *ip, const char *gw, unsigned prefix, char *metric)
+void update_ipv4_address(const char *ifname, const char *ip, const char *gw, unsigned prefix, const char *metric)
 {
     char shell_cmd[128];
 
@@ -282,7 +282,7 @@ void update_ipv4_address(const char *ifname, const char *ip, const char *gw, uns
     }
 }
 
-void update_ipv6_address(const char *ifname, const char *ip, const char *gw, unsigned prefix, char* metric) {
+void update_ipv6_address(const char *ifname, const char *ip, const char *gw, unsigned prefix,const char* metric) {
     char shell_cmd[128];
 
     (void)gw;
@@ -305,7 +305,7 @@ void update_ipv6_address(const char *ifname, const char *ip, const char *gw, uns
     }
 }
 
-static void update_ip_address_by_qmi(const char *ifname, const IPV4_T *ipv4, const IPV6_T *ipv6, PROFILE_T *profile) {
+static void update_ip_address_by_qmi(const char *ifname, const IPV4_T *ipv4, const IPV6_T *ipv6,const PROFILE_T *profile) {
     char *d1, *d2;
 
     if (ipv4 && ipv4->Address) {

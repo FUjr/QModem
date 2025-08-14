@@ -390,8 +390,8 @@ extern int debug_qmi;
 extern int qmidevice_control_fd[2];
 extern int g_donot_exit_when_modem_hangup;
 extern void update_resolv_conf(int iptype, const char *ifname, const char *dns1, const char *dns2);
-void update_ipv4_address(const char *ifname, const char *ip, const char *gw, unsigned prefix, char *metric);
-void update_ipv6_address(const char *ifname, const char *ip, const char *gw, unsigned prefix, char *metric);
+void update_ipv4_address(const char *ifname, const char *ip, const char *gw, unsigned prefix, const char *metric);
+void update_ipv6_address(const char *ifname, const char *ip, const char *gw, unsigned prefix, const char *metric);
 int reattach_driver(PROFILE_T *profile);
 extern void no_trunc_strncpy(char *dest, const char *src, size_t dest_size);
 
