@@ -137,6 +137,7 @@ update_config()
     config_get at_port $modem_config at_port
     config_get manufacturer $modem_config manufacturer
     config_get platform $modem_config platform
+    config_get force_set_apn $modem_config force_set_apn
     config_get pdp_index $modem_config pdp_index
     config_get suggest_pdp_index $modem_config suggest_pdp_index
     [ -z "$suggest_pdp_index"] && suggest_pdp_index=$(get_platform_suggest_pdp_index)
@@ -686,7 +687,7 @@ mhi_dial()
 qmi_dial()
 {
     cmd_line="quectel-CM"
-    [ -e "/usr/bin/quectel-CM-M" ] && cmd_line="quectel-CM-M"
+    [ -e "/usr/bin/quectel-CM-M" ] && cmd_line="quectel-CM-M" && tom_modified=1
     case $pdp_type in
         "ip") cmd_line="$cmd_line -4" ;;
         "ipv6") cmd_line="$cmd_line -6" ;;
@@ -741,6 +742,7 @@ qmi_dial()
     fi
     if [ -e "/usr/bin/quectel-CM-M" ];then
         [ -n "$metric" ] && cmd_line="$cmd_line -d -M $metric"
+        [ "$force_set_apn" == "1" ] && cmd_line="$cmd_line -F"
     else
         [ -n "$metric" ] && cmd_line="$cmd_line"
     fi
