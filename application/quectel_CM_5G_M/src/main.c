@@ -252,6 +252,7 @@ static int usage(const char *progname) {
     dbg_time("-v                                     Verbose log mode, for debug purpose.");
     dbg_time("-d                                     Obtain the IP address and dns through qmi");
     dbg_time("-D                                     Do not Append DNS servers to /etc/resolv.conf");
+    dbg_time("-F                                     Force APN setting even if profile parameters match");
     dbg_time("-M metric                              Specify the metric of the default route");
     dbg_time("[Examples]");
     dbg_time("Example 1: %s ", progname);
@@ -809,6 +810,7 @@ static int parse_user_input(int argc, char **argv, PROFILE_T *profile) {
 
     profile->pdp = CONFIG_DEFAULT_PDP;
     profile->profile_index = CONFIG_DEFAULT_PDP;
+    profile->force_apn_set = 0;  // Default: use normal APN comparison check
 
     if (!strcmp(argv[argc-1], "&"))
         argc--;
@@ -952,6 +954,10 @@ static int parse_user_input(int argc, char **argv, PROFILE_T *profile) {
             
             case 'D':
                 profile->no_dns = 1;
+            break;
+
+            case 'F':
+                profile->force_apn_set = 1;
             break;
 
             default:

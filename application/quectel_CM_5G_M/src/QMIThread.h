@@ -210,6 +210,7 @@ typedef struct __PROFILE {
     char expect_adapter[32];
     int kill_pdp;
     int replication_factor;
+    int force_apn_set;  // Force APN setting even if old config matches
     //user input end
 
     char qmichannel[32];
