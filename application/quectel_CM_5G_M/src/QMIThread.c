@@ -2123,10 +2123,11 @@ static int requestSetProfile(PROFILE_T *profile) {
     if (profile->force_apn_set) {
         dbg_time("clear APN settings");
         PROFILE_T *temp_profile;
+        temp_profile = (PROFILE_T *)malloc(sizeof(PROFILE_T));
         memcpy(temp_profile, profile, sizeof(PROFILE_T));
-        temp_profile->apn = NULL;
-        temp_profile->user = NULL;
-        temp_profile->password = NULL;
+        temp_profile->apn = "";
+        temp_profile->user = "";
+        temp_profile->password = "";
         pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS, QMIWDS_MODIFY_PROFILE_SETTINGS_REQ, WdsModifyProfileSettingsReq, temp_profile);
         err = QmiThreadSendQMI(pRequest, &pResponse);
         qmi_rsp_check_and_return();
