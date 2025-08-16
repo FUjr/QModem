@@ -2120,6 +2120,18 @@ static int requestSetProfile(PROFILE_T *profile) {
     if (!profile->profile_index)
         return -1;
 
+    if (profile->force_apn_set) {
+        dbg_time("clear APN settings");
+        PROFILE_T *temp_profile;
+        memcpy(temp_profile, profile, sizeof(PROFILE_T));
+        temp_profile->apn = NULL;
+        temp_profile->user = NULL;
+        temp_profile->password = NULL;
+        pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS, QMIWDS_MODIFY_PROFILE_SETTINGS_REQ, WdsModifyProfileSettingsReq, temp_profile);
+        err = QmiThreadSendQMI(pRequest, &pResponse);
+        qmi_rsp_check_and_return();
+    }
+
     if (!profile->force_apn_set && !strcmp(profile->old_apn, new_apn) && !strcmp(profile->old_user, new_user)
         && !strcmp(profile->old_password, new_password)
         && profile->old_iptype == profile->iptype
