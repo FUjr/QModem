@@ -1,0 +1,74 @@
+msgid "SMS Forward"
+msgstr "短信转发"
+
+msgid "SMS Forward Configuration"
+msgstr "短信转发配置"
+
+msgid "SMS Forward Service"
+msgstr "短信转发服务"
+
+msgid "Enable SMS Forward Service"
+msgstr "启用短信转发服务"
+
+msgid "SMS Forward Instances"
+msgstr "短信转发实例"
+
+msgid "Instance Name"
+msgstr "实例名称"
+
+msgid "Listen Port"
+msgstr "监听端口"
+
+msgid "Poll Interval (seconds)"
+msgstr "轮询间隔（秒）"
+
+msgid "Minimum 15 seconds, maximum 10 minutes"
+msgstr "最少15秒，最多10分钟"
+
+msgid "Forward API Type"
+msgstr "转发API类型"
+
+msgid "API Configuration"
+msgstr "API配置"
+
+msgid "ServerChat"
+msgstr "ServerChat"
+
+msgid "Telegram Bot"
+msgstr "Telegram机器人"
+
+msgid "Generic Webhook"
+msgstr "通用Webhook"
+
+msgid "Custom Script"
+msgstr "自定义脚本"
+
+msgid "JSON format configuration. Examples:<br/>"
+msgstr "JSON格式配置。示例：<br/>"
+
+msgid "Recommended to enable for SMS forwarding service and better AT command performance."
+msgstr "推荐启用以获得更好的短信转发服务和AT命令性能。"
+
+msgid "SMS Forward Service Status"
+msgstr "短信转发服务状态"
+
+msgid "Current Status"
+msgstr "当前状态"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "Stopped"
+msgstr "已停止"
+
+msgid "Loading..."
+msgstr "加载中..."
+
+msgid "Start Service"
+msgstr "启动服务"
+
+msgid "Stop Service"
+msgstr "停止服务"
+
+msgid "Restart Service"
+msgstr "重启服务"
