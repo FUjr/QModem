@@ -29,7 +29,7 @@ fi
 API_URL="https://sctapi.ftqq.com/${TOKEN}.send"
 
 # Prepare message content
-TITLE="SMS from $SMS_SENDER"
+TITLE="QModem SMS: ($SMS_SENDER)"
 DESP="**Time:** $SMS_TIME
 
 **Sender:** $SMS_SENDER

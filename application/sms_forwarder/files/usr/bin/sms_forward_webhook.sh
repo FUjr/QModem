@@ -36,11 +36,13 @@ fi
 if command -v jq >/dev/null 2>&1; then
     JSON_PAYLOAD=$(jq -n \
         --arg type "sms" \
+        --arg title "QModem SMS: ($SMS_SENDER)" \
         --arg timestamp "$SMS_TIME" \
         --arg sender "$SMS_SENDER" \
         --arg content "$SMS_CONTENT" \
         '{
             type: $type,
+            title: $title,
             timestamp: $timestamp,
             sender: $sender,
             content: $content
@@ -49,6 +51,7 @@ else
     # Fallback JSON generation
     JSON_PAYLOAD="{
     \"type\": \"sms\",
+    \"title\": \"QModem SMS: ($SMS_SENDER)\",
     \"timestamp\": \"$SMS_TIME\",
     \"sender\": \"$SMS_SENDER\",
     \"content\": \"$SMS_CONTENT\"

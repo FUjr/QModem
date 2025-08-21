@@ -33,9 +33,8 @@ if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
 fi
 
 # Prepare message
-MESSAGE="📱 New SMS Message
+MESSAGE="QModem SMS: ($SMS_SENDER)
 
-📞 From: $SMS_SENDER
 🕒 Time: $SMS_TIME
 💬 Content: $SMS_CONTENT"
 
