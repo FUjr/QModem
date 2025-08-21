@@ -12,5 +12,7 @@ int binary_at(PROFILE_T *profile, void *transport);
 int sms_read(PROFILE_T *profile, void *transport);
 int sms_send(PROFILE_T *profile, void *transport);
 int sms_delete(PROFILE_T *profile, void *transport);
+int sms_read_unread(PROFILE_T *profile, void *transport);
+int sms_mark_read(PROFILE_T *profile, void *transport);
 
 #endif

@@ -299,6 +299,10 @@ int match_operation(char *operation_name)
             return SMS_SEND_OP;
         case SMS_DELETE_OP_S:
             return SMS_DELETE_OP;
+        case SMS_UNREAD_OP_S:
+            return SMS_UNREAD_OP;
+        case SMS_MARK_READ_OP_S:
+            return SMS_MARK_READ_OP;
         case CLEANUP_SEMAPHORE_OP_S:
             return CLEANUP_SEMAPHORE_OP;
         default:
@@ -327,6 +331,14 @@ int match_operation(char *operation_name)
         else if (strcmp(operation_name, SMS_DELETE_OP_L) == 0)
         {
             return SMS_DELETE_OP;
+        }
+        else if (strcmp(operation_name, SMS_UNREAD_OP_L) == 0)
+        {
+            return SMS_UNREAD_OP;
+        }
+        else if (strcmp(operation_name, SMS_MARK_READ_OP_L) == 0)
+        {
+            return SMS_MARK_READ_OP;
         }
         else if (strcmp(operation_name, CLEANUP_SEMAPHORE_OP_L) == 0)
         {
@@ -415,7 +427,7 @@ int usage(char* name)
     err_msg("  -b, --baud_rate <baud rate>  Baud rate Default: 115200 Supported: 4800,9600,19200,38400,57600,115200");
     err_msg("  -B, --data_bits <data bits>  Data bits Default: 8 Supported: 5,6,7,8");
     err_msg("  -t, --timeout <timeout>  Default: 3 Timeout in seconds, if output is more than timeout, it will be ignored unless -g option is set");
-    err_msg("  -o, --operation <operation>  Operation(at[a:defualt],binary_at[b], sms_read[r], sms_send[s], sms_delete[d])");
+    err_msg("  -o, --operation <operation>  Operation(at[a:defualt],binary_at[b], sms_read[r], sms_send[s], sms_delete[d], unread_sms[u], mark_read[m])");
     err_msg("  -D, --debug Debug mode Default: off");
     err_msg("  -p, --sms_pdu <sms pdu>  SMS PDU");
     err_msg("  -i, --sms_index <sms index>  SMS index");

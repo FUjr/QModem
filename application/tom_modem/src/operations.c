@@ -185,3 +185,101 @@ int sms_send(PROFILE_T *profile, void *transport_ptr)
     
     return SUCCESS;
 }
+
+int sms_read_unread(PROFILE_T *profile, void *transport_ptr)
+{
+    transport_t *transport = (transport_t *)transport_ptr;
+    SMS_T *sms_list[SMS_LIST_SIZE];
+    SMS_T *sms;
+    char *response_text = NULL;
+    int result;
+
+    // Set PDU format
+    result = transport_send_at_with_response(transport, profile, SET_PDU_FORMAT, "OK", 0, NULL);
+    if (result != SUCCESS)
+    {
+        dbg_msg("Error setting PDU format, error code: %d", result);
+        return result;
+    }
+    dbg_msg("Set PDU format success");
+
+    // Read unread SMS only
+    result = transport_send_at_with_response(transport, profile, READ_UNREAD_SMS, "OK", 0, &response_text);
+    if (result != SUCCESS)
+    {
+        dbg_msg("Error reading unread SMS, error code: %d", result);
+        return result;
+    }
+
+    if (response_text)
+    {
+        char *line = strtok(response_text, "\n");
+        int sms_count = 0;
+
+        while (line != NULL)
+        {
+            if (strncmp(line, "+CMGL:", 6) == 0)
+            {
+                sms = (SMS_T *)malloc(sizeof(SMS_T));
+                memset(sms, 0, sizeof(SMS_T));
+                char *pdu = strtok(NULL, "\n");
+                sms->sms_pdu = (char *)malloc(strlen(pdu));
+                sms->sender = (char *)malloc(PHONE_NUMBER_SIZE);
+                sms->sms_text = (char *)malloc(SMS_TEXT_SIZE);
+                sms->sms_index = get_sms_index(line);
+                memcpy(sms->sms_pdu, pdu, strlen(pdu));
+                int sms_len = decode_pdu(sms);
+                if (sms_len > 0)
+                {
+                    sms_list[sms_count] = sms;
+                    sms_count++;
+                }
+                else
+                {
+                    dbg_msg("Error decoding SMS in line: %s", line);
+                    destroy_sms(sms);
+                }
+            }
+            line = strtok(NULL, "\n");
+        }
+
+        display_sms_in_json(sms_list, sms_count);
+        free(response_text);
+    }
+
+    dbg_msg("Read unread SMS success");
+    return SUCCESS;
+}
+
+int sms_mark_read(PROFILE_T *profile, void *transport_ptr)
+{
+    transport_t *transport = (transport_t *)transport_ptr;
+    char mark_read_cmd[64];
+    int result;
+
+    if (profile->sms_index < 0)
+    {
+        err_msg("SMS index not specified");
+        return INVALID_PARAM;
+    }
+
+    // Set PDU format
+    result = transport_send_at_with_response(transport, profile, SET_PDU_FORMAT, "OK", 0, NULL);
+    if (result != SUCCESS)
+    {
+        dbg_msg("Error setting PDU format, error code: %d", result);
+        return result;
+    }
+
+    // Mark SMS as read by reading it
+    snprintf(mark_read_cmd, 64, MARK_SMS_READ, profile->sms_index);
+    result = transport_send_at_with_response(transport, profile, mark_read_cmd, "OK", 0, NULL);
+    if (result != SUCCESS)
+    {
+        dbg_msg("Error marking SMS as read, error code: %d", result);
+        return result;
+    }
+
+    dbg_msg("SMS %d marked as read", profile->sms_index);
+    return SUCCESS;
+}

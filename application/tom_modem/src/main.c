@@ -191,6 +191,10 @@ int run_op(PROFILE_T *profile, void *transport)
         return sms_send(profile, transport);
     case SMS_DELETE_OP:
         return sms_delete(profile, transport);
+    case SMS_UNREAD_OP:
+        return sms_read_unread(profile, transport);
+    case SMS_MARK_READ_OP:
+        return sms_mark_read(profile, transport);
     default:
         err_msg("Invalid operation");
     }
