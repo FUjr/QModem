@@ -1,0 +1,164 @@
+#!/bin/sh /etc/rc.common
+
+START=90
+STOP=10
+
+USE_PROCD=1
+PROG=/usr/bin/sms_forwarder
+
+start_service() {
+	config_load sms_daemon
+	
+	local enabled
+	config_get_bool enabled sms_forward enable 0
+	
+	if [ "$enabled" -eq 0 ]; then
+		echo "SMS Forward service is disabled"
+		return 0
+	fi
+	
+	# Start each enabled instance
+	config_foreach start_instance sms_forward_instance
+}
+
+start_instance() {
+	local section="$1"
+	local enabled port poll_interval api_type api_config
+	
+	config_get_bool enabled "$section" enable 0
+	[ "$enabled" -eq 0 ] && return 0
+	
+	config_get port "$section" listen_port
+	config_get poll_interval "$section" poll_interval 30
+	config_get api_type "$section" api_type
+	config_get api_config "$section" api_config
+	
+	# Validate required parameters
+	[ -z "$port" ] && {
+		echo "Error: No modem port specified for instance $section"
+		return 1
+	}
+	
+	[ -z "$api_type" ] && {
+		echo "Error: No API type specified for instance $section"
+		return 1
+	}
+	
+	# Generate API config based on type if not already provided
+	if [ -z "$api_config" ] || [ "$api_config" = '{}' ]; then
+		api_config=$(generate_api_config "$section" "$api_type")
+		if [ -z "$api_config" ]; then
+			echo "Error: Failed to generate API config for instance $section"
+			return 1
+		fi
+	fi
+	
+	# Validate JSON format of api_config
+	if ! echo "$api_config" | grep -q '^{.*}$'; then
+		echo "Error: Invalid JSON format in api_config for instance $section"
+		return 1
+	fi
+	
+	# Create config file for this instance
+	local config_file="/tmp/sms_forwarder_${section}.json"
+	
+	# Use printf to handle JSON escaping properly
+	printf '{\n\t"modem_port": "%s",\n\t"poll_interval": %d,\n\t"api_type": "%s",\n\t"api_config": %s\n}\n' \
+		"$port" "$poll_interval" "$api_type" "$api_config" > "$config_file"
+	
+	# Validate the generated JSON
+	if ! command -v jq >/dev/null 2>&1 || ! jq . "$config_file" >/dev/null 2>&1; then
+		echo "Warning: Generated JSON config may be invalid for instance $section"
+		echo "Config file content:"
+		cat "$config_file"
+	fi
+	
+	# Start procd service instance
+	procd_open_instance "$section"
+	procd_set_param command "$PROG" "$config_file"
+	procd_set_param respawn
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param file "$config_file"
+	procd_close_instance
+}
+
+generate_api_config() {
+	local section="$1"
+	local api_type="$2"
+	local config_json=""
+	
+	case "$api_type" in
+		"tgbot")
+			local bot_token chat_id
+			config_get bot_token "$section" tg_bot_token
+			config_get chat_id "$section" tg_chat_id
+			
+			[ -z "$bot_token" ] || [ -z "$chat_id" ] && {
+				echo "Error: Telegram Bot requires bot_token and chat_id"
+				return 1
+			}
+			
+			config_json="{\"bot_token\":\"$bot_token\",\"chat_id\":\"$chat_id\"}"
+			;;
+			
+		"webhook")
+			local webhook_url headers
+			config_get webhook_url "$section" webhook_url
+			config_get headers "$section" webhook_headers
+			
+			[ -z "$webhook_url" ] && {
+				echo "Error: Webhook requires webhook_url"
+				return 1
+			}
+			
+			if [ -n "$headers" ]; then
+				config_json="{\"webhook_url\":\"$webhook_url\",\"headers\":\"$headers\"}"
+			else
+				config_json="{\"webhook_url\":\"$webhook_url\"}"
+			fi
+			;;
+			
+		"serverchan")
+			local token channel noip openid
+			config_get token "$section" serverchan_token
+			config_get channel "$section" serverchan_channel
+			config_get noip "$section" serverchan_noip
+			config_get openid "$section" serverchan_openid
+			
+			[ -z "$token" ] && {
+				echo "Error: ServerChan requires token"
+				return 1
+			}
+			
+			config_json="{\"token\":\"$token\""
+			[ -n "$channel" ] && config_json="$config_json,\"channel\":\"$channel\""
+			[ "$noip" = "1" ] && config_json="$config_json,\"noip\":\"1\""
+			[ -n "$openid" ] && config_json="$config_json,\"openid\":\"$openid\""
+			config_json="$config_json}"
+			;;
+			
+		"custom_script")
+			local script_path
+			config_get script_path "$section" custom_script_path
+			
+			[ -z "$script_path" ] && {
+				echo "Error: Custom script requires script_path"
+				return 1
+			}
+			
+			config_json="{\"script_path\":\"$script_path\"}"
+			;;
+			
+		*)
+			echo "Error: Unknown API type: $api_type"
+			return 1
+			;;
+	esac
+	
+	echo "$config_json"
+}
+
+service_triggers() {
+	procd_add_reload_trigger "sms_daemon"
+}

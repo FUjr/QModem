@@ -1,0 +1,20 @@
+CC = gcc
+CFLAGS = -Wall -std=c99 -g
+LDFLAGS = -ljson-c
+
+TARGET = sms_forwarder_local
+DEBUG_TARGET = debug_test_local
+SOURCES = main.c
+
+all: $(TARGET) $(DEBUG_TARGET)
+
+$(TARGET): $(SOURCES)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+$(DEBUG_TARGET): debug_test.c
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+clean:
+	rm -f $(TARGET) $(DEBUG_TARGET)
+
+.PHONY: all clean
