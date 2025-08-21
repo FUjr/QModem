@@ -73,6 +73,7 @@ api_type = s2:option(ListValue, "api_type", translate("API Type"))
 api_type:value("tgbot", translate("Telegram Bot"))
 api_type:value("webhook", translate("Webhook"))
 api_type:value("serverchan", translate("ServerChan"))
+api_type:value("pushdeer", translate("PushDeer"))
 api_type:value("custom_script", translate("Custom Script"))
 
 -- Telegram Bot 配置
@@ -112,6 +113,17 @@ serverchan_openid = s2:option(Value, "serverchan_openid", translate("OpenID (opt
 serverchan_openid:depends("api_type", "serverchan")
 serverchan_openid.placeholder = "openid1,openid2"
 serverchan_openid.description = translate("OpenID for message forwarding, use comma to separate multiple IDs")
+
+-- PushDeer 配置
+pushdeer_push_key = s2:option(Value, "pushdeer_push_key", translate("Push Key"))
+pushdeer_push_key:depends("api_type", "pushdeer")
+pushdeer_push_key.placeholder = "PDU123456T..."
+pushdeer_push_key.description = translate("PushDeer Push Key from http://pushdeer.com")
+
+pushdeer_endpoint = s2:option(Value, "pushdeer_endpoint", translate("API Endpoint (optional)"))
+pushdeer_endpoint:depends("api_type", "pushdeer")
+pushdeer_endpoint.placeholder = "https://api2.pushdeer.com"
+pushdeer_endpoint.description = translate("Custom PushDeer API endpoint, leave empty to use default")
 
 -- Custom Script 配置
 custom_script_path = s2:option(Value, "custom_script_path", translate("Script Path"))
@@ -162,6 +174,16 @@ function m.on_save_apply(self, config)
             end
             if openid ~= "" then
                 json_config = json_config .. string.format(',"openid":"%s"', openid)
+            end
+            json_config = json_config .. "}"
+            
+        elseif api_type_val == "pushdeer" then
+            local push_key = section.pushdeer_push_key or ""
+            local endpoint = section.pushdeer_endpoint or ""
+            
+            json_config = string.format('{"push_key":"%s"', push_key)
+            if endpoint ~= "" then
+                json_config = json_config .. string.format(',"endpoint":"%s"', endpoint)
             end
             json_config = json_config .. "}"
             
@@ -220,6 +242,14 @@ function m.on_init(self)
                     end
                     if parsed.openid then
                         uci:set("sms_daemon", section_name, "serverchan_openid", parsed.openid)
+                    end
+                    
+                elseif api_type_val == "pushdeer" then
+                    if parsed.push_key then
+                        uci:set("sms_daemon", section_name, "pushdeer_push_key", parsed.push_key)
+                    end
+                    if parsed.endpoint then
+                        uci:set("sms_daemon", section_name, "pushdeer_endpoint", parsed.endpoint)
                     end
                     
                 elseif api_type_val == "custom_script" then

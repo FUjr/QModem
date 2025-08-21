@@ -111,6 +111,7 @@ api_type.width = "12%"
 api_type:value("tgbot", translate("Telegram Bot"))
 api_type:value("webhook", translate("Webhook"))
 api_type:value("serverchan", translate("ServerChan"))
+api_type:value("pushdeer", translate("PushDeer"))
 api_type:value("custom_script", translate("Custom Script"))
 
 

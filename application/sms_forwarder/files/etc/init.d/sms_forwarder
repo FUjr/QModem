@@ -138,6 +138,21 @@ generate_api_config() {
 			config_json="$config_json}"
 			;;
 			
+		"pushdeer")
+			local push_key endpoint
+			config_get push_key "$section" pushdeer_push_key
+			config_get endpoint "$section" pushdeer_endpoint
+			
+			[ -z "$push_key" ] && {
+				echo "Error: PushDeer requires push_key"
+				return 1
+			}
+			
+			config_json="{\"push_key\":\"$push_key\""
+			[ -n "$endpoint" ] && config_json="$config_json,\"endpoint\":\"$endpoint\""
+			config_json="$config_json}"
+			;;
+			
 		"custom_script")
 			local script_path
 			config_get script_path "$section" custom_script_path

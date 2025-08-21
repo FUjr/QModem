@@ -43,6 +43,21 @@ msgstr "通用Webhook"
 msgid "Custom Script"
 msgstr "自定义脚本"
 
+msgid "PushDeer"
+msgstr "PushDeer"
+
+msgid "Push Key"
+msgstr "推送密钥"
+
+msgid "PushDeer Push Key from http://pushdeer.com"
+msgstr "从 http://pushdeer.com 获取的推送密钥"
+
+msgid "API Endpoint (optional)"
+msgstr "API接口地址（可选）"
+
+msgid "Custom PushDeer API endpoint, leave empty to use default"
+msgstr "自定义PushDeer API接口地址，留空使用默认地址"
+
 msgid "JSON format configuration. Examples:<br/>"
 msgstr "JSON格式配置。示例：<br/>"
 
