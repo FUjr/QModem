@@ -44,16 +44,18 @@ url_encode() {
 
 # Try curl first, then wget
 if command -v curl >/dev/null 2>&1; then
-    # Use POST with JSON format
-    JSON_DATA="{\"title\":\"$TITLE\",\"desp\":\"$DESP\""
-    
-    # Add optional parameters if provided
-    [ -n "$CHANNEL" ] && JSON_DATA="${JSON_DATA},\"channel\":\"$CHANNEL\""
-    [ -n "$NOIP" ] && JSON_DATA="${JSON_DATA},\"noip\":\"$NOIP\""
-    [ -n "$OPENID" ] && JSON_DATA="${JSON_DATA},\"openid\":\"$OPENID\""
-    
-    JSON_DATA="${JSON_DATA}}"
-    
+    #使用jq生成JSON_DATA
+    JSON_DATA=`
+    jq -n --arg title "$TITLE" --arg desp "$DESP" '
+        {
+            title: $title,
+            desp: $desp
+        }'`
+    [ -n "$CHANNEL" ] && JSON_DATA=$(echo "$JSON_DATA" | jq --arg channel "$CHANNEL" '. + {channel: $channel}')
+    [ -n "$NOIP" ] && JSON_DATA=$(echo "$JSON_DATA" | jq --arg noip "$NOIP" '. + {noip: $noip}')
+    [ -n "$OPENID" ] && JSON_DATA=$(echo "$JSON_DATA" | jq --arg openid "$OPENID" '. + {openid: $openid}')
+
+
     curl -X POST "$API_URL" \
         -H "Content-Type: application/json;charset=utf-8" \
         -d "$JSON_DATA" \
