@@ -25,28 +25,119 @@ env:
   TZ: Asia/Shanghai
 
 jobs:
+  job_auto_tag:
+    runs-on: ubuntu-latest
+    # 只在 main 分支推送且包含 version.mk 文件变更时运行
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      new_tag: ${{ steps.create_tag.outputs.tag_name }}
+      tag_created: ${{ steps.create_tag.outputs.tag_created }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Check if version.mk changed
+      id: check_version_change
+      run: |
+        # 检查version.mk是否在这次提交中被修改
+        if git diff --name-only HEAD~1 HEAD | grep -q "^version\.mk$"; then
+          echo "version.mk was modified in this commit"
+          echo "version_changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "version.mk was not modified in this commit"
+          echo "version_changed=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Extract version from version.mk
+      id: extract_version
+      if: steps.check_version_change.outputs.version_changed == 'true'
+      run: |
+        # 从version.mk文件中提取QMODEM_VERSION
+        version=$(grep "^QMODEM_VERSION" version.mk | sed 's/QMODEM_VERSION:=//' | xargs)
+        echo "Current QMODEM_VERSION: $version"
+        echo "version=$version" >> $GITHUB_OUTPUT
+        
+        # 检查version是否为空
+        if [ -z "$version" ]; then
+          echo "Error: Could not extract version from version.mk"
+          exit 1
+        fi
+        
+        # 生成tag名称
+        tag_name="v$version"
+        echo "tag_name=$tag_name" >> $GITHUB_OUTPUT
+        echo "Generated tag name: $tag_name"
+    
+    - name: Check if tag already exists
+      id: check_tag
+      if: steps.check_version_change.outputs.version_changed == 'true'
+      run: |
+        tag_name="${{ steps.extract_version.outputs.tag_name }}"
+        
+        # 检查tag是否已经存在
+        if git tag -l | grep -q "^${tag_name}$"; then
+          echo "Tag $tag_name already exists, skipping tag creation"
+          echo "tag_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "Tag $tag_name does not exist, will create it"
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create and push tag
+      id: create_tag
+      if: steps.check_version_change.outputs.version_changed == 'true' && steps.check_tag.outputs.tag_exists == 'false'
+      run: |
+        tag_name="${{ steps.extract_version.outputs.tag_name }}"
+        version="${{ steps.extract_version.outputs.version }}"
+        
+        # 配置git用户信息
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        
+        # 创建带注释的tag
+        git tag -a "$tag_name" -m "Release version $version - Auto-generated tag when QMODEM_VERSION was updated to $version"
+        
+        # 推送tag到远程仓库
+        git push origin "$tag_name"
+        
+        echo "✅ Successfully created and pushed tag: $tag_name"
+        echo "tag_name=$tag_name" >> $GITHUB_OUTPUT
+        echo "tag_created=true" >> $GITHUB_OUTPUT
+
   job_prepare:
     runs-on: ubuntu-latest
+    needs: [job_auto_tag]
+    if: always()  # 总是运行，不管 auto_tag 是否运行或是否成功
     outputs:
-      branch_name: ${{ env.branch_name }}
-      tag_name: ${{ env.tag_name }}
-      push_type: ${{ env.push_type }}
-      is_pr: ${{ env.is_pr }}
+      branch_name: ${{ steps.determine_push.outputs.branch_name }}
+      tag_name: ${{ steps.determine_push.outputs.tag_name }}
+      push_type: ${{ steps.determine_push.outputs.push_type }}
+      is_pr: ${{ steps.determine_push.outputs.is_pr }}
 
     steps:
       - name: Determine push type
+        id: determine_push
         run: |
-            if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # 如果 auto_tag job 创建了新标签，使用新标签
+            if [[ "${{ needs.job_auto_tag.outputs.tag_created }}" == "true" ]]; then
+              echo "New tag created: ${{ needs.job_auto_tag.outputs.new_tag }}"
+              echo "tag_name=${{ needs.job_auto_tag.outputs.new_tag }}" >> $GITHUB_OUTPUT
+              echo "push_type=tag" >> $GITHUB_OUTPUT
+            elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
               echo "This is a tag push."
-              echo "tag_name=${{ github.ref_name }}" >> $GITHUB_ENV
-              echo "push_type=tag" >> $GITHUB_ENV
+              echo "tag_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+              echo "push_type=tag" >> $GITHUB_OUTPUT
             else
               echo "This is a branch push."
-              echo "branch_name=${{ github.ref_name }}" >> $GITHUB_ENV
-              echo "push_type=branch" >> $GITHUB_ENV
+              echo "branch_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+              echo "push_type=branch" >> $GITHUB_OUTPUT
             fi
             is_pr=$([[ "${{ github.event_name }}" == "pull_request" ]] && echo 1 || echo 0)
-            echo "is_pr=${is_pr}" >> $GITHUB_ENV
+            echo "is_pr=${is_pr}" >> $GITHUB_OUTPUT
 
       - name: Checkout
         if: 
@@ -70,7 +161,7 @@ jobs:
 
   job_build_qmodem:
     name: Build QModem
-    needs: job_prepare
+    needs: [job_prepare]
     continue-on-error: true
     strategy:
       matrix:
