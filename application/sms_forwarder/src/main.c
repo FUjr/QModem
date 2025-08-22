@@ -262,69 +262,151 @@ static sms_message_t* parse_sms_json(const char *json_str, int *count) {
     return messages;
 }
 
-static char* merge_multipart_sms(sms_message_t *messages, int count) {
-    // Group messages by reference number and sender
-    for (int i = 0; i < count; i++) {
-        if (messages[i].total <= 1) {
-            // Single part message, process immediately
-            char *result = malloc(strlen(messages[i].content) + 1);
-            strcpy(result, messages[i].content);
-            return result;
-        }
+static int find_and_process_sms_groups(sms_message_t *messages, int count, processed_sms_t **processed, int *processed_count) {
+    *processed = NULL;
+    *processed_count = 0;
+    
+    if (!messages || count == 0) {
+        return 0;
     }
     
-    // Find complete multipart messages
+    // Track which messages have been processed
+    int *processed_flags = calloc(count, sizeof(int));
+    if (!processed_flags) {
+        syslog(LOG_ERR, "Memory allocation failed for processed flags");
+        return -1;
+    }
+    
+    processed_sms_t *temp_processed = malloc(count * sizeof(processed_sms_t));
+    if (!temp_processed) {
+        free(processed_flags);
+        syslog(LOG_ERR, "Memory allocation failed for processed messages");
+        return -1;
+    }
+    
+    int temp_count = 0;
+    
+    // First, process single part messages
     for (int i = 0; i < count; i++) {
-        if (messages[i].total > 1) {
-            int ref = messages[i].reference;
-            char *sender = messages[i].sender;
-            int total_parts = messages[i].total;
+        if (processed_flags[i] || messages[i].total > 1) {
+            continue;
+        }
+        
+        // Single part message
+        temp_processed[temp_count].content = malloc(strlen(messages[i].content) + 1);
+        if (!temp_processed[temp_count].content) {
+            syslog(LOG_ERR, "Memory allocation failed for single SMS content");
+            continue;
+        }
+        strcpy(temp_processed[temp_count].content, messages[i].content);
+        strcpy(temp_processed[temp_count].sender, messages[i].sender);
+        temp_processed[temp_count].timestamp = messages[i].timestamp;
+        
+        temp_processed[temp_count].indices = malloc(sizeof(int));
+        if (temp_processed[temp_count].indices) {
+            temp_processed[temp_count].indices[0] = messages[i].index;
+            temp_processed[temp_count].index_count = 1;
+        } else {
+            temp_processed[temp_count].index_count = 0;
+        }
+        
+        processed_flags[i] = 1;
+        temp_count++;
+    }
+    
+    // Then, process multipart messages
+    for (int i = 0; i < count; i++) {
+        if (processed_flags[i] || messages[i].total <= 1) {
+            continue;
+        }
+        
+        int ref = messages[i].reference;
+        char *sender = messages[i].sender;
+        int total_parts = messages[i].total;
+        
+        // Collect all parts for this reference and sender
+        sms_message_t *parts = malloc(total_parts * sizeof(sms_message_t));
+        if (!parts) {
+            syslog(LOG_ERR, "Memory allocation failed for SMS parts");
+            continue;
+        }
+        
+        int found_parts = 0;
+        for (int j = 0; j < count; j++) {
+            if (processed_flags[j]) continue;
             
-            // Collect all parts
-            sms_message_t *parts = malloc(total_parts * sizeof(sms_message_t));
-            int found_parts = 0;
-            
-            for (int j = 0; j < count; j++) {
-                if (messages[j].reference == ref && 
-                    strcmp(messages[j].sender, sender) == 0) {
-                    parts[found_parts++] = messages[j];
+            if (messages[j].reference == ref && 
+                strcmp(messages[j].sender, sender) == 0 &&
+                messages[j].total == total_parts) {
+                parts[found_parts++] = messages[j];
+            }
+        }
+        
+        if (found_parts == total_parts) {
+            // Sort parts by part number
+            for (int x = 0; x < found_parts - 1; x++) {
+                for (int y = x + 1; y < found_parts; y++) {
+                    if (parts[x].part > parts[y].part) {
+                        sms_message_t temp = parts[x];
+                        parts[x] = parts[y];
+                        parts[y] = temp;
+                    }
                 }
             }
             
-            if (found_parts == total_parts) {
-                // Sort parts by part number
-                for (int x = 0; x < found_parts - 1; x++) {
-                    for (int y = x + 1; y < found_parts; y++) {
-                        if (parts[x].part > parts[y].part) {
-                            sms_message_t temp = parts[x];
-                            parts[x] = parts[y];
-                            parts[y] = temp;
-                        }
+            // Concatenate content
+            int total_len = 0;
+            for (int k = 0; k < found_parts; k++) {
+                total_len += strlen(parts[k].content);
+            }
+            
+            temp_processed[temp_count].content = malloc(total_len + 1);
+            if (temp_processed[temp_count].content) {
+                temp_processed[temp_count].content[0] = '\0';
+                for (int k = 0; k < found_parts; k++) {
+                    strcat(temp_processed[temp_count].content, parts[k].content);
+                }
+                
+                strcpy(temp_processed[temp_count].sender, parts[0].sender);
+                temp_processed[temp_count].timestamp = parts[0].timestamp;
+                
+                // Store indices for deletion
+                temp_processed[temp_count].indices = malloc(found_parts * sizeof(int));
+                if (temp_processed[temp_count].indices) {
+                    for (int k = 0; k < found_parts; k++) {
+                        temp_processed[temp_count].indices[k] = parts[k].index;
+                    }
+                    temp_processed[temp_count].index_count = found_parts;
+                } else {
+                    temp_processed[temp_count].index_count = 0;
+                }
+                
+                // Mark all parts as processed
+                for (int j = 0; j < count; j++) {
+                    if (messages[j].reference == ref && 
+                        strcmp(messages[j].sender, sender) == 0 &&
+                        messages[j].total == total_parts) {
+                        processed_flags[j] = 1;
                     }
                 }
                 
-                // Concatenate content
-                int total_len = 0;
-                for (int k = 0; k < found_parts; k++) {
-                    total_len += strlen(parts[k].content);
-                }
-                
-                char *merged = malloc(total_len + 1);
-                merged[0] = '\0';
-                
-                for (int k = 0; k < found_parts; k++) {
-                    strcat(merged, parts[k].content);
-                }
-                
-                free(parts);
-                return merged;
+                temp_count++;
             }
-            
-            free(parts);
         }
+        
+        free(parts);
     }
     
-    return NULL;
+    free(processed_flags);
+    
+    if (temp_count > 0) {
+        *processed = temp_processed;
+        *processed_count = temp_count;
+    } else {
+        free(temp_processed);
+    }
+    
+    return 0;
 }
 
 static int execute_callback(const char *api_type, const char *api_config, 
@@ -386,25 +468,30 @@ static void process_sms_messages(sms_forwarder_config_t *config) {
         return;
     }
     
-    char *merged_content = merge_multipart_sms(messages, count);
-    if (merged_content) {
-        // Use first message for sender and timestamp
-        int ret = execute_callback(config->api_type, config->api_config,
-                        messages[0].sender, messages[0].timestamp, merged_content);
-        
-        // Delete SMS messages if forwarding was successful and delete option is enabled
-        if (ret == 0 && config->delete_after_forward) {
-            int *indices = malloc(count * sizeof(int));
-            if (indices) {
-                for (int i = 0; i < count; i++) {
-                    indices[i] = messages[i].index;
-                }
-                delete_sms_from_modem(config->modem_port, indices, count);
-                free(indices);
+    processed_sms_t *processed = NULL;
+    int processed_count = 0;
+    
+    if (find_and_process_sms_groups(messages, count, &processed, &processed_count) == 0 && processed) {
+        // Process all SMS messages
+        for (int i = 0; i < processed_count; i++) {
+            int ret = execute_callback(config->api_type, config->api_config,
+                            processed[i].sender, processed[i].timestamp, processed[i].content);
+            
+            // Delete SMS messages if forwarding was successful and delete option is enabled
+            if (ret == 0 && config->delete_after_forward && processed[i].indices) {
+                delete_sms_from_modem(config->modem_port, processed[i].indices, processed[i].index_count);
+            }
+            
+            // Cleanup
+            if (processed[i].content) {
+                free(processed[i].content);
+            }
+            if (processed[i].indices) {
+                free(processed[i].indices);
             }
         }
         
-        free(merged_content);
+        free(processed);
     }
     
     free(messages);
@@ -455,10 +542,8 @@ int main(int argc, char *argv[]) {
     
     // Main loop
     while (g_running) {
-        printf("Processing SMS messages...\n");
         fflush(stdout);
         process_sms_messages(&g_config);
-        printf("Sleeping for %d seconds...\n", g_config.poll_interval);
         fflush(stdout);
         sleep(g_config.poll_interval);
     }

@@ -31,4 +31,12 @@ typedef struct {
     int part;
 } sms_message_t;
 
+typedef struct {
+    char *content;
+    char sender[MAX_SENDER_LEN];
+    time_t timestamp;
+    int *indices;
+    int index_count;
+} processed_sms_t;
+
 #endif
