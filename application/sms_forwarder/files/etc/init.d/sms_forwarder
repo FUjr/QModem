@@ -23,7 +23,7 @@ start_service() {
 
 start_instance() {
 	local section="$1"
-	local enabled port poll_interval api_type api_config
+	local enabled port poll_interval api_type api_config delete_after_forward
 	
 	config_get_bool enabled "$section" enable 0
 	[ "$enabled" -eq 0 ] && return 0
@@ -32,6 +32,7 @@ start_instance() {
 	config_get poll_interval "$section" poll_interval 30
 	config_get api_type "$section" api_type
 	config_get api_config "$section" api_config
+	config_get_bool delete_after_forward "$section" delete_after_forward 0
 	
 	# Validate required parameters
 	[ -z "$port" ] && {
@@ -63,8 +64,8 @@ start_instance() {
 	local config_file="/tmp/sms_forwarder_${section}.json"
 	
 	# Use printf to handle JSON escaping properly
-	printf '{\n\t"modem_port": "%s",\n\t"poll_interval": %d,\n\t"api_type": "%s",\n\t"api_config": %s\n}\n' \
-		"$port" "$poll_interval" "$api_type" "$api_config" > "$config_file"
+	printf '{\n\t"modem_port": "%s",\n\t"poll_interval": %d,\n\t"api_type": "%s",\n\t"api_config": %s,\n\t"delete_after_forward": %s\n}\n' \
+		"$port" "$poll_interval" "$api_type" "$api_config" "$delete_after_forward" > "$config_file"
 	
 	# Validate the generated JSON
 	if ! command -v jq >/dev/null 2>&1 || ! jq . "$config_file" >/dev/null 2>&1; then

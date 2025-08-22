@@ -10,6 +10,7 @@ config sms_forward_instance
 	option tg_bot_token ''
 	option tg_chat_id ''
 	option api_config '{"bot_token":"","chat_id":""}'
+	option delete_after_forward '0'
 
 config sms_forward_instance
 	option enable '0'
@@ -19,6 +20,7 @@ config sms_forward_instance
 	option webhook_url 'https://example.com/webhook'
 	option webhook_headers ''
 	option api_config '{"webhook_url":"https://example.com/webhook"}'
+	option delete_after_forward '0'
 
 config sms_forward_instance
 	option enable '0'
@@ -30,3 +32,4 @@ config sms_forward_instance
 	option serverchan_noip '0'
 	option serverchan_openid ''
 	option api_config '{"token":"","channel":"","noip":"","openid":""}'
+	option delete_after_forward '0'

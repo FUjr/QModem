@@ -69,6 +69,7 @@ static int parse_config_file(const char *config_file, sms_forwarder_config_t *co
     // Initialize config structure
     memset(config, 0, sizeof(sms_forwarder_config_t));
     config->poll_interval = 30; // default value
+    config->delete_after_forward = 0; // default value
 
     // Parse configuration
     json_object *obj;
@@ -100,6 +101,10 @@ static int parse_config_file(const char *config_file, sms_forwarder_config_t *co
             strncpy(config->api_config, str_val, sizeof(config->api_config) - 1);
             config->api_config[sizeof(config->api_config) - 1] = '\0';
         }
+    }
+    
+    if (json_object_object_get_ex(root, "delete_after_forward", &obj)) {
+        config->delete_after_forward = json_object_get_boolean(obj);
     }
 
     json_object_put(root);
@@ -157,6 +162,27 @@ static char* read_sms_from_modem(const char *modem_port) {
     }
     
     return result;
+}
+
+static int delete_sms_from_modem(const char *modem_port, int *indices, int count) {
+    if (!indices || count <= 0) {
+        return 0;
+    }
+    
+    for (int i = 0; i < count; i++) {
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd), "tom_modem -d %s -u -o d -i %d 2>/dev/null", 
+                 modem_port, indices[i]);
+        
+        int ret = system(cmd);
+        if (ret != 0) {
+            syslog(LOG_WARNING, "Failed to delete SMS at index %d from modem", indices[i]);
+        } else {
+            syslog(LOG_INFO, "Successfully deleted SMS at index %d from modem", indices[i]);
+        }
+    }
+    
+    return 0;
 }
 
 static sms_message_t* parse_sms_json(const char *json_str, int *count) {
@@ -363,8 +389,21 @@ static void process_sms_messages(sms_forwarder_config_t *config) {
     char *merged_content = merge_multipart_sms(messages, count);
     if (merged_content) {
         // Use first message for sender and timestamp
-        execute_callback(config->api_type, config->api_config,
+        int ret = execute_callback(config->api_type, config->api_config,
                         messages[0].sender, messages[0].timestamp, merged_content);
+        
+        // Delete SMS messages if forwarding was successful and delete option is enabled
+        if (ret == 0 && config->delete_after_forward) {
+            int *indices = malloc(count * sizeof(int));
+            if (indices) {
+                for (int i = 0; i < count; i++) {
+                    indices[i] = messages[i].index;
+                }
+                delete_sms_from_modem(config->modem_port, indices, count);
+                free(indices);
+            }
+        }
+        
         free(merged_content);
     }
     

@@ -18,6 +18,7 @@ typedef struct {
     int poll_interval;
     char api_type[64];
     char api_config[MAX_CONFIG_LEN];
+    int delete_after_forward;
 } sms_forwarder_config_t;
 
 typedef struct {

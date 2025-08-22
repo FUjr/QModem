@@ -17,6 +17,12 @@ msgstr "发送"
 msgid "Delete"
 msgstr "删除"
 
+msgid "Delete After Forward"
+msgstr "转发后删除"
+
+msgid "Delete SMS messages from modem after successful forwarding"
+msgstr "转发成功后从调制解调器中删除短信"
+
 msgid "SMS"
 msgstr "短信"
 

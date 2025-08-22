@@ -49,6 +49,15 @@ msgstr "PushDeer"
 msgid "Push Key"
 msgstr "推送密钥"
 
+msgid "Delete After Forward"
+msgstr "转发后删除"
+
+msgid "Delete SMS messages from modem after successful forwarding"
+msgstr "转发成功后从调制解调器中删除短信"
+
+msgid "Delete SMS messages from modem after successful forwarding. This helps keep the modem's SMS storage clean but messages will be permanently removed."
+msgstr "转发成功后从调制解调器中删除短信。这有助于保持调制解调器的短信存储空间整洁，但短信将被永久删除。"
+
 msgid "PushDeer Push Key from http://pushdeer.com"
 msgstr "从 http://pushdeer.com 获取的推送密钥"
 

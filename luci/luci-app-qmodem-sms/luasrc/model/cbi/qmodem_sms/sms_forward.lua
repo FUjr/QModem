@@ -57,7 +57,7 @@ instance_enable.default = "0"
 
 -- 监听端口
 listen_port = s2:option(ListValue, "listen_port", translate("Modem Port"))
-listen_port.width = "15%"
+listen_port.width = "18%"
 listen_port.rmempty = false
 
 -- 获取可用的AT端口
@@ -107,12 +107,18 @@ poll_interval.description = translate("Polling interval in seconds (15-600)")
 
 -- API类型
 api_type = s2:option(ListValue, "api_type", translate("API Type"))
-api_type.width = "12%"
+api_type.width = "15%"
 api_type:value("tgbot", translate("Telegram Bot"))
 api_type:value("webhook", translate("Webhook"))
 api_type:value("serverchan", translate("ServerChan"))
 api_type:value("pushdeer", translate("PushDeer"))
 api_type:value("custom_script", translate("Custom Script"))
+
+-- 删除已转发短信选项
+delete_after_forward = s2:option(Flag, "delete_after_forward", translate("Delete After Forward"))
+delete_after_forward.width = "12%"
+delete_after_forward.default = "0"
+delete_after_forward.description = translate("Delete SMS messages from modem after successful forwarding")
 
 
 
