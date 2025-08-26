@@ -97,7 +97,6 @@ msgstr "Swisscom (CH)"
 msgid "Salt (CH)"
 msgstr "Salt (CH)"
 
-
 msgid "Vodafone (DE)"
 msgstr "Vodafone (DE)"
 
@@ -647,9 +646,6 @@ msgstr "制造商"
 msgid "Quectel"
 msgstr "移远"
 
-msgid "Simcom"
-msgstr "芯讯通（Simcom）"
-
 msgid "Sierra Wireless"
 msgstr "Sierra无线"
 
@@ -872,3 +868,22 @@ msgstr "开机时延时启动(扫描)"
 
 msgid "Units:seconds"
 msgstr "单位：秒"
+
+msgid "Override AT Port"
+msgstr "覆盖AT端口"
+
+
+msgid "If no DNS server is set, the DNS server provided by the operator will be used"
+msgstr "如果未设置DNS服务器，会使用运营商提供的DNS服务器"
+
+msgid "Use Ubus"
+msgstr "使用Ubus"
+
+msgid "Force Set APN"
+msgstr "强制设置APN"
+
+msgid "If enabled, the APN will be set even if it matches the current configuration.(only works with tom modified version of quectel-cm)"
+msgstr "如果启用，即使APN与当前配置匹配也会设置APN。（仅适用于tom修改版的quectel-cm）"
+
+msgid "If slot 2 config is not set,will use slot 1 config."
+msgstr "如果未设置插槽2配置，将使用插槽1配置。"
