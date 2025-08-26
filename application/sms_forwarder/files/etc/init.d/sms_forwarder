@@ -17,22 +17,72 @@ start_service() {
 		return 0
 	fi
 	
-	# Start each enabled instance
-	config_foreach start_instance sms_forward_instance
+	# Generate combined configuration file
+	local config_file="/tmp/sms_forwarder_combined.json"
+	generate_combined_config "$config_file"
+	
+	if [ $? -ne 0 ]; then
+		echo "Error: Failed to generate combined configuration"
+		return 1
+	fi
+	
+	# Start single SMS forwarder instance with combined config
+	procd_open_instance "sms_forwarder"
+	procd_set_param command "$PROG" "$config_file"
+	procd_set_param respawn
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param file "$config_file"
+	procd_close_instance
 }
 
-start_instance() {
+generate_combined_config() {
+	local config_file="$1"
+	local temp_file="/tmp/sms_modem_configs.tmp"
+	
+	# Clear temp file
+	> "$temp_file"
+	
+	# Collect all modem configurations
+	config_foreach collect_modem_config sms_forward_instance "$temp_file"
+	
+	if [ ! -s "$temp_file" ]; then
+		echo "Error: No valid SMS forward instances found"
+		return 1
+	fi
+	
+	# Merge configurations by modem_port and generate final JSON
+	merge_and_generate_json "$temp_file" "$config_file"
+	local result=$?
+	
+	# Clean up temp file
+	rm -f "$temp_file"
+	
+	# Validate the generated JSON
+	if command -v jq >/dev/null 2>&1; then
+		if ! jq . "$config_file" >/dev/null 2>&1; then
+			echo "Error: Generated JSON config is invalid"
+			echo "Config file content:"
+			cat "$config_file"
+			return 1
+		fi
+	fi
+	
+	return $result
+}
+
+collect_modem_config() {
 	local section="$1"
-	local enabled port poll_interval api_type api_config delete_after_forward
+	local temp_file="$2"
+	local enabled port poll_interval delete_after_forward api_type
 	
 	config_get_bool enabled "$section" enable 0
 	[ "$enabled" -eq 0 ] && return 0
 	
 	config_get port "$section" listen_port
 	config_get poll_interval "$section" poll_interval 30
-	config_get api_type "$section" api_type
-	config_get api_config "$section" api_config
 	config_get_bool delete_after_forward "$section" delete_after_forward 0
+	config_get api_type "$section" api_type
 	
 	# Validate required parameters
 	[ -z "$port" ] && {
@@ -45,43 +95,72 @@ start_instance() {
 		return 1
 	}
 	
-	# Generate API config based on type if not already provided
-	if [ -z "$api_config" ] || [ "$api_config" = '{}' ]; then
-		api_config=$(generate_api_config "$section" "$api_type")
-		if [ -z "$api_config" ]; then
-			echo "Error: Failed to generate API config for instance $section"
-			return 1
-		fi
-	fi
-	
-	# Validate JSON format of api_config
-	if ! echo "$api_config" | grep -q '^{.*}$'; then
-		echo "Error: Invalid JSON format in api_config for instance $section"
+	# Generate API config based on type
+	local api_config=$(generate_api_config "$section" "$api_type")
+	if [ -z "$api_config" ]; then
+		echo "Error: Failed to generate API config for $api_type in instance $section"
 		return 1
 	fi
 	
-	# Create config file for this instance
-	local config_file="/tmp/sms_forwarder_${section}.json"
+	# Write config line to temp file: PORT|POLL_INTERVAL|DELETE_FLAG|API_TYPE|API_CONFIG
+	echo "${port}|${poll_interval}|${delete_after_forward}|${api_type}|${api_config}" >> "$temp_file"
+}
+
+merge_and_generate_json() {
+	local temp_file="$1"
+	local config_file="$2"
+	local first_modem=1
 	
-	# Use printf to handle JSON escaping properly
-	printf '{\n\t"modem_port": "%s",\n\t"poll_interval": %d,\n\t"api_type": "%s",\n\t"api_config": %s,\n\t"delete_after_forward": %s\n}\n' \
-		"$port" "$poll_interval" "$api_type" "$api_config" "$delete_after_forward" > "$config_file"
+	# Start JSON array
+	echo "[" > "$config_file"
 	
-	# Validate the generated JSON
-	if ! command -v jq >/dev/null 2>&1 || ! jq . "$config_file" >/dev/null 2>&1; then
-		echo "Warning: Generated JSON config may be invalid for instance $section"
-		echo "Config file content:"
-		cat "$config_file"
-	fi
+	# Get unique modem ports
+	local unique_ports=$(cut -d'|' -f1 "$temp_file" | sort -u)
 	
-	# Start procd service instance
-	procd_open_instance "$section"
-	procd_set_param command "$PROG" "$config_file"
-	procd_set_param respawn
-	procd_set_param stdout 1
-	procd_set_param stderr 1
-	procd_set_param file "$config_file"
-	procd_close_instance
+	for port in $unique_ports; do
+		# Add comma if not first modem
+		if [ "$first_modem" -eq 0 ]; then
+			echo "," >> "$config_file"
+		fi
+		first_modem=0
+		
+		# Find all configs for this port
+		local port_configs_file="/tmp/port_configs_${port//\//_}.tmp"
+		grep "^${port}|" "$temp_file" > "$port_configs_file"
+		
+		# Get common settings from first config for this port
+		local first_line=$(head -n1 "$port_configs_file")
+		local poll_interval=$(echo "$first_line" | cut -d'|' -f2)
+		local delete_after_forward=$(echo "$first_line" | cut -d'|' -f3)
+		
+		# Start modem configuration object
+		printf '{\n\t"modem_port": "%s",\n\t"poll_interval": %d,\n\t"delete_after_forward": %s,\n\t"apis": [\n' \
+			"$port" "$poll_interval" "$delete_after_forward" >> "$config_file"
+		
+		# Add all APIs for this port
+		local first_api=1
+		while IFS='|' read -r p_port p_poll p_delete p_api_type p_api_config; do
+			# Add comma if not first API
+			if [ "$first_api" -eq 0 ]; then
+				echo "," >> "$config_file"
+			fi
+			first_api=0
+			
+			# Add API configuration
+			printf '\t\t{\n\t\t\t"api_type": "%s",\n\t\t\t"api_config": %s\n\t\t}' \
+				"$p_api_type" "$p_api_config" >> "$config_file"
+		done < "$port_configs_file"
+		
+		# Clean up temp file
+		rm -f "$port_configs_file"
+		
+		# End apis array and modem object
+		printf '\n\t]\n}' >> "$config_file"
+	done
+	
+	# End JSON array
+	echo "" >> "$config_file"
+	echo "]" >> "$config_file"
 }
 
 generate_api_config() {
