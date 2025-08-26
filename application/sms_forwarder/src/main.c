@@ -457,7 +457,7 @@ static int find_and_process_sms_groups(sms_message_t *messages, int count, proce
                         processed_flags[j] = 1;
                     }
                 }
-                
+               
                 temp_count++;
             }
         }

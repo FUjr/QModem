@@ -833,21 +833,21 @@ at_dial()
             esac
             ;;
     esac
-    at "${at_port}" "${cgdcont_command}"
-    if [ "$driver" = "mtk_pcie" ];then
-	m_debug "dialing vendor:$manufacturer;platform:$platform;$driver;$apn "
-        mbim_port=$(echo "$at_port" | sed 's/at/mbim/g')
-	rf_status=$(umbim -d  $mbim_port radio|sed -n 's/.*swradiostate: *//p')
-	if [ "$rf_status" = "off" ]; then
-    		umbim -d  $mbim_port radio on
-	fi
-	umbim -d $mbim_port disconnect
-        sleep 1
-        umbim -d $mbim_port connect 0 --apn $apn
-    else
-	m_debug "dialing vendor:$manufacturer;platform:$platform; $cgdcont_command ; $at_command"
-	fastat "$at_port" "$at_command"
-    fi
+	m_debug "dialing: vendor:$manufacturer; platform:$platform; driver:$driver; apn:$apn; command:$at_command"
+	case $driver in
+        "mtk_pcie")
+            mbim_port=$(echo "$at_port" | sed 's/at/mbim/g')
+        	rf_status=$(umbim -d  $mbim_port radio|sed -n 's/.*swradiostate: *//p')
+        	[ "$rf_status" = "off" ] && umbim -d  $mbim_port radio on
+        	umbim -d $mbim_port disconnect
+        	sleep 1
+        	umbim -d $mbim_port connect 0 --apn $apn
+		 	;;
+		*)
+  			at "${at_port}" "${cgdcont_command}"
+        	at "$at_port" "$at_command"
+		 	;;
+	esac
 }
 
 ip_change_fm350()
