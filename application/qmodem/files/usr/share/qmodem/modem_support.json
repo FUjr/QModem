@@ -555,6 +555,25 @@
                     "ncm"
                 ]
             },
+            "rg520n-eb": {
+                "manufacturer_id": "2c7c",
+                "manufacturer": "quectel",
+                "platform": "qualcomm",
+                "data_interface": "usb",
+                "pdp_index": "1",
+                "wcdma_band": "1/5/8",
+                "lte_band": "1/3/5/7/8/20/28/32/38/40/41/42/43/71",
+                "nsa_band": "1/3/5/7/8/20/28/38/40/41/71/75/76/77/78",
+                "sa_band": "1/3/5/7/8/20/28/38/40/41/71/75/76/77/78",
+                "modes": [
+                    "qmi",
+                    "gobinet",
+                    "ecm",
+                    "mbim",
+                    "rndis",
+                    "ncm"
+                ]
+            },
             "mh8001-eu": {
                 "manufacturer_id": "2c7c",
                 "manufacturer": "quectel",
@@ -1225,6 +1244,21 @@
                 "lte_band": "1/3/5/7/8/20/28/32/38/40/41/42/43",
                 "nsa_band": "1/3/5/7/8/20/28/38/40/41/75/76/77/78",
                 "sa_band": "1/3/5/7/8/20/28/38/40/41/75/76/77/78",
+                "modes": [
+                    "qmi",
+                    "gobinet",
+                    "mbim"
+                ]
+            },
+            "rg520n-eb": {
+                "manufacturer": "quectel",
+                "platform": "qualcomm",
+                "data_interface": "pcie",
+                "pdp_index": "1",
+                "wcdma_band": "1/5/8",
+                "lte_band": "1/3/5/7/8/20/28/32/38/40/41/42/43/71",
+                "nsa_band": "1/3/5/7/8/20/28/38/40/41/71/75/76/77/78",
+                "sa_band": "1/3/5/7/8/20/28/38/40/41/71/75/76/77/78",
                 "modes": [
                     "qmi",
                     "gobinet",
