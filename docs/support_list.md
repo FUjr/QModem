@@ -90,6 +90,7 @@ simcom_sim8380g-m2 | qualcomm |✔ usb(qmi,rndis) | ✔ pcie(qmi)
 # foxconn
 Model | Platform | USB  | PCIe 
 --- | --- | --- | ---
+t77w968 | qualcomm |✔ usb(qmi,mbim) | ✘
 t99w175 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
 t99w373 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
 t99w640 | qualcomm |✘ | ✔ pcie(mbim)
