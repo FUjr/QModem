@@ -957,7 +957,33 @@
                     "rndis"
                 ]
             },
+            "t77w968":{
+            "manufacturer_id": "413c",
+                "manufacturer": "foxconn",
+                "platform": "qualcomm",
+                "data_interface": "usb",
+                "pdp_index": "1",
+                "wcdma_band": "1/2/4/5/6/8/19",
+                "lte_band": "1/2/3/4/5/7/8/12/13/14/17/18/19/20/25/26/28/29/30/32/38/39/40/41/42/43/46/66",
+                "nsa_band": "0",
+                "sa_band": "0",
+                "modes": [
+                    "qmi",
+                    "mbim"
+                ]
+            },
             "t99w175": {
+                "manufacturer_id": "05c6",
+                "manufacturer": "foxconn",
+                "platform": "qualcomm",
+                "data_interface": "usb",
+                "pdp_index": "1",
+                "modes": [
+                    "mbim",
+                    "rmnet"
+                ]
+            },
+            "t99w373": {
                 "manufacturer_id": "05c6",
                 "manufacturer": "foxconn",
                 "platform": "qualcomm",
@@ -978,17 +1004,6 @@
                     "ecm",
                     "rndis",
                     "ncm"
-                ]
-            },
-            "t99w373": {
-                "manufacturer_id": "05c6",
-                "manufacturer": "foxconn",
-                "platform": "qualcomm",
-                "data_interface": "usb",
-                "pdp_index": "1",
-                "modes": [
-                    "mbim",
-                    "rmnet"
                 ]
             },
             "n510m": {
@@ -1553,14 +1568,16 @@
                     "vendor_id": [
                         "17cb",
                         "05c6",
-                        "105b"
+                        "105b",
+                        "413c"
                     ],
                     "product_id": [
                         "0306",
                         "0308",
                         "90d5",
                         "9025",
-                        "e0ab"
+                        "e0ab",
+                        "81d7"
                     ]
                 }
             },
