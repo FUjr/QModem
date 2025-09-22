@@ -63,6 +63,24 @@ modem_settings()
 		add_usb_slot_cfg "4g0" "1-1.3" "4g0" "green:5g1" "green:sim1" "" "" "" "23"
 		uci commit qmodem
 		;;
+	huasifei,ws3009)
+		#m2 usb3.0 
+
+		#(slot 2)
+		add_usb_slot_cfg "5g1" "2-1.2" "5g1" "green:network1" "" "m2_reset_1" "1" "0" "5"
+		#(slot 1)
+		add_usb_slot_cfg "5g0" "2-1.4" "5g0" "green:network2" "" "m2_reset_1" "1" "0" "6"
+		#(slot 2)
+		add_usb_slot_cfg "5g2" "2-1.1" "5g2" "green:network3" "" "m2_reset_2" "1" "0" "7"
+		#m2/pcie usb2.0 
+		#(slot 1)
+		add_usb_slot_cfg "4g0" "1-1.3" "4g0" "green:network1" "" "" "" "" "20"
+		#(slot 2)
+		add_usb_slot_cfg "4g1" "1-1.4" "4g3" "green:network2" "" "" "" "" "21"
+		#(slot 3)
+		add_usb_slot_cfg "4g2" "1-1.1" "4g4" "green:network3" "" "" "" "" "22"
+		uci commit qmodem
+		;;
 	sagemcom,5866t)
 		add_usb_slot_cfg "5g_usb" "1-1" "5g_usb" "LED5_G" "LED4_G" "" "" "" "10"
 		add_pcie_slot_cfg "5g_pcie" "0000:01:00.0" "5g_pcie" "LED5_G" "LED4_G" "1-1" "" "" "" "10"
