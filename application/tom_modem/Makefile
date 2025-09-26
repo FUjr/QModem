@@ -4,7 +4,7 @@ include $(INCLUDE_DIR)/kernel.mk
 # Include unified version
 include ../../version.mk
 
-PKG_NAME:= tom_modem
+PKG_NAME:=tom_modem
 PKG_RELEASE:=$(QMODEM_RELEASE)
 PKG_VERSION:=$(QMODEM_VERSION)
 

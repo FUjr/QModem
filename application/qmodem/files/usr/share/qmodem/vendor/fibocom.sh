@@ -1232,7 +1232,10 @@ cell_info()
 
     at_command='AT+GTCCINFO?'
     response=$(at $at_port $at_command)
-    
+
+    at_command='AT+GTCAINFO?'
+    ca_response=$(at $at_port $at_command)
+
     local rat=$(echo "$response" | grep "service" | awk -F' ' '{print $1}')
 
     #适配联发科平台（FM350-GL）
@@ -1257,8 +1260,6 @@ cell_info()
 
             case $rat in
                 "NR")
-                    at_command='AT+GTCAINFO?'
-                    ca_response=$(at $at_port $at_command)
                     if echo "$ca_response" | grep -q "SCC"; then
                         has_ca=1
                         scc_info=$(echo "$ca_response" | grep "SCC" | sed 's/\r//g')
@@ -1394,7 +1395,7 @@ cell_info()
     add_plain_info_entry "network_mode" "$network_mode" "Network Mode"
     case $network_mode in
     "NR5G-SA Mode"|"NR5G-SA CA Mode")
-        add_plain_info_entry "MMC" "$nr_mcc" "Mobile Country Code"
+        add_plain_info_entry "MCC" "$nr_mcc" "Mobile Country Code"
         add_plain_info_entry "MNC" "$nr_mnc" "Mobile Network Code"
         add_plain_info_entry "Duplex Mode" "$nr_duplex_mode" "Duplex Mode"
         add_plain_info_entry "Cell ID" "$nr_cell_id" "Cell ID"

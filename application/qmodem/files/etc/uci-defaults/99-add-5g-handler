@@ -27,6 +27,16 @@ modem_settings()
 		uci set qmodem.pcie0.alias="wwan1"
 		uci commit qmodem
 		;;
+	hiveton,h5000m)
+		#usb slot
+		uci set qmodem.usb0="modem-slot"
+		uci set qmodem.usb0.slot="2-1"
+		uci set qmodem.usb0.type="usb"
+		uci set qmodem.usb0.alias="USB"
+		uci set qmodem.main.enable_pcie_scan='0'
+		uci set qmodem.main.start_delay='9'
+		uci commit qmodem
+		;;
 	HC,HC-G80*)
 		#mini pci slot
 		uci set qmodem.mini_pci="modem-slot"

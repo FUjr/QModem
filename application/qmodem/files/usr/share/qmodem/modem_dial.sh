@@ -139,6 +139,7 @@ update_config()
     config_get platform $modem_config platform
     config_get force_set_apn $modem_config force_set_apn
     config_get pdp_index $modem_config pdp_index
+    [ -n "$pdp_index" ] && userset_pdp_index="1" || userset_pdp_index="0"
     config_get suggest_pdp_index $modem_config suggest_pdp_index
     [ -z "$suggest_pdp_index"] && suggest_pdp_index=$(get_platform_suggest_pdp_index)
     [ -z "$pdp_index" ] && pdp_index=$suggest_pdp_index
@@ -673,7 +674,7 @@ qmi_dial()
     if [ "$network_bridge" = "1" ]; then
         cmd_line="$cmd_line -b"
     fi
-    if [ -n "$pdp_index" ]; then
+    if [ -n "$pdp_index" ] && [ "$userset_pdp_index" = "1" ]; then
         cmd_line="$cmd_line -n $pdp_index"
     fi
     if [ "$manufacturer" = "telit" ];then
@@ -722,10 +723,11 @@ qmi_dial()
         [ -n "$metric" ] && cmd_line="$cmd_line"
     fi
     cmd_line="$cmd_line -f $log_file"
-    m_debug "dialing $cmd_line"
-    exec $cmd_line
-    
-    
+    while true; do
+        m_debug "dialing: $cmd_line"
+        $cmd_line
+        m_debug "quectel-CM exited, retrying dial"
+    done
 }
 
 at_dial()

@@ -37,7 +37,6 @@ network_info()
     /usr/share/qmodem/modem_ctrl.sh network_info $1
 }
 
-
 cell_info()
 {
     state=$(uci get qmodem.$1.state)
