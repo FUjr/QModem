@@ -101,3 +101,8 @@ t99w640 | qualcomm |✘ | ✔ pcie(mbim)
 Model | Platform | USB  | PCIe 
 --- | --- | --- | ---
 n510m | unisoc |✔ usb(ecm) | ✘
+
+# compal
+Model | Platform | USB  | PCIe 
+--- | --- | --- | ---
+rxm-g1 | qualcomm |✔ usb(qmi,rmnet) | ✘
