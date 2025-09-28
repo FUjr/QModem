@@ -143,6 +143,16 @@ apn:value("yes4g", translate("YES (MY)"))
 apn:value("my3g", translate("UMobile (MY)"))
 apn:value("unifi", translate("Unifi (MY)"))
 
+-- Russia (RU)
+apn:value("internet.beeline.ru", translate("Beeline (RU)"))
+apn:value("internet.mts.ru", translate("MTS (RU)"))
+apn:value("internet", translate("Megafon (RU)"))
+apn:value("internet.tele2.ru", translate("Tele2 (RU)"))
+apn:value("internet.yota", translate("Yota (RU)"))
+apn:value("m.tinkoff", translate("T-mobile (RU)"))
+apn:value("internet.rtk.ru", translate("Rostelecom (RU)"))
+apn:value("internet.sberbank-tele.com", translate("Sber Mobile (RU)"))
+
 auth = s:taboption("advanced", ListValue, "auth", translate("Authentication Type"))
 auth.default = "none"
 auth.rmempty = false
@@ -207,6 +217,16 @@ apn:value("hos", translate("Maxis UT (MY)"))
 apn:value("yes4g", translate("YES (MY)"))
 apn:value("my3g", translate("UMobile (MY)"))
 apn:value("unifi", translate("Unifi (MY)"))
+
+-- Russia (RU)
+apn:value("internet.beeline.ru", translate("Beeline (RU)"))
+apn:value("internet.mts.ru", translate("MTS (RU)"))
+apn:value("internet", translate("Megafon (RU)"))
+apn:value("internet.tele2.ru", translate("Tele2 (RU)"))
+apn:value("internet.yota", translate("Yota (RU)"))
+apn:value("m.tinkoff", translate("T-mobile (RU)"))
+apn:value("internet.rtk.ru", translate("Rostelecom (RU)"))
+apn:value("internet.sberbank-tele.com", translate("Sber Mobile (RU)"))
 
 metric = s:taboption("advanced", Value, "metric", translate("Metric"))
 metric.description = translate("The metric value is used to determine the priority of the route. The smaller the value, the higher the priority. Cannot duplicate.")
