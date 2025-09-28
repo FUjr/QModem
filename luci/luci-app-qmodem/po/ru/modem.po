@@ -103,6 +103,30 @@ msgstr "Drei (AT)"
 msgid "Magenta (AT)"
 msgstr "Magenta (AT)"
 
+msgid "Beeline (RU)"
+msgstr "Билайн (RU)"
+
+msgid "MTS (RU)"
+msgstr "МТС (RU)"
+
+msgid "Megafon (RU)"
+msgstr "Мегафон (RU)"
+
+msgid "Tele2 (RU)"
+msgstr "Теле2 (RU)"
+
+msgid "Yota (RU)"
+msgstr "Йота (RU)"
+
+msgid "T-mobile (RU)"
+msgstr "Тинькофф Мобайл (RU)"
+
+msgid "Rostelecom (RU)"
+msgstr "Ростелеком (RU)"
+
+msgid "Sber Mobile (RU)"
+msgstr "СберМобайл (RU)"
+
 msgid "Authentication Type"
 msgstr "Тип аутентификации"
 
