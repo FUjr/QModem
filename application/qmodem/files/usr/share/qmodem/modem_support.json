@@ -196,6 +196,23 @@
                     "ncm"
                 ]
             },
+            "rm500u-cnv": {
+                "manufacturer_id": "2c7c",
+                "manufacturer": "quectel",
+                "platform": "unisoc",
+                "data_interface": "usb",
+                "pdp_index": "1",
+                "wcdma_band": "1/5/8",
+                "lte_band": "1/3/5/8/34/38/39/40/41",
+                "nsa_band": "41/78/79",
+                "sa_band": "1/3/5/8/28/41/77/78/79",
+                "modes": [
+                    "ecm",
+                    "mbim",
+                    "rndis",
+                    "ncm"
+                ]
+            },
             "rm500u-ea": {
                 "manufacturer_id": "2c7c",
                 "manufacturer": "quectel",
