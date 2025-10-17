@@ -310,11 +310,6 @@ match_config()
     #FM190W-GL 5G Module
     [[ "$name" = *"fm190w-gl"* ]] && name="fm190w-gl"
 
-    #RM500U-CNV
-    [[ "$name" = *"rm500u-cn"* ]] && name="rm500u-cn"
-
-    [[ "$name" = *"rm500u-cnv"* ]] && name="rm500u-cnv"
-
     [[ "$name" = *"rm500u-ea"* ]] && name="rm500u-ea"
     #t99w175
     [[ "$name" = *"mv31-w"* ]] || [[ "$name" = *"T99W175"* ]] && name="t99w175"
