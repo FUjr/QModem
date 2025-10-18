@@ -1075,6 +1075,7 @@ static struct pci_device_id mhi_pcie_device_id[] = {
 	{PCI_DEVICE(0x1eac, 0x1002)}, //EM160
 	{PCI_DEVICE(0x1eac, 0x1004)}, //RM520
 	{PCI_DEVICE(0x1eac, 0x100b)}, //RM255
+	{PCI_DEVICE(0x03f0, 0x0a6c)}, //T99W175 (sdx55), HP variant
 	{PCI_DEVICE(MHI_PCIE_VENDOR_ID, MHI_PCIE_DEBUG_ID)},
 	{0},
 };
