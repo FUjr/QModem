@@ -3298,11 +3298,12 @@ static int mhi_netdev_probe(struct mhi_device *mhi_dev,
 	mhi_netdev->use_rmnet_usb = 1;
 	if ((mhi_dev->vendor == 0x17cb && mhi_dev->dev_id == 0x0306)
 		|| (mhi_dev->vendor == 0x17cb && mhi_dev->dev_id == 0x0308)
-		|| (mhi_dev->vendor == 0x1eac && mhi_dev->dev_id == 0x1004)
-		|| (mhi_dev->vendor == 0x17cb && mhi_dev->dev_id == 0x011a)
-		|| (mhi_dev->vendor == 0x1eac && mhi_dev->dev_id == 0x100b)
 		|| (mhi_dev->vendor == 0x17cb && mhi_dev->dev_id == 0x0309)
+		|| (mhi_dev->vendor == 0x17cb && mhi_dev->dev_id == 0x011a)
+		|| (mhi_dev->vendor == 0x1eac && mhi_dev->dev_id == 0x1004)
+		|| (mhi_dev->vendor == 0x1eac && mhi_dev->dev_id == 0x100b)
 		|| (mhi_dev->vendor == 0x105b && mhi_dev->dev_id == 0xe0f5)
+		|| (mhi_dev->vendor == 0x03f0 && mhi_dev->dev_id == 0x0a6c)
 	) {
 		mhi_netdev->qmap_version = 9;
 	}
