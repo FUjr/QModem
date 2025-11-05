@@ -1906,8 +1906,15 @@ static int qmi_wwan_bind(struct usbnet *dev, struct usb_interface *intf)
 	dev_addr_mod(dev->net, 0, &addr, 1);
 #endif
     }
-    if (!_usbnet_get_stats64)
+	if (!_usbnet_get_stats64)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION( 6,10,0 ))
         _usbnet_get_stats64 = dev->net->netdev_ops->ndo_get_stats64;
+#else
+		/* From kernel 6.10+, usbnet sets pcpu_stat_type = NETDEV_PCPU_STAT_TSTATS (352f5b3282), but removed ndo_get_stats64 (9cb3d523c1) */
+		/* Use dev_get_tstats64 to read per-CPU stats when NETDEV_PCPU_STAT_TSTATS was set */
+		if (dev->net->pcpu_stat_type == NETDEV_PCPU_STAT_TSTATS)
+			_usbnet_get_stats64 = dev_get_tstats64;
+#endif
     dev->net->netdev_ops = &qmi_wwan_netdev_ops;
 
     ql_net_ethtool_ops = *dev->net->ethtool_ops;
