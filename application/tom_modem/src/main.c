@@ -201,7 +201,7 @@ int run_op(PROFILE_T *profile, void *transport)
     return UNKNOWN_ERROR;
 }
 
-static void clean_up()
+static void clean_up(int sig __attribute__((unused)))
 {
     dbg_msg("Clean up success");
     
@@ -214,6 +214,16 @@ static void clean_up()
         err_msg("Failed to unlock tty device");
     }
 #endif
+}
+
+static void atexit_cleanup(void)
+{
+    clean_up(0);
+}
+
+static void signal_cleanup(int sig __attribute__((unused)))
+{
+    clean_up(sig);
 }
 
 int main(int argc, char *argv[])
@@ -229,9 +239,9 @@ int main(int argc, char *argv[])
     }
     
     // Setup cleanup and signal handlers
-    atexit(clean_up);
-    signal(SIGINT, clean_up);
-    signal(SIGTERM, clean_up);
+    atexit(atexit_cleanup);
+    signal(SIGINT, signal_cleanup);
+    signal(SIGTERM, signal_cleanup);
     
 #ifdef USE_SEMAPHORE
     if (profile->op == CLEANUP_SEMAPHORE_OP)
