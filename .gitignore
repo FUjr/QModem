@@ -1,0 +1,15 @@
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+
+# Executables
+quectel-CM
+quectel-qmi-proxy
+quectel-mbim-proxy
+quectel-atc-proxy
+quectel-qrtr-proxy
+
+# Dependencies
+libmnl/*.o
