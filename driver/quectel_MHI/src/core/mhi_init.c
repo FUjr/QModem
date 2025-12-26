@@ -93,7 +93,8 @@ struct mhi_bus mhi_bus;
 
 const char *to_mhi_pm_state_str(enum MHI_PM_STATE state)
 {
-	int index = find_last_bit((unsigned long *)&state, 32);
+	unsigned long value = state;
+	int index = find_last_bit(&value, 32);
 
 	if (index >= ARRAY_SIZE(mhi_pm_state_str))
 		return "Invalid State";
