@@ -543,6 +543,25 @@
                     "ncm"
                 ]
             },
+            "rg520f-bl": {
+                "manufacturer_id": "2c7c",
+                "manufacturer": "quectel",
+                "platform": "qualcomm",
+                "data_interface": "usb",
+                "pdp_index": "1",
+                "wcdma_band": "1/5/8",
+                "lte_band": "2/4/7/8/25/41/42/43/66",
+                "nsa_band": "2/7/25/41/66/77/78",
+                "sa_band": "2/7/25/41/66/77/78",
+                "modes": [
+                    "qmi",
+                    "gobinet",
+                    "ecm",
+                    "mbim",
+                    "rndis",
+                    "ncm"
+                ]
+            },
             "rm521f-gl": {
                 "manufacturer_id": "2c7c",
                 "manufacturer": "quectel",
@@ -1369,6 +1388,21 @@
                     "qmi",
                     "gobinet",
                     "mbim"
+                ]
+            },
+            "rg520f-bl": {
+                "manufacturer": "quectel",
+                "platform": "qualcomm",
+                "data_interface": "pcie",
+                "pdp_index": "1",
+                "wcdma_band": "1/5/8",
+                "lte_band": "2/4/7/8/25/41/42/43/66",
+                "nsa_band": "2/7/25/41/66/77/78",
+                "sa_band": "2/7/25/41/66/77/78",
+                "modes": [
+                    "qmi",
+                    "gobinet",
+                    "mbim",
                 ]
             },
             "rm521f-gl": {
