@@ -1402,7 +1402,7 @@
                 "modes": [
                     "qmi",
                     "gobinet",
-                    "mbim",
+                    "mbim"
                 ]
             },
             "rm521f-gl": {
@@ -1533,7 +1533,7 @@
                 "modes": [
                     "qmi",
                     "gobinet",
-                    "mbim",
+                    "mbim"
                 ]
             },
             "rg520f-jo": {
