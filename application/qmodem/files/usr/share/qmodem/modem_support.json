@@ -543,6 +543,25 @@
                     "ncm"
                 ]
             },
+            "rm520f-bl": {
+                "manufacturer_id": "2c7c",
+                "manufacturer": "quectel",
+                "platform": "qualcomm",
+                "data_interface": "usb",
+                "pdp_index": "1",
+                "wcdma_band": "0",
+                "lte_band": "2/4/7/25/41/42/43/66",
+                "nsa_band": "2/7/25/41/66/77/78",
+                "sa_band": "2/7/25/41/66/77/78",
+                "modes": [
+                    "qmi",
+                    "gobinet",
+                    "ecm",
+                    "mbim",
+                    "rndis",
+                    "ncm"
+                ]
+            },
             "rm521f-gl": {
                 "manufacturer_id": "2c7c",
                 "manufacturer": "quectel",
@@ -739,6 +758,25 @@
                 "lte_band": "2/4/5/7/12/13/14/17/25/26/29/30/38/41/42/43/46/48/66/71",
                 "nsa_band": "2/5/7/12/13/14/25/26/29/30/38/41/48/66/70/71/77/78/257/258/260/261",
                 "sa_band": "2/5/7/12/13/14/25/26/29/30/38/41/48/66/70/71/77/78/257/258/260/261",
+                "modes": [
+                    "qmi",
+                    "gobinet",
+                    "ecm",
+                    "mbim",
+                    "rndis",
+                    "ncm"
+                ]
+            },
+            "rg650v-eu": {
+                "manufacturer_id": "2c7c",
+                "manufacturer": "quectel",
+                "platform": "qualcomm",
+                "data_interface": "usb",
+                "pdp_index": "1",
+                "wcdma_band": "1/3/5",
+                "lte_band": "1/3/5/7/8/20/28/32/38/40/41/42/43/71",
+                "nsa_band": "1/3/5/7/8/20/26/28/38/40/41/71/75/76/77/78",
+                "sa_band": "1/3/5/7/8/20/26/28/38/40/41/71/75/76/77/78",
                 "modes": [
                     "qmi",
                     "gobinet",
@@ -1352,6 +1390,21 @@
                     "mbim"
                 ]
             },
+            "rm520f-bl": {
+                "manufacturer": "quectel",
+                "platform": "qualcomm",
+                "data_interface": "pcie",
+                "pdp_index": "1",
+                "wcdma_band": "0",
+                "lte_band": "2/4/7/25/41/42/43/66",
+                "nsa_band": "2/7/25/41/66/77/78",
+                "sa_band": "2/7/25/41/66/77/78",
+                "modes": [
+                    "qmi",
+                    "gobinet",
+                    "mbim"
+                ]
+            },
             "rm521f-gl": {
                 "manufacturer": "quectel",
                 "platform": "qualcomm",
@@ -1498,6 +1551,21 @@
                     "mbim"
                 ]
             },
+            "rg650v-eu": {
+                "manufacturer": "quectel",
+                "platform": "qualcomm",
+                "data_interface": "pcie",
+                "pdp_index": "1",
+                "wcdma_band": "1/3/5",
+                "lte_band": "1/3/5/7/8/20/28/32/38/40/41/42/43/71",
+                "nsa_band": "1/3/5/7/8/20/26/28/38/40/41/71/75/76/77/78",
+                "sa_band": "1/3/5/7/8/20/26/28/38/40/41/71/75/76/77/78",
+                "modes": [
+                    "qmi",
+                    "gobinet",
+                    "mbim"
+                ]
+            },
             "fm350-gl": {
                 "manufacturer": "fibocom",
                 "platform": "mediatek",
@@ -1592,6 +1660,7 @@
                     "product_id": [
                         "0121",
                         "0125",
+                        "0133",
                         "0191",
                         "0195",
                         "0296",
