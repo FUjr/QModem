@@ -39,11 +39,7 @@ endef
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/sms_forwarder $(1)/usr/bin/
-	$(INSTALL_BIN) ./files/usr/bin/sms_forward_serverchan.sh $(1)/usr/bin/
-	$(INSTALL_BIN) ./files/usr/bin/sms_forward_webhook.sh $(1)/usr/bin/
-	$(INSTALL_BIN) ./files/usr/bin/sms_forward_tgbot.sh $(1)/usr/bin/
-	$(INSTALL_BIN) ./files/usr/bin/sms_forward_pushdeer.sh $(1)/usr/bin/
-	$(INSTALL_BIN) ./files/usr/bin/sms_forward_custom_example.sh $(1)/usr/bin/
+	$(INSTALL_BIN) ./files/usr/bin/sms_forward_*.sh $(1)/usr/bin/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/etc/init.d/sms_forwarder $(1)/etc/init.d/
 	$(INSTALL_DIR) $(1)/etc/config
