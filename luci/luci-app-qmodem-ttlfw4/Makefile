@@ -9,6 +9,7 @@ include ../../version.mk
 PKG_NAME:=luci-app-qmodem-ttlfw4
 LUCI_TITLE:=LuCI App for QModem TTL Configuration (JS LuCI / fw4 Only)
 LUCI_DEPENDS:=+luci-base
+PKG_CONFLICTS:=luci-app-qmodem-ttl
 LUCI_PKGARCH:=all
 PKG_VERSION:=$(QMODEM_VERSION)
 PKG_RELEASE:=1

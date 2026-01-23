@@ -14,10 +14,11 @@ PKG_LICENSE:=GPLv3
 PKG_LINCESE_FILES:=LICENSE
 PKG_MAINTAINER:=Tom <fjrcn@outlook.com>
 LUCI_DEPENDS:=+luci-app-qmodem
+PKG_CONFLICTS:=luci-app-qmodem-ttlfw4
 		
 
 define Package/luci-app-qmodem-ttl/conffiles
-/etc/config/modem_ttl
+/etc/config/qmodem_ttl
 endef
 
 include $(TOPDIR)/feeds/luci/luci.mk
