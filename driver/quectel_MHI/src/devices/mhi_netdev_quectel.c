@@ -429,9 +429,13 @@ struct qmap_priv {
 };
 
 static struct mhi_netdev *ndev_to_mhi(struct net_device *ndev) {
-	struct mhi_netdev_priv *mhi_netdev_priv = netdev_priv(ndev);
-	struct mhi_netdev *mhi_netdev = mhi_netdev_priv->mhi_netdev;
-	return mhi_netdev;
+	struct mhi_netdev_priv *mhi_netdev_priv;
+
+	if (!ndev)
+		return NULL;
+
+	mhi_netdev_priv = netdev_priv(ndev);
+	return mhi_netdev_priv->mhi_netdev;
 }
 
 static struct mhi_driver mhi_netdev_driver;
@@ -1571,7 +1575,7 @@ static rx_handler_result_t rmnet_rx_handler(struct sk_buff **pskb)
 		return RX_HANDLER_PASS;
 
 	if (skb->protocol != htons(ETH_P_MAP)) {
-		WARN_ON(1);
+		/* Not a QMAP packet, may be bridged/LAN traffic */
 		return RX_HANDLER_PASS;
 	}
 	/* when open hyfi function, run cm will make system crash */
@@ -1579,7 +1583,7 @@ static rx_handler_result_t rmnet_rx_handler(struct sk_buff **pskb)
 	mhi_netdev = (struct mhi_netdev *)ndev_to_mhi(skb->dev);
 	
 	if (mhi_netdev == NULL) {
-		WARN_ON(1);
+		/* May happen with bridged/LAN packets, silently pass through */
 		return RX_HANDLER_PASS;
 	}
 
