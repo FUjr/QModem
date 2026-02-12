@@ -5,7 +5,7 @@ include $(INCLUDE_DIR)/kernel.mk
 include ../../version.mk
 
 PKG_NAME:=qmodem_monitor
-PKG_RELEASE:=$(AUTORELEASE)
+PKG_RELEASE:=$(QMODEM_RELEASE)
 PKG_VERSION:=$(QMODEM_VERSION)
 
 include $(INCLUDE_DIR)/package.mk
