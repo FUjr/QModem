@@ -540,9 +540,9 @@ cell_info_lte()
 
     # 解析 ZCELLINFO 字段
     local tac=$(echo "$zcellinfo" | cut -d',' -f1 | tr -d ' ')
-    local cell_id=$(echo "$zcellinfo" | grep -o 'cellid:[^,]*' | cut -d: -f2)
-    local pci=$(echo "$zcellinfo" | grep -o 'pci:[^,]*' | cut -d: -f2)
-    local lband=$(echo "$zcellinfo" | grep -o 'band:[^,]*' | cut -d: -f2 | tr -d '\r ')
+    local cell_id=$(echo "$zcellinfo" | cut -d',' -f2 | tr -d ' ')
+    local pci=$(echo "$zcellinfo" | cut -d',' -f3 | tr -d ' ')
+    local lband=$(echo "$zcellinfo" | cut -d',' -f4 | tr -d '\r' | tr -d '\n')
 
     # 获取信号质量
     local cesq_response=$(at $at_port "AT+CESQ" | grep "+CESQ:")
