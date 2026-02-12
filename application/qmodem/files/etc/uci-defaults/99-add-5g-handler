@@ -110,6 +110,10 @@ modem_settings()
 		add_usb_slot_cfg "4g2" "1-1.1" "4g4" "green:network3" "" "" "" "" "22"
 		uci commit qmodem
 		;;
+	p2w,r619ac*)
+		add_usb_slot_cfg "minipcie" "3-1" "wwan0" "blue:power" "" "" "" "" "10"
+		uci commit qmodem
+		;;
 	sagemcom,5866t)
 		add_usb_slot_cfg "5g_usb" "1-1" "5g_usb" "LED5_G" "LED4_G" "" "" "" "10"
 		add_pcie_slot_cfg "5g_pcie" "0000:01:00.0" "5g_pcie" "LED5_G" "LED4_G" "1-1" "" "" "" "10"
