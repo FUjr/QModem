@@ -2441,3 +2441,182 @@ msgstr "加载SIM卡切换信息时出错：%s"
 # Source: view/qmodem/sim_switch.js
 msgid "Result"
 msgstr "结果"
+# Source: view/qmodem/sms.js
+msgid "SMS Storage"
+msgstr "短信存储"
+
+# Source: view/qmodem/sms.js
+msgid "Reading Storage"
+msgstr "读取存储"
+
+# Source: view/qmodem/sms.js
+msgid "Writing Storage"
+msgstr "写入存储"
+
+# Source: view/qmodem/sms.js
+msgid "Other Storage"
+msgstr "其他存储"
+
+# Source: view/qmodem/sms.js
+msgid "Mobile Equipment (ME)"
+msgstr "移动设备(ME)"
+
+# Source: view/qmodem/sms.js
+msgid "SIM Card (SM)"
+msgstr "SIM卡(SM)"
+
+# Source: view/qmodem/sms.js
+msgid "Apply Storage Settings"
+msgstr "应用存储设置"
+
+# Source: view/qmodem/sms.js
+msgid "Failed to get SMS storage: "
+msgstr "获取短信存储失败："
+
+# Source: view/qmodem/sms.js
+msgid "Failed to set SMS storage: "
+msgstr "设置短信存储失败："
+
+# Source: view/qmodem/sms.js
+msgid "SMS storage settings applied successfully"
+msgstr "短信存储设置已成功应用"
+
+# Source: view/qmodem/sms.js
+msgid "Please wait for storage info to load"
+msgstr "请等待存储信息加载"
+
+# Source: view/qmodem/sms.js
+msgid "Setting SMS Storage"
+msgstr "设置短信存储"
+
+# Source: view/qmodem/sms.js
+msgid "Applying settings..."
+msgstr "正在应用设置..."
+
+# Source: view/qmodem/sms.js
+msgid "Error loading SMS storage: "
+msgstr "加载短信存储时出错："
+
+# Source: view/qmodem/sms.js
+msgid "Error setting SMS storage: "
+msgstr "设置短信存储时出错："
+
+# Source: view/qmodem/sms.js
+msgid "Failed to get SMS storage"
+msgstr "获取短信存储失败"
+
+# Source: view/qmodem/sms.js
+msgid "Failed to set SMS storage"
+msgstr "设置短信存储失败"
+
+# Source: view/qmodem/sms_sim.js
+msgid "SIM Card SMS Management"
+msgstr "SIM卡短信管理"
+
+# Source: view/qmodem/sms_sim.js
+msgid "SIM Card SMS"
+msgstr "SIM卡短信"
+
+# Source: view/qmodem/sms_sim.js
+msgid "View and delete SMS messages stored on SIM card. These are raw messages before being processed into conversations."
+msgstr "查看和删除存储在SIM卡上的短信。这些是处理成会话之前的原始消息。"
+
+# Source: view/qmodem/sms_sim.js
+msgid "SMS Messages on SIM Card"
+msgstr "SIM卡上的短信"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Index"
+msgstr "索引"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Type"
+msgstr "类型"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Part"
+msgstr "部分"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Single"
+msgstr "单条"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Summary"
+msgstr "摘要"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Total Messages"
+msgstr "总消息数"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Delete All"
+msgstr "全部删除"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Confirm Delete"
+msgstr "确认删除"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Are you sure you want to delete this message from SIM card?"
+msgstr "确定要从SIM卡删除此消息吗？"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Deleting..."
+msgstr "正在删除..."
+
+# Source: view/qmodem/sms_sim.js
+msgid "Deleting message..."
+msgstr "正在删除消息..."
+
+# Source: view/qmodem/sms_sim.js
+msgid "Message deleted successfully"
+msgstr "消息已成功删除"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Failed to delete message"
+msgstr "删除消息失败"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Confirm Delete All"
+msgstr "确认全部删除"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Are you sure you want to delete ALL %d messages from SIM card? This action cannot be undone."
+msgstr "确定要从SIM卡删除全部%d条消息吗？此操作无法撤销。"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Deleting all messages... This may take a while."
+msgstr "正在删除全部消息...这可能需要一段时间。"
+
+# Source: view/qmodem/sms_sim.js
+msgid "All %d messages deleted successfully"
+msgstr "所有%d条消息已成功删除"
+
+# Source: view/qmodem/sms_sim.js
+msgid "%d messages deleted, %d failed"
+msgstr "已删除%d条消息，%d条失败"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Error deleting messages: "
+msgstr "删除消息时出错："
+
+# Source: view/qmodem/sms_sim.js
+msgid "No messages found on SIM card"
+msgstr "SIM卡上未找到消息"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Invalid message index"
+msgstr "无效的消息索引"
+
+# Source: view/qmodem/sms_sim.js
+msgid "Error loading SIM SMS: "
+msgstr "加载SIM卡短信时出错："
+
+# Source: view/qmodem/sms_sim.js
+msgid "Failed to load SIM SMS: "
+msgstr "加载SIM卡短信失败："
+
+# Source: view/qmodem/sms_sim.js
+msgid "Error deleting SMS: "
+msgstr "删除短信时出错："
