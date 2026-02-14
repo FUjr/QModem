@@ -1123,10 +1123,24 @@ static netdev_tx_t rmnet_vnd_start_xmit(struct sk_buff *skb,
 	}
 	else {
 		if (priv->qmap_version == 5) {
-			add_qhdr(skb, priv->mux_id);
+			struct sk_buff *new_skb = add_qhdr(skb, priv->mux_id);
+			if (!new_skb) {
+				// print error
+				printk(KERN_ERR"add_qhdr failed, drop skb\n");
+				dev_kfree_skb_any(skb);
+				return NETDEV_TX_OK;
+			}
+			skb = new_skb;
 		}
 		else if (priv->qmap_version == 9) {
-			add_qhdr_v5(skb, priv->mux_id);
+			struct sk_buff *new_skb = add_qhdr_v5(skb, priv->mux_id);
+			if (!new_skb) {
+				// print error
+				printk(KERN_ERR"add_qhdr_v5 failed, drop skb\n");
+				dev_kfree_skb_any(skb);
+				return NETDEV_TX_OK;
+			}
+			skb = new_skb;
 		}
 		else {
 			dev_kfree_skb_any (skb);
@@ -2405,10 +2419,24 @@ static netdev_tx_t mhi_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 	else if (mhi_netdev->net_type == MHI_NET_RMNET) {
 		if (mhi_netdev->qmap_version == 5) {
-			add_qhdr(skb, QUECTEL_QMAP_MUX_ID);
+			struct sk_buff *new_skb = add_qhdr(skb, QUECTEL_QMAP_MUX_ID);
+			if (!new_skb) {
+				// print error
+				printk("add_qhdr failed, drop skb, mode MHI_NET_RMNET\n");
+				dev_kfree_skb_any(skb);
+				return NETDEV_TX_OK;
+			}
+			skb = new_skb;
 		}
 		else if (mhi_netdev->qmap_version == 9) {
-			add_qhdr_v5(skb, QUECTEL_QMAP_MUX_ID);
+			struct sk_buff *new_skb = add_qhdr_v5(skb, QUECTEL_QMAP_MUX_ID);
+			if (!new_skb) {
+				// print error
+				printk("add_qhdr_v5 failed, drop skb, mode MHI_NET_RMNET\n");
+				dev_kfree_skb_any(skb);
+				return NETDEV_TX_OK;
+			}
+			skb = new_skb;
 		}
 		else {
 			dev_kfree_skb_any (skb);
