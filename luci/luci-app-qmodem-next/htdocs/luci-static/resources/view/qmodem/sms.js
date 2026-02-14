@@ -167,7 +167,89 @@ return view.extend({
 
 	selectorTable.appendChild(selectorBody);
 	selectorSection.appendChild(selectorTable);
-	container.appendChild(selectorSection);		// Title
+	container.appendChild(selectorSection);
+
+	// SMS Storage Section
+	var storageSection = E('fieldset', { 'class': 'cbi-section' });
+	var storageLegend = E('legend', {}, _('SMS Storage'));
+	storageSection.appendChild(storageLegend);
+	
+	var storageTable = E('table', { 'class': 'table' });
+	var storageBody = E('tbody', {});
+	
+	// Reading Storage
+	var readingRow = E('tr', { 'class': 'tr' });
+	var readingLabel = E('td', { 'class': 'td', 'width': '33%' }, _('Reading Storage'));
+	var readingCell = E('td', { 'class': 'td' });
+	var readingSelect = E('select', {
+		'class': 'cbi-input-select',
+		'id': 'sms_reading_storage'
+	}, [
+		E('option', { 'value': 'ME' }, _('Mobile Equipment (ME)')),
+		E('option', { 'value': 'SM' }, _('SIM Card (SM)')),
+		E('option', { 'value': 'Loading', 'selected': 'selected' }, _('Loading...'))
+	]);
+	readingCell.appendChild(readingSelect);
+	readingRow.appendChild(readingLabel);
+	readingRow.appendChild(readingCell);
+	storageBody.appendChild(readingRow);
+	
+	// Writing Storage
+	var writingRow = E('tr', { 'class': 'tr' });
+	var writingLabel = E('td', { 'class': 'td', 'width': '33%' }, _('Writing Storage'));
+	var writingCell = E('td', { 'class': 'td' });
+	var writingSelect = E('select', {
+		'class': 'cbi-input-select',
+		'id': 'sms_writing_storage'
+	}, [
+		E('option', { 'value': 'ME' }, _('Mobile Equipment (ME)')),
+		E('option', { 'value': 'SM' }, _('SIM Card (SM)')),
+		E('option', { 'value': 'Loading', 'selected': 'selected' }, _('Loading...'))
+	]);
+	writingCell.appendChild(writingSelect);
+	writingRow.appendChild(writingLabel);
+	writingRow.appendChild(writingCell);
+	storageBody.appendChild(writingRow);
+	
+	// ETC Storage
+	var etcRow = E('tr', { 'class': 'tr' });
+	var etcLabel = E('td', { 'class': 'td', 'width': '33%' }, _('Other Storage'));
+	var etcCell = E('td', { 'class': 'td' });
+	var etcSelect = E('select', {
+		'class': 'cbi-input-select',
+		'id': 'sms_etc_storage'
+	}, [
+		E('option', { 'value': 'ME' }, _('Mobile Equipment (ME)')),
+		E('option', { 'value': 'SM' }, _('SIM Card (SM)')),
+		E('option', { 'value': 'Loading', 'selected': 'selected' }, _('Loading...'))
+	]);
+	etcCell.appendChild(etcSelect);
+	etcRow.appendChild(etcLabel);
+	etcRow.appendChild(etcCell);
+	storageBody.appendChild(etcRow);
+	
+	// Set Storage Button
+	var setStorageRow = E('tr', { 'class': 'tr' });
+	var setStorageLabel = E('td', { 'class': 'td', 'width': '33%' }, '');
+	var setStorageCell = E('td', { 'class': 'td' });
+	var setStorageBtn = E('button', {
+		'class': 'cbi-button cbi-button-apply',
+		'id': 'sms_set_storage_btn',
+		'click': function(ev) {
+			ev.preventDefault();
+			self.setSmsStorage(select.value, readingSelect, writingSelect, etcSelect);
+		}
+	}, _('Apply Storage Settings'));
+	setStorageCell.appendChild(setStorageBtn);
+	setStorageRow.appendChild(setStorageLabel);
+	setStorageRow.appendChild(setStorageCell);
+	storageBody.appendChild(setStorageRow);
+	
+	storageTable.appendChild(storageBody);
+	storageSection.appendChild(storageTable);
+	container.appendChild(storageSection);
+	
+		// Title
 		var title = E('h2', { 'name': 'content' }, _('SMS Messages'));
 		container.appendChild(title);
 
@@ -189,13 +271,17 @@ return view.extend({
 	
 	// Load UCI config for selected modem
 	this.loadUciConfig(selectedModem, smsDbPathInput, smsAutoDeleteCheckbox);
-	
-	this.loadSmsList(contentArea, loadingDiv, selectedModem);
+		// Load SMS storage info
+	this.loadSmsStorage(selectedModem, readingSelect, writingSelect, etcSelect);
+		this.loadSmsList(contentArea, loadingDiv, selectedModem);
 
 	// Selector change handler
 	select.addEventListener('change', function() {
 		// Load UCI config for selected modem
 		self.loadUciConfig(select.value, smsDbPathInput, smsAutoDeleteCheckbox);
+		
+		// Load SMS storage info
+		self.loadSmsStorage(select.value, readingSelect, writingSelect, etcSelect);
 		
 		var loading = E('div', { 'class': 'spinning' }, _('Loading...'));
 		dom.content(contentArea, loading);
@@ -580,6 +666,101 @@ saveUciOption: function(configSection, option, value) {
 		ui.addNotification(null, E('p', _('Configuration saved')), 'info');
 	}).catch(function(err) {
 		ui.addNotification(null, E('p', _('Failed to save configuration: ') + err.message), 'error');
+	});
+},
+
+loadSmsStorage: function(configSection, readingSelect, writingSelect, etcSelect) {
+	var self = this;
+	
+	// Reset to Loading state
+	readingSelect.value = 'Loading';
+	writingSelect.value = 'Loading';
+	etcSelect.value = 'Loading';
+	
+	return smsService.getSmsStorage(configSection).then(function(result) {
+		if (result.error) {
+			console.error('Failed to get SMS storage:', result.error);
+			ui.addNotification(null, E('p', _('Failed to get SMS storage: ') + result.error), 'error');
+			return;
+		}
+		
+		if (!result.storage) {
+			console.error('No storage info returned');
+			return;
+		}
+		
+		var storage = result.storage;
+		
+		// Update select values with current storage
+		if (storage.mem1) {
+			readingSelect.value = storage.mem1;
+		}
+		if (storage.mem2) {
+			writingSelect.value = storage.mem2;
+		}
+		if (storage.mem3) {
+			etcSelect.value = storage.mem3;
+		}
+		
+		// Update option labels with usage info
+		var meText = _('Mobile Equipment (ME)');
+		var smText = _('SIM Card (SM)');
+		
+		if (storage.ME && storage.ME.total > 0) {
+			meText += ' (' + storage.ME.used + '/' + storage.ME.total + ')';
+		}
+		
+		if (storage.SM && storage.SM.total > 0) {
+			smText += ' (' + storage.SM.used + '/' + storage.SM.total + ')';
+		}
+		
+		// Update all selects
+		[readingSelect, writingSelect, etcSelect].forEach(function(select) {
+			var meOption = select.querySelector('option[value="ME"]');
+			var smOption = select.querySelector('option[value="SM"]');
+			
+			if (meOption) meOption.textContent = meText;
+			if (smOption) smOption.textContent = smText;
+		});
+		
+	}).catch(function(err) {
+		console.error('Error loading SMS storage:', err);
+		ui.addNotification(null, E('p', _('Error loading SMS storage: ') + err.message), 'error');
+	});
+},
+
+setSmsStorage: function(configSection, readingSelect, writingSelect, etcSelect) {
+	var self = this;
+	
+	var mem1 = readingSelect.value;
+	var mem2 = writingSelect.value;
+	var mem3 = etcSelect.value;
+	
+	if (mem1 === 'Loading' || mem2 === 'Loading') {
+		ui.addNotification(null, E('p', _('Please wait for storage info to load')), 'warning');
+		return;
+	}
+	
+	ui.showModal(_('Setting SMS Storage'), E('div', { 'class': 'spinning' }, _('Applying settings...')));
+	
+	return smsService.setSmsStorage(configSection, mem1, mem2, mem3).then(function(result) {
+		ui.hideModal();
+		
+		if (result.error) {
+			ui.addNotification(null, E('p', _('Failed to set SMS storage: ') + result.error), 'error');
+			return;
+		}
+		
+		if (result.success) {
+			ui.addNotification(null, E('p', _('SMS storage settings applied successfully')), 'info');
+			// Reload storage info to verify
+			self.loadSmsStorage(configSection, readingSelect, writingSelect, etcSelect);
+		} else {
+			ui.addNotification(null, E('p', _('Failed to set SMS storage')), 'error');
+		}
+	}).catch(function(err) {
+		ui.hideModal();
+		ui.addNotification(null, E('p', _('Error setting SMS storage: ') + err.message), 'error');
 	});
 },
 
