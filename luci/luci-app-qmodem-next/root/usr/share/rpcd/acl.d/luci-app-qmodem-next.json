@@ -38,8 +38,10 @@
 				"qmodem_sms": [
 					"send_sms",
 					"delete_sms",
+					"delete_sim_sms",
 					"mark_read",
-					"clear_sent_history"
+					"clear_sent_history",
+					"set_sms_storage"
 				],
 				"uci": [ "qmodem", "sms_forwarder" ]
 			},
