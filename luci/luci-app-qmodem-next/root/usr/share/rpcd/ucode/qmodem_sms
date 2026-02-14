@@ -246,6 +246,114 @@ function execTomModem(at_port, use_ubus, operation, params) {
 	}
 }
 
+// Execute AT command directly via tom_modem
+function execAtCommand(at_port, use_ubus, at_cmd) {
+	let cmd = TOM_MODEM_PATH;
+	
+	if (use_ubus)
+		cmd += ' -u';
+	
+	// Use single quotes to wrap AT command to preserve internal double quotes
+	// Replace any single quotes in the AT command with '\'' to escape them
+	let safe_cmd = '';
+	for (let i = 0; i < length(at_cmd); i++) {
+		let ch = substr(at_cmd, i, 1);
+		if (ch == "'")
+			safe_cmd += "'\\''";
+		else
+			safe_cmd += ch;
+	}
+	
+	cmd += ` -d '${at_port}' -o a -c '${safe_cmd}'`;
+	
+	try {
+		let proc = popen(cmd, 'r');
+		if (!proc)
+			return null;
+		
+		let output = proc.read('all');
+		proc.close();
+		
+		return output || '';
+	} catch (e) {
+		warn(`Failed to execute AT command: ${e}\n`);
+		return null;
+	}
+}
+
+// Parse AT+CPMS? response
+function parseCpmsResponse(response) {
+	if (!response)
+		return null;
+	
+	// Look for +CPMS: line
+	let lines = split(response, '\n');
+	let cpms_line = null;
+	
+	for (let line in lines) {
+		line = trim(line);
+		if (index(line, '+CPMS:') >= 0) {
+			cpms_line = line;
+			break;
+		}
+	}
+	
+	if (!cpms_line)
+		return null;
+	
+	// Extract the part after +CPMS:
+	let idx = index(cpms_line, '+CPMS:');
+	let data = substr(cpms_line, idx + 6);
+	data = trim(data);
+	
+	// Remove quotes and parse comma-separated values
+	data = replace(data, '"', '');
+	let parts = split(data, ',');
+	
+	if (length(parts) < 6)
+		return null;
+	
+	let mem1 = trim(parts[0]);
+	let used1 = int(trim(parts[1]));
+	let total1 = int(trim(parts[2]));
+	let mem2 = trim(parts[3]);
+	let used2 = int(trim(parts[4]));
+	let total2 = int(trim(parts[5]));
+	let mem3 = length(parts) >= 9 ? trim(parts[6]) : null;
+	let used3 = length(parts) >= 9 ? int(trim(parts[7])) : null;
+	let total3 = length(parts) >= 9 ? int(trim(parts[8])) : null;
+	
+	// Initialize storage info
+	let me_info = { used: 0, total: 0 };
+	let sm_info = { used: 0, total: 0 };
+	
+	// Map storage types to ME or SM
+	for (let i = 1; i <= 3; i++) {
+		let mem = (i == 1) ? mem1 : ((i == 2) ? mem2 : mem3);
+		let used = (i == 1) ? used1 : ((i == 2) ? used2 : used3);
+		let total = (i == 1) ? total1 : ((i == 2) ? total2 : total3);
+		
+		if (!mem)
+			continue;
+		
+		if (mem == 'SM') {
+			sm_info.used = used;
+			sm_info.total = total;
+		} else if (mem == 'MT' || mem == 'ME') {
+			me_info.used = used;
+			me_info.total = total;
+		}
+	}
+	
+	return {
+		mem1: mem1,
+		mem2: mem2,
+		mem3: mem3,
+		ME: me_info,
+		SM: sm_info
+	};
+}
+
 // Check if message already exists in database based on sender, timestamp and content
 function messageExists(db_messages, sender, timestamp, content) {
 	for (let msg in db_messages) {
@@ -1042,6 +1150,136 @@ return {
 				
 				return {
 					success: true
+				};
+			}
+		},
+		
+		// Get SMS storage capabilities
+		get_sms_storage: {
+			args: {
+				config_section: ""
+			},
+			call: function(request) {
+				let config_section = request.args.config_section;
+				let config = getModemConfig(config_section);
+				if (!config)
+					return { error: 'Failed to get modem configuration' };
+				
+				// Execute AT+CPMS? to query SMS storage
+				let response = execAtCommand(config.at_port, config.use_ubus, 'AT+CPMS?');
+				
+				if (!response)
+					return { error: 'Failed to query SMS storage' };
+				
+				// Parse the response
+				let storage = parseCpmsResponse(response);
+				
+				if (!storage)
+					return { error: 'Failed to parse SMS storage response' };
+				
+				return {
+					success: true,
+					storage: storage
+				};
+			}
+		},
+		
+		// Set SMS storage
+		set_sms_storage: {
+			args: {
+				config_section: "",
+				mem1: "",
+				mem2: "",
+				mem3: ""
+			},
+			call: function(request) {
+				let config_section = request.args.config_section;
+				let config = getModemConfig(config_section);
+				if (!config)
+					return { error: 'Failed to get modem configuration' };
+				
+				let mem1 = request.args.mem1;
+				let mem2 = request.args.mem2;
+				let mem3 = request.args.mem3;
+				
+				if (!mem1 || !mem2)
+					return { error: 'Missing mem1 or mem2 parameter' };
+				
+				// Build AT+CPMS command
+				let at_cmd = `AT+CPMS="${mem1}","${mem2}"`;
+				if (mem3 && mem3 != 'Loading')
+					at_cmd += `,"${mem3}"`;
+				
+				// Execute the command
+				let response = execAtCommand(config.at_port, config.use_ubus, at_cmd);
+				
+				if (!response)
+					return { error: 'Failed to set SMS storage' };
+				
+				// Check if command was successful (look for OK in response)
+				let success = index(response, 'OK') >= 0;
+				
+				return {
+					success: success,
+					response: response
+				};
+			}
+		},
+		
+		// Get SMS directly from SIM card (without database processing)
+		get_sim_sms: {
+			args: {
+				config_section: ""
+			},
+			call: function(request) {
+				let config_section = request.args.config_section;
+				let config = getModemConfig(config_section);
+				if (!config)
+					return { error: 'Failed to get modem configuration' };
+				
+				// Read SMS from SIM card directly
+				let result = execTomModem(config.at_port, config.use_ubus, 'r', null);
+				
+				if (!result)
+					return { error: 'Failed to read SMS from SIM card' };
+				
+				// Return raw messages from SIM
+				let messages = result?.received || result?.msg || [];
+				
+				return {
+					success: true,
+					messages: messages,
+					total: length(messages)
+				};
+			}
+		},
+		
+		// Delete SMS from SIM card by index
+		delete_sim_sms: {
+			args: {
+				config_section: "",
+				index: 0
+			},
+			call: function(request) {
+				let config_section = request.args.config_section;
+				let config = getModemConfig(config_section);
+				if (!config)
+					return { error: 'Failed to get modem configuration' };
+				
+				let index = request.args.index;
+				if (index == null || index < 0)
+					return { error: 'Invalid SMS index' };
+				
+				// Delete SMS from SIM card
+				let result = execTomModem(config.at_port, config.use_ubus, 'd', { index: index });
+				
+				// Check if deletion was successful
+				// tom_modem returns {"status":"success"} on success
+				let success = (result?.status === 'success');
+				
+				return {
+					success: success,
+					result: result
 				};
 			}
 		}

@@ -65,6 +65,34 @@ var callClearReceivedHistory = rpc.declare({
 	expect: { }
 });
 
+var callGetSmsStorage = rpc.declare({
+	object: 'qmodem_sms',
+	method: 'get_sms_storage',
+	params: ['config_section'],
+	expect: { }
+});
+
+var callSetSmsStorage = rpc.declare({
+	object: 'qmodem_sms',
+	method: 'set_sms_storage',
+	params: ['config_section', 'mem1', 'mem2', 'mem3'],
+	expect: { }
+});
+
+var callGetSimSms = rpc.declare({
+	object: 'qmodem_sms',
+	method: 'get_sim_sms',
+	params: ['config_section'],
+	expect: { }
+});
+
+var callDeleteSimSms = rpc.declare({
+	object: 'qmodem_sms',
+	method: 'delete_sim_sms',
+	params: ['config_section', 'index'],
+	expect: { }
+});
+
 return L.Class.extend({
 	/**
 	 * List all SMS conversations
@@ -261,5 +289,50 @@ return L.Class.extend({
 		}
 		
 		return content.substring(0, maxLength) + '...';
+	},
+
+	/**
+	 * Get SMS storage capabilities
+	 * @param {string} configSection - The modem configuration section
+	 * @returns {Promise} Promise resolving to SMS storage info
+	 */
+	getSmsStorage: function(configSection) {
+		return callGetSmsStorage(configSection || 'modem_1');
+	},
+
+	/**
+	 * Set SMS storage
+	 * @param {string} configSection - The modem configuration section
+	 * @param {string} mem1 - Reading storage (ME or SM)
+	 * @param {string} mem2 - Writing storage (ME or SM)
+	 * @param {string} mem3 - Other storage (ME or SM, optional)
+	 * @returns {Promise} Promise resolving to set storage result
+	 */
+	setSmsStorage: function(configSection, mem1, mem2, mem3) {
+		return callSetSmsStorage(
+			configSection || 'modem_1',
+			mem1,
+			mem2,
+			mem3 || ''
+		);
+	},
+
+	/**
+	 * Get SMS directly from SIM card
+	 * @param {string} configSection - The modem configuration section
+	 * @returns {Promise} Promise resolving to SIM SMS list
+	 */
+	getSimSms: function(configSection) {
+		return callGetSimSms(configSection || 'modem_1');
+	},
+
+	/**
+	 * Delete SMS from SIM card by index
+	 * @param {string} configSection - The modem configuration section
+	 * @param {number} index - SMS index on SIM card
+	 * @returns {Promise} Promise resolving to delete result
+	 */
+	deleteSimSms: function(configSection, index) {
+		return callDeleteSimSms(configSection || 'modem_1', index);
 	}
 });
