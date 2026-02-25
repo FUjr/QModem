@@ -375,7 +375,7 @@ set_if()
     interface=$(uci -q get network.$interface_name)
     interfacev6=$(uci -q get network.$interface6_name)
     if [ "$env4" -eq 1 ];then
-        if [ -z "$inetrface" ];then
+        if [ -z "$ineterface" ];then
             uci set network.${interface_name}=interface
             uci set network.${interface_name}.modem_config="${modem_config}"
             uci set network.${interface_name}.proto="${proto}"
