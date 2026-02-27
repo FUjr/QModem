@@ -636,7 +636,7 @@ ecm_hang()
             at_command="ATI"
             ;;
     esac
-    fastat "${at_port}" "${at_command}"
+    at "${at_port}" "${at_command}"
     [ -n "$delay" ] && sleep "$delay"
 }
 
