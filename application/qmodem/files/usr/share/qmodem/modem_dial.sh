@@ -137,6 +137,7 @@ update_config()
     config_get at_port $modem_config at_port
     config_get manufacturer $modem_config manufacturer
     config_get platform $modem_config platform
+    config_get use_ubus $modem_config use_ubus
     config_get force_set_apn $modem_config force_set_apn
     config_get pdp_index $modem_config pdp_index
     [ -n "$pdp_index" ] && userset_pdp_index="1" || userset_pdp_index="0"
@@ -190,6 +191,11 @@ update_config()
     interface_name=$modem_config
     [ -n "$alias" ] && interface_name=$alias
     interface6_name=${interface_name}v6
+    if [ "$use_ubus" = "1" ]; then
+        use_ubus_flag="-u"
+    else
+        use_ubus_flag=""
+    fi
 }
 
 check_dial_prepare()
@@ -780,8 +786,14 @@ at_dial()
         "fibocom")
             case $platform in
                 "mediatek")
-                    delay=3
-                    [ "$apn" = "auto" ] || [ -z "$apn" ] && apn="cbnet"
+                    # delay=3
+                    # [ "$apn" = "auto" ] || [ -z "$apn" ] && apn="cbnet"
+                    if [ "$pdp_index" = "3" ];then
+                        delay=3
+                        [ "$apn" = "auto" ] || [ -z "$apn" ] && apn="cbnet"
+                        m_debug "Due to a historical issue (https://github.com/FUjr/QModem/issues/179#issuecomment-3968653343), the fm350 pdp_index was incorrectly set to 3, which caused dialing to work but remain unstable. In version 2026.2.27, we have fixed this issue."
+                        m_debug "To avoid unexpectedly removing legacy configuration files, we applied additional handling to ensure consistent behavior with previous versions. However, if you see this message, please manually set the pdp_index to 0. We apologize for any inconvenience caused."
+                    fi
                     at_command="AT+CGACT=1,$pdp_index"
                     cgdcont_command="AT+CGDCONT=$pdp_index,\"$pdp_type\",\"$apn\""
                     ;;
@@ -891,7 +903,7 @@ at_dial()
             esac
             ;;
     esac
-	m_debug "dialing: vendor:$manufacturer; platform:$platform; driver:$driver; apn:$apn; command:$at_command"
+	m_debug "dialing: vendor:$manufacturer; platform:$platform; driver:$driver; apn:$apn; command:$at_command pdp_index:$pdp_index"
     m_debug "dial_cmd: $at_command; cgdcont_cmd: $cgdcont_command; ppp_auth_cmd: $ppp_auth_command"
 	case $driver in
         "mtk_pcie")

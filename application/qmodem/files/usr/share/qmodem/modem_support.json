@@ -804,7 +804,7 @@
                 "manufacturer": "fibocom",
                 "platform": "mediatek",
                 "data_interface": "usb",
-                "pdp_index": "3",
+                "pdp_index": "0",
                 "modes": [
                     "rndis"
                 ]
@@ -814,7 +814,7 @@
                 "manufacturer": "fibocom",
                 "platform": "mediatek",
                 "data_interface": "usb",
-                "pdp_index": "3",
+                "pdp_index": "0",
                 "modes": [
                     "rndis"
                 ]
@@ -824,7 +824,7 @@
                 "manufacturer": "fibocom",
                 "platform": "mediatek",
                 "data_interface": "usb",
-                "pdp_index": "3",
+                "pdp_index": "0",
                 "modes": [
                     "rndis"
                 ]
@@ -834,7 +834,7 @@
                 "manufacturer": "fibocom",
                 "platform": "mediatek",
                 "data_interface": "usb",
-                "pdp_index": "3",
+                "pdp_index": "0",
                 "modes": [
                     "rndis"
                 ]
@@ -1600,7 +1600,7 @@
                 "manufacturer": "fibocom",
                 "platform": "mediatek",
                 "data_interface": "pcie",
-                "pdp_index": "1",
+                "pdp_index": "0",
                 "modes": [
                     "mbim"
                 ]
@@ -1609,7 +1609,7 @@
                 "manufacturer": "fibocom",
                 "platform": "mediatek",
                 "data_interface": "pcie",
-                "pdp_index": "1",
+                "pdp_index": "0",
                 "modes": [
                     "mbim"
                 ]

@@ -65,6 +65,7 @@ get_modem_config() {
     [ -n "$override_at_port" ] && at_port=$override_at_port
     sms_at_port=$(uci -q get qmodem.$section.sms_at_port 2>/dev/null)
     vendor=$(uci get qmodem.$section.manufacturer 2>/dev/null)
+    manufacturer="$vendor"
     platform=$(uci get qmodem.$section.platform 2>/dev/null)
     pdp_index=$(uci get qmodem.$section.pdp_index 2>/dev/null)
     [ -z "$pdp_index" ] && pdp_index=$(uci get qmodem.$section.suggest_pdp_index 2>/dev/null)
