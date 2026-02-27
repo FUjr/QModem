@@ -70,13 +70,13 @@ _try_usb_slot()
 _try_usb_device()
 {
     config_get data_interface $1 data_interface
-    [ "$data_interface" == "usb" ] && _try_device
+    [ "$data_interface" == "usb" ] && _try_device $1
 }
 
 _try_pcie_device()
 {
     config_get data_interface $1 data_interface
-    [ "$data_interface" == "pcie" ] && _try_device
+    [ "$data_interface" == "pcie" ] && _try_device $1
 }
 
 _scan_usb()
@@ -127,18 +127,13 @@ _try_slot()
 _try_device()
 {
     config_get path "$1" path
-    config_get type "$1" type
     config_get network "$1" network
-    case "$type" in
-        usb)
-            path="/sys/bus/usb/devices/${path}"
-            ;;
-        pcie)
-            path="/sys/bus/pci/devices/${path}"
-            ;;
-    esac
     if [ ! -d "$path" ]; then
         /usr/share/qmodem/modem_scan.sh disable "$1"
+        uci delete network.$1
+        uci delete network.${1}v6
+        uci commit network
+        /etc/init.d/network reload
         return
     fi
     # if device_path not parent of netdevice_path,then disable device path an scan again
