@@ -284,21 +284,7 @@ void *reader_thread_func(void *arg) {
         
         ssize_t bytes_read = read(port->fd, temp_buffer, sizeof(temp_buffer) - 1);
         if (bytes_read > 0) {
-            // First, handle response data if we're waiting for one
-            pthread_mutex_lock(&port->response_mutex);
-            if (port->waiting_for_response) {
-                // Append new data to current response preserving original bytes
-                int current_len = port->current_response.response_len;
-                
-                if (current_len + bytes_read < MAX_BUFFER_SIZE - 1) {
-                    memcpy(port->current_response.response + current_len, temp_buffer, bytes_read);
-                    port->current_response.response_len = current_len + bytes_read;
-                    port->current_response.response[port->current_response.response_len] = '\0';
-                }
-            }
-            pthread_mutex_unlock(&port->response_mutex);
-            
-            // Then handle buffer management and line processing
+            // Handle buffer management and line processing
             pthread_mutex_lock(&port->queue_mutex);
             
             int remaining_space = MAX_BUFFER_SIZE - port->buffer_pos - 1;
@@ -344,7 +330,28 @@ void *reader_thread_func(void *arg) {
                             }
                         }
                         
-                        // Process for event callbacks (only when not echo)
+                        // Append non-echo lines to the command response buffer only
+                        // while waiting for a response (i.e. after an AT command was sent).
+                        // Lines arriving outside a command exchange are discarded from the buffer.
+                        if (!is_echo) {
+                            pthread_mutex_lock(&port->response_mutex);
+                            if (port->waiting_for_response) {
+                                int cur_len = port->current_response.response_len;
+                                int line_len = strlen(line_start);
+                                // Append "line\r\n" to keep response readable
+                                if (cur_len + line_len + 2 < MAX_BUFFER_SIZE - 1) {
+                                    memcpy(port->current_response.response + cur_len, line_start, line_len);
+                                    port->current_response.response[cur_len + line_len]     = '\r';
+                                    port->current_response.response[cur_len + line_len + 1] = '\n';
+                                    port->current_response.response_len = cur_len + line_len + 2;
+                                    port->current_response.response[port->current_response.response_len] = '\0';
+                                }
+                            }
+                            pthread_mutex_unlock(&port->response_mutex);
+                        }
+
+                        // Always dispatch URC callbacks for non-echo lines,
+                        // regardless of whether we are waiting for a command response.
                         if (!is_echo) {
                             process_incoming_data(port, line_start);
                         }

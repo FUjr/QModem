@@ -125,7 +125,7 @@ void parse_end_flags(at_port_instance_t *port, const char *end_flag_str);
 void add_event_callback(at_port_instance_t *port, const char *script, const char *regex, const char *prefix);
 void remove_event_callback(at_port_instance_t *port, const char *script);
 void clear_event_callbacks(at_port_instance_t *port);
-void process_incoming_data(at_port_instance_t *port, const char *data);
+int process_incoming_data(at_port_instance_t *port, const char *data);
 
 int load_config_from_json(const char *json_path);
 char *hex_to_string(const char *hex_str);

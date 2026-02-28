@@ -61,9 +61,10 @@ void clear_event_callbacks(at_port_instance_t *port) {
     port->callbacks = NULL;
 }
 
-void process_incoming_data(at_port_instance_t *port, const char *data) {
+int process_incoming_data(at_port_instance_t *port, const char *data) {
     event_callback_t *callback = port->callbacks;
-    
+    int any_triggered = 0;
+
     while (callback) {
         int should_trigger = 0;
         
@@ -81,6 +82,7 @@ void process_incoming_data(at_port_instance_t *port, const char *data) {
         }
         
         if (should_trigger) {
+            any_triggered = 1;
             // Execute callback script
             char command[MAX_SCRIPT_PATH_SIZE + MAX_BUFFER_SIZE + 32];
             snprintf(command, sizeof(command), "%s \"%s\"", callback->callback_script, data);
@@ -97,4 +99,6 @@ void process_incoming_data(at_port_instance_t *port, const char *data) {
         
         callback = callback->next;
     }
+
+    return any_triggered;
 }

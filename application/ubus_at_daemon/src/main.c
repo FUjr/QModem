@@ -326,12 +326,237 @@ static int ubus_close_method(struct ubus_context *ctx, struct ubus_object *obj,
     return UBUS_STATUS_OK;
 }
 
+// Policy for event_callback method (add callback)
+enum {
+    EVCB_AT_PORT,
+    EVCB_SCRIPT,
+    EVCB_REGEX,
+    EVCB_PREFIX,
+    __EVCB_MAX
+};
+
+static const struct blobmsg_policy event_callback_policy[] = {
+    [EVCB_AT_PORT] = { .name = JSON_AT_PORT,          .type = BLOBMSG_TYPE_STRING },
+    [EVCB_SCRIPT]  = { .name = "script",              .type = BLOBMSG_TYPE_STRING },
+    [EVCB_REGEX]   = { .name = "regex",               .type = BLOBMSG_TYPE_STRING },
+    [EVCB_PREFIX]  = { .name = "prefix",              .type = BLOBMSG_TYPE_STRING },
+};
+
+// Policy for event_callback_list / event_callback_clear
+enum {
+    EVCB_LIST_AT_PORT,
+    __EVCB_LIST_MAX
+};
+
+static const struct blobmsg_policy event_callback_list_policy[] = {
+    [EVCB_LIST_AT_PORT] = { .name = JSON_AT_PORT, .type = BLOBMSG_TYPE_STRING },
+};
+
+// Policy for event_callback_remove
+enum {
+    EVCB_RM_AT_PORT,
+    EVCB_RM_SCRIPT,
+    __EVCB_RM_MAX
+};
+
+static const struct blobmsg_policy event_callback_remove_policy[] = {
+    [EVCB_RM_AT_PORT] = { .name = JSON_AT_PORT, .type = BLOBMSG_TYPE_STRING },
+    [EVCB_RM_SCRIPT]  = { .name = "script",     .type = BLOBMSG_TYPE_STRING },
+};
+
+// Policy for load_conf method
+enum {
+    LOAD_CONF_PATH,
+    __LOAD_CONF_MAX
+};
+
+static const struct blobmsg_policy load_conf_policy[] = {
+    [LOAD_CONF_PATH] = { .name = "config_path", .type = BLOBMSG_TYPE_STRING },
+};
+
+// Ubus method: event_callback (add)
+// at_port + script required; regex / prefix optional.
+// If neither regex nor prefix is provided => match_all = 1 (catch all URC lines).
+static int ubus_event_callback_method(struct ubus_context *ctx, struct ubus_object *obj,
+                                      struct ubus_request_data *req, const char *method,
+                                      struct blob_attr *msg) {
+    struct blob_attr *tb[__EVCB_MAX];
+    blobmsg_parse(event_callback_policy, __EVCB_MAX, tb, blob_data(msg), blob_len(msg));
+
+    if (!tb[EVCB_AT_PORT] || !tb[EVCB_SCRIPT])
+        return UBUS_STATUS_INVALID_ARGUMENT;
+
+    const char *at_port = blobmsg_get_string(tb[EVCB_AT_PORT]);
+    const char *script  = blobmsg_get_string(tb[EVCB_SCRIPT]);
+    const char *regex   = tb[EVCB_REGEX]  ? blobmsg_get_string(tb[EVCB_REGEX])  : NULL;
+    const char *prefix  = tb[EVCB_PREFIX] ? blobmsg_get_string(tb[EVCB_PREFIX]) : NULL;
+
+    at_port_instance_t *port = find_port_instance(at_port);
+    if (!port) {
+        port = create_port_instance(at_port);
+        if (!port)
+            return UBUS_STATUS_NO_DATA;
+    }
+
+    add_event_callback(port, script, regex, prefix);
+
+    struct blob_buf b = {};
+    blob_buf_init(&b, 0);
+    blobmsg_add_string(&b, "status", "success");
+    blobmsg_add_string(&b, "port", at_port);
+    blobmsg_add_string(&b, "script", script);
+    if (regex && strlen(regex) > 0)
+        blobmsg_add_string(&b, "match_mode", "regex");
+    else if (prefix && strlen(prefix) > 0)
+        blobmsg_add_string(&b, "match_mode", "prefix");
+    else
+        blobmsg_add_string(&b, "match_mode", "match_all");
+    ubus_send_reply(ctx, req, b.head);
+    blob_buf_free(&b);
+    return UBUS_STATUS_OK;
+}
+
+// Ubus method: event_callback_list
+static int ubus_event_callback_list_method(struct ubus_context *ctx, struct ubus_object *obj,
+                                           struct ubus_request_data *req, const char *method,
+                                           struct blob_attr *msg) {
+    struct blob_attr *tb[__EVCB_LIST_MAX];
+    blobmsg_parse(event_callback_list_policy, __EVCB_LIST_MAX, tb, blob_data(msg), blob_len(msg));
+
+    if (!tb[EVCB_LIST_AT_PORT])
+        return UBUS_STATUS_INVALID_ARGUMENT;
+
+    const char *at_port = blobmsg_get_string(tb[EVCB_LIST_AT_PORT]);
+    at_port_instance_t *port = find_port_instance(at_port);
+
+    struct blob_buf b = {};
+    blob_buf_init(&b, 0);
+    blobmsg_add_string(&b, "port", at_port);
+
+    void *array = blobmsg_open_array(&b, "callbacks");
+    if (port) {
+        event_callback_t *cb = port->callbacks;
+        while (cb) {
+            void *entry = blobmsg_open_table(&b, NULL);
+            blobmsg_add_string(&b, "script", cb->callback_script);
+            if (cb->match_all) {
+                blobmsg_add_string(&b, "match_mode", "match_all");
+            } else if (cb->has_regex) {
+                blobmsg_add_string(&b, "match_mode", "regex");
+                blobmsg_add_string(&b, "regex", cb->callback_reg);
+            } else {
+                blobmsg_add_string(&b, "match_mode", "prefix");
+                blobmsg_add_string(&b, "prefix", cb->callback_prefix);
+            }
+            blobmsg_close_table(&b, entry);
+            cb = cb->next;
+        }
+    }
+    blobmsg_close_array(&b, array);
+
+    ubus_send_reply(ctx, req, b.head);
+    blob_buf_free(&b);
+    return UBUS_STATUS_OK;
+}
+
+// Ubus method: event_callback_remove
+static int ubus_event_callback_remove_method(struct ubus_context *ctx, struct ubus_object *obj,
+                                             struct ubus_request_data *req, const char *method,
+                                             struct blob_attr *msg) {
+    struct blob_attr *tb[__EVCB_RM_MAX];
+    blobmsg_parse(event_callback_remove_policy, __EVCB_RM_MAX, tb, blob_data(msg), blob_len(msg));
+
+    if (!tb[EVCB_RM_AT_PORT] || !tb[EVCB_RM_SCRIPT])
+        return UBUS_STATUS_INVALID_ARGUMENT;
+
+    const char *at_port = blobmsg_get_string(tb[EVCB_RM_AT_PORT]);
+    const char *script  = blobmsg_get_string(tb[EVCB_RM_SCRIPT]);
+    at_port_instance_t *port = find_port_instance(at_port);
+
+    struct blob_buf b = {};
+    blob_buf_init(&b, 0);
+    if (port) {
+        remove_event_callback(port, script);
+        blobmsg_add_string(&b, "status", "success");
+        blobmsg_add_string(&b, "port", at_port);
+        blobmsg_add_string(&b, "script", script);
+    } else {
+        blobmsg_add_string(&b, "status", "error");
+        blobmsg_add_string(&b, "message", "Port not found");
+    }
+    ubus_send_reply(ctx, req, b.head);
+    blob_buf_free(&b);
+    return UBUS_STATUS_OK;
+}
+
+// Ubus method: event_callback_clear
+static int ubus_event_callback_clear_method(struct ubus_context *ctx, struct ubus_object *obj,
+                                            struct ubus_request_data *req, const char *method,
+                                            struct blob_attr *msg) {
+    struct blob_attr *tb[__EVCB_LIST_MAX];
+    blobmsg_parse(event_callback_list_policy, __EVCB_LIST_MAX, tb, blob_data(msg), blob_len(msg));
+
+    if (!tb[EVCB_LIST_AT_PORT])
+        return UBUS_STATUS_INVALID_ARGUMENT;
+
+    const char *at_port = blobmsg_get_string(tb[EVCB_LIST_AT_PORT]);
+    at_port_instance_t *port = find_port_instance(at_port);
+
+    struct blob_buf b = {};
+    blob_buf_init(&b, 0);
+    if (port) {
+        clear_event_callbacks(port);
+        blobmsg_add_string(&b, "status", "success");
+        blobmsg_add_string(&b, "port", at_port);
+        blobmsg_add_string(&b, "message", "All callbacks cleared");
+    } else {
+        blobmsg_add_string(&b, "status", "error");
+        blobmsg_add_string(&b, "message", "Port not found");
+    }
+    ubus_send_reply(ctx, req, b.head);
+    blob_buf_free(&b);
+    return UBUS_STATUS_OK;
+}
+
+// Ubus method: load_conf
+static int ubus_load_conf_method(struct ubus_context *ctx, struct ubus_object *obj,
+                                 struct ubus_request_data *req, const char *method,
+                                 struct blob_attr *msg) {
+    struct blob_attr *tb[__LOAD_CONF_MAX];
+    blobmsg_parse(load_conf_policy, __LOAD_CONF_MAX, tb, blob_data(msg), blob_len(msg));
+
+    if (!tb[LOAD_CONF_PATH])
+        return UBUS_STATUS_INVALID_ARGUMENT;
+
+    const char *config_path = blobmsg_get_string(tb[LOAD_CONF_PATH]);
+    int result = load_config_from_json(config_path);
+
+    struct blob_buf b = {};
+    blob_buf_init(&b, 0);
+    if (result == 0) {
+        blobmsg_add_string(&b, "status", "success");
+        blobmsg_add_string(&b, "config_path", config_path);
+    } else {
+        blobmsg_add_string(&b, "status", "error");
+        blobmsg_add_string(&b, "message", "Failed to load config");
+        blobmsg_add_string(&b, "config_path", config_path);
+    }
+    ubus_send_reply(ctx, req, b.head);
+    blob_buf_free(&b);
+    return UBUS_STATUS_OK;
+}
+
 // Ubus methods table
 static const struct ubus_method at_daemon_methods[] = {
-    UBUS_METHOD("open", ubus_open_method, open_policy),
-    UBUS_METHOD("sendat", ubus_sendat_method, sendat_policy),
-    UBUS_METHOD_NOARG("list", ubus_list_method),
-    UBUS_METHOD("close", ubus_close_method, close_policy),
+    UBUS_METHOD("open",                   ubus_open_method,                   open_policy),
+    UBUS_METHOD("sendat",                 ubus_sendat_method,                 sendat_policy),
+    UBUS_METHOD_NOARG("list",             ubus_list_method),
+    UBUS_METHOD("close",                  ubus_close_method,                  close_policy),
+    UBUS_METHOD("event_callback",         ubus_event_callback_method,         event_callback_policy),
+    UBUS_METHOD("event_callback_list",    ubus_event_callback_list_method,    event_callback_list_policy),
+    UBUS_METHOD("event_callback_remove",  ubus_event_callback_remove_method,  event_callback_remove_policy),
+    UBUS_METHOD("event_callback_clear",   ubus_event_callback_clear_method,   event_callback_list_policy),
+    UBUS_METHOD("load_conf",              ubus_load_conf_method,              load_conf_policy),
 };
 
 static struct ubus_object_type at_daemon_object_type =
