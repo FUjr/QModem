@@ -414,8 +414,8 @@ set_if()
     fi
     if [ "$env6" -eq 1 ];then
         if [ -z "$interfacev6" ];then
-            uci set network.lan.ipv6='1'
-            uci set network.lan.ip6assign='64'
+            # uci set network.lan.ipv6='1' # user decide themself whether to enable IPv6 on LAN.
+            # uci set network.lan.ip6assign='64'
             uci set network.${interface6_name}='interface'
             uci set network.${interface6_name}.modem_config="${modem_config}"
             uci set network.${interface6_name}.proto="${protov6}"
