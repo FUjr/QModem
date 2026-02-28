@@ -139,7 +139,7 @@ def make_ubus_call(thread_id, token: str = "00000000000000000000000000000000"):
     }
     
     result = {
-        "call_id": thread_id,
+        "thread_ids": thread_id,
         "at_cmd": at_cmd,
         "start_time": None,
         "end_time": None,
