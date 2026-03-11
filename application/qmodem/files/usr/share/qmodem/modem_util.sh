@@ -30,13 +30,13 @@ fastat()
 
 log2file()
 {
-	local subject="$1"
+    local subject="$1"
     local msg="$2"
-	local path="$3"
+    local path="$3"
 
-	#打印日志
-    local update_time=$(date +"%Y-%m-%d %H:%M:%S")
-    echo "[${update_time}] ${subject}:${msg} " >> "${path}"
+    # Print log 打印日志
+    local update_time=$( date +"%m-%d %H:%M:%S.%N" | cut -c1-19 )
+    echo "[${update_time}] ${subject}:${msg}" >> "${path}"
 }
 
 log2sys()

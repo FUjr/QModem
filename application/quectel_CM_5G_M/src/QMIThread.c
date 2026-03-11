@@ -855,6 +855,14 @@ skip_WdaSetDataFormat:
     	pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS, QMIWDS_SET_CLIENT_IP_FAMILY_PREF_REQ, WdsSetClientIPFamilyPref, (void *)&IpPreference);
     	err = QmiThreadSendQMI(pRequest, &pResponse);
     	if (pResponse) free(pResponse);
+    } else if (profile->enable_ipv6 && profile->qmapnet_adapter[0]) {
+        // IPv6-only mode: still bind the primary WDS MUX port
+        // so the modem firmware doesn't reject secondary client operations
+        pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS, QMIWDS_BIND_MUX_DATA_PORT_REQ,
+                                  WdsSetQMUXBindMuxDataPort, (void *)&qmap_settings);
+        err = QmiThreadSendQMI(pRequest, &pResponse);
+        if (pResponse) free(pResponse);
+        // Do NOT set IPv4 family pref — just bind the port
     }
 
     if (profile->enable_ipv6) {

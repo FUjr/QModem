@@ -76,7 +76,7 @@ unlock_sim()
     pin=$1
     sim_lock_file="/var/run/qmodem/${modem_config}_dir/pincode"
     lock ${sim_lock_file}.lock
-    if [ -f $sim_lock_file ] && [ "$pin" == "$(cat $sim_lock_file)"];then
+    if [ -f $sim_lock_file ] && [ "$pin" == "$(cat $sim_lock_file)" ];then
         m_debug "pin code is already try"
     else
         
@@ -142,7 +142,7 @@ update_config()
     config_get pdp_index $modem_config pdp_index
     [ -n "$pdp_index" ] && userset_pdp_index="1" || userset_pdp_index="0"
     config_get suggest_pdp_index $modem_config suggest_pdp_index
-    [ -z "$suggest_pdp_index"] && suggest_pdp_index=$(get_platform_suggest_pdp_index)
+    [ -z "$suggest_pdp_index" ] && suggest_pdp_index=$(get_platform_suggest_pdp_index)
     [ -z "$pdp_index" ] && pdp_index=$suggest_pdp_index
     config_get ra_master $modem_config ra_master
     config_get extend_prefix $modem_config extend_prefix
@@ -152,7 +152,6 @@ update_config()
     config_get huawei_dial_mode $modem_config huawei_dial_mode
     config_get donot_nat $modem_config donot_nat 0
     config_get global_dial main enable_dial
-    # config_get ethernet_5g u$modem_config ethernet 转往口获取命令更新，待测试
     config_foreach get_associate_ethernet_by_path modem-slot
     modem_slot=$(basename $modem_path)
     config_get alias $modem_config alias
@@ -188,6 +187,7 @@ update_config()
     esac
     modem_net=$(find $modem_path -name net |tail -1)
     modem_netcard=$(ls $modem_net)
+    # m_debug "modem_netcard = $modem_netcard"
     interface_name=$modem_config
     [ -n "$alias" ] && interface_name=$alias
     interface6_name=${interface_name}v6
@@ -280,7 +280,27 @@ check_ip()
         else
             ipaddr=$(at "$at_port" "$check_ip_command" | grep +CGPADDR:)
         fi
-
+	
+	m_debug "ipaddr before parsing $ipaddr"
+	
+	if [ "$manufacturer" = "quectel" ] && [ "$pdp_type" = "ipv6" ]; then
+	    # Check if we got a dotted IPv6 (16 dot-separated decimal octets)
+	    dotted_ipv6=$(echo "$ipaddr" | grep -oE '"([0-9]{1,3}\.){15}[0-9]{1,3}"' | tr -d '"')
+	    if [ -n "$dotted_ipv6" ]; then
+    		# Check if it's all zeros
+    		all_zero=$(echo "$dotted_ipv6" | sed 's/0\.//g;s/0$//')
+    		if [ -z "$all_zero" ]; then
+        	    # All zeros — not connected yet (bearer up but no address assigned)
+        	    connection_status=0
+    		else
+        	    # Non-zero dotted IPv6 — connected
+        	    ipv6="$dotted_ipv6"
+        	    connection_status=2
+    		    m_debug "dotted_ipv6 $dotted_ipv6"
+    		fi
+	    fi
+	else
+	
         if [ -n "$ipaddr" ];then
             ipv6=$(echo $ipaddr | grep -oE "\b([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\b")
             ipv4=$(echo $ipaddr | grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b")
@@ -288,11 +308,6 @@ check_ip()
                 ipv4=$(echo $ipaddr | grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b" | grep -v "0\.0\.0\.0" | head -n 1)
                 ipv6=$(echo $ipaddr | grep -oE "\b([0-9a-fA-F]{0,4}.){2,7}[0-9a-fA-F]{0,4}\b")
             fi
-            # disallow_ipv4="0.0.0.0"
-            # #remove the disallow ip
-            # if [[ "$ipv4" == *"$disallow_ipv4"* ]];then
-            #     ipv4=""
-            # fi
             connection_status=0
             if [ -n "$ipv4" ];then
                 connection_status=1
@@ -306,6 +321,8 @@ check_ip()
         else
             connection_status="-1"
             m_debug "at port response unexpected $ipaddr"
+        fi
+        
         fi
 }
 
@@ -334,12 +351,22 @@ append_to_fw_zone()
     fi
 }
 
+#-----------------------------------------------------------------------
+# set_if — IPv6-only: single dhcpv6 interface directly on the device
+#           IPv4 / dual-stack: original upstream two-interface layout
+#
+# For QMI/MHI driver with IPv6-only:
+#   set_if() writes uci config but does NOT ifup the interface.
+#   The interface is brought up by ifup_v6if() which is
+#   called from dial() AFTER quectel-CM-M has established the data call.
+#-----------------------------------------------------------------------
 set_if()
 {
     fw_reload_flag=0
     dhcp_reload_flag=0
     network_reload_flag=0
-    #check if exist
+
+    # Determine default protocol per vendor/platform
     proto="dhcp"
     protov6="dhcpv6"
     case $manufacturer in
@@ -364,6 +391,8 @@ set_if()
                 esac
             ;;
     esac
+
+    # Determine which stacks are requested
     case $pdp_type in
         "ip")
             env4="1"
@@ -378,25 +407,163 @@ set_if()
             env6="1"
             ;;
     esac
+
+    # Find the wan firewall zone index
+    local num=$(uci show firewall | grep "name='wan'" | wc -l)
+
     interface=$(uci -q get network.$interface_name)
     interfacev6=$(uci -q get network.$interface6_name)
+
+    #-------------------------------------------------------------------
+    # IPv6-ONLY path: single interface with proto dhcpv6 on the device
+    #
+    # For QMI/MHI drivers, quectel-CM-M must establish the data call
+    # before odhcp6c can solicit.  We write the uci config here but
+    # defer ifup to ifup_v6if(), called after the data call is up.
+    #-------------------------------------------------------------------
+    if [ "$env4" -eq 0 ] && [ "$env6" -eq 1 ]; then
+
+        # Clean up any stale v6-alias interface from a previous dual-stack config
+        if [ -n "$interfacev6" ]; then
+            uci delete network.${interface6_name}
+            dhcpv6=$(uci -q get dhcp.${interface6_name})
+            if [ -n "$dhcpv6" ]; then
+                uci delete dhcp.${interface6_name}
+                dhcp_reload_flag=1
+            fi
+            network_reload_flag=1
+            m_debug "removed stale alias interface $interface6_name (switching to single-interface IPv6-only)"
+        fi
+
+        # Create or update the single interface
+        if [ -z "$interface" ]; then
+            uci set network.${interface_name}=interface
+            network_reload_flag=1
+            firewall_reload_flag=1
+            m_debug "create single IPv6-only interface $interface_name with proto $protov6 and metric $metric"
+        fi
+
+        uci set network.${interface_name}.modem_config="${modem_config}"
+        uci set network.${interface_name}.proto="${protov6}"
+        uci set network.${interface_name}.metric="${metric}"
+        # uci set network.${interface_name}.defaultroute='1'
+
+        # DNS handling
+        uci -q del network.${interface_name}.dns
+        uci -q del network.${interface_name}.peerdns
+        if [ -n "$dns_list" ]; then
+            uci set network.${interface_name}.peerdns='0'
+            for dns in $dns_list; do
+                uci add_list network.${interface_name}.dns="${dns}"
+            done
+        fi
+
+        # Firewall zone
+        local wwan_num=$(uci -q get firewall.@zone[$num].network | grep -w "${interface_name}" | wc -l)
+        if [ "$wwan_num" = "0" ]; then
+            append_to_fw_zone $num ${interface_name}
+            firewall_reload_flag=1
+        fi
+
+        # Prefix delegation / RA relay
+        if [ "$ra_master" = "1" ]; then
+            uci set dhcp.${interface_name}='dhcp'
+            uci set dhcp.${interface_name}.interface="${interface_name}"
+            uci set dhcp.${interface_name}.ra='relay'
+            uci set dhcp.${interface_name}.ndp='relay'
+            uci set dhcp.${interface_name}.master='1'
+            uci set dhcp.${interface_name}.ignore='1'
+            uci set dhcp.lan.ra='relay'
+            uci set dhcp.lan.ndp='relay'
+            uci set dhcp.lan.dhcpv6='relay'
+            dhcp_reload_flag=1
+        elif [ "$extend_prefix" = "1" ]; then
+            uci set network.${interface_name}.extendprefix=1
+            dhcpv6=$(uci -q get dhcp.${interface_name})
+            if [ -n "$dhcpv6" ]; then
+                uci delete dhcp.${interface_name}
+                dhcp_reload_flag=1
+            fi
+        else
+            dhcpv6=$(uci -q get dhcp.${interface_name})
+            if [ -n "$dhcpv6" ]; then
+                uci delete dhcp.${interface_name}
+                dhcp_reload_flag=1
+            fi
+        fi
+
+        # 464XLAT (CLAT) — auto-create a CLAT interface for IPv4 over IPv6
+        # uci set network.${interface_name}.iface_464xlat='1'
+        # uci set network.${interface_name}.zone_464xlat='wan'
+        # m_debug "enabled 464xlat on single IPv6-only interface $interface_name"
+
+#	local clat_if="${interface_name}_4"
+#	uci set network.${clat_if}=interface
+#	uci set network.${clat_if}.proto='464xlat'
+#	uci set network.${clat_if}.tunlink="${interface_name}"
+#	uci set network.${clat_if}.defaultroute='0'
+#	uci set network.${clat_if}.delegate='0'
+#	# Add to WAN firewall zone
+#	local num=$(uci show firewall | grep "name='wan'" | wc -l)
+#	append_to_fw_zone $num ${clat_if}
+#	m_debug "created 464xlat interface $clat_if"
+
+        # Resolve the actual net device (5G ethernet passthrough check)
+        set_modem_netcard=$modem_netcard
+        if [ -z "$set_modem_netcard" ]; then
+            m_debug "no netcard found"
+        fi
+        ethernet_check=$(handle_5gethernet)
+        if [ -d "/sys/class/net/$ethernet_5g" ] && [ -n "$ethernet_5g" ] && [ -n "$ethernet_check" ]; then
+            set_modem_netcard=$ethernet_5g
+        fi
+
+        # Set LED
+        set_led "net" $modem_config $set_modem_netcard
+
+        # Write device to uci
+        uci set network.${interface_name}.ifname="${set_modem_netcard}"
+        uci set network.${interface_name}.device="${set_modem_netcard}"
+
+        # Commit everything but do NOT ifup yet — the data call is not up.
+        # ifup is deferred to ifup_v6if() called after
+        uci commit network
+        # quectel-CM-M establishes the bearer.
+        if [ "$firewall_reload_flag" -eq 1 ]; then
+            uci commit firewall
+            /etc/init.d/firewall restart
+            m_debug "firewall reload"
+        fi
+        if [ "$dhcp_reload_flag" -eq 1 ]; then
+            uci commit dhcp
+            /etc/init.d/dhcp restart
+            m_debug "dhcp reload"
+        fi
+
+        m_debug "IPv6-only interface $interface_name configured on $set_modem_netcard (ifup deferred until data call up)"
+
+        return
+    fi
+    
+    #-------------------------------------------------------------------
+    # IPv4 or DUAL-STACK path: original upstream two-interface layout
+    #-------------------------------------------------------------------
     if [ "$env4" -eq 1 ];then
-        if [ -z "$ineterface" ];then
+        if [ -z "$interface" ];then
             uci set network.${interface_name}=interface
             uci set network.${interface_name}.modem_config="${modem_config}"
             uci set network.${interface_name}.proto="${proto}"
             uci set network.${interface_name}.defaultroute='1'
             uci set network.${interface_name}.metric="${metric}"
-            uci del network.${interface_name}.dns
+            uci -q del network.${interface_name}.dns
             if [ -n "$dns_list" ];then
                 uci set network.${interface_name}.peerdns='0'
                 for dns in $dns_list;do
                     uci add_list network.${interface_name}.dns="${dns}"
                 done
             else
-                uci del network.${interface_name}.peerdns
+                uci -q del network.${interface_name}.peerdns
             fi
-            local num=$(uci show firewall | grep "name='wan'" | wc -l)
             local wwan_num=$(uci -q get firewall.@zone[$num].network | grep -w "${interface_name}" | wc -l)
             if [ "$wwan_num" = "0" ]; then
                 append_to_fw_zone $num ${interface_name}
@@ -414,8 +581,6 @@ set_if()
     fi
     if [ "$env6" -eq 1 ];then
         if [ -z "$interfacev6" ];then
-            # uci set network.lan.ipv6='1' # user decide themself whether to enable IPv6 on LAN.
-            # uci set network.lan.ip6assign='64'
             uci set network.${interface6_name}='interface'
             uci set network.${interface6_name}.modem_config="${modem_config}"
             uci set network.${interface6_name}.proto="${protov6}"
@@ -491,7 +656,7 @@ set_if()
         m_debug "no netcard found"
     fi
     ethernet_check=$(handle_5gethernet)
-    if [ -n "$ethernet_check" ] && [ -n "/sys/class/net/$ethernet_5g" ] && [ -n "$ethernet_5g" ];then
+    if [ -n "$ethernet_check" ] && [ -d "/sys/class/net/$ethernet_5g" ] && [ -n "$ethernet_5g" ];then
         set_modem_netcard=$ethernet_5g
     fi
     #set led
@@ -520,16 +685,29 @@ set_if()
     fi
 }
 
+#-----------------------------------------------------------------------
+# ifup_v6if — called AFTER quectel-CM-M data call is up
+#
+# For IPv6-only single-interface mode: the QMI data call is now
+# established so rmnet_mhi0.1 can carry traffic.  Now we ifup the
+# dhcpv6 interface so odhcp6c sends solicitations into a live bearer.
+#
+# For dual-stack / IPv4-only this is a no-op because those interfaces
+# were already brought up in set_if().
+#-----------------------------------------------------------------------
+ifup_v6if()
+{
+    case $pdp_type in
+        "ipv6")
+            m_debug "data call established, bringing up dhcpv6 interface $interface_name"
+            ifdown ${interface_name} 2>/dev/null
+            ifup ${interface_name}
+            ;;
+    esac
+}
+
 flush_if()
 {
-    # uci delete network.${interface_name}
-    # uci delete network.${interface6_name}
-    # uci delete dhcp.${interface6_name}
-    # uci commit network
-    # uci commit dhcp
-    # set_led "net" $modem_config
-    # set_led "sim" $modem_config 0
-    # m_debug "delete interface $interface_name"
     config_load network
     remove_target="$modem_config"
     config_foreach flush_ip_cb "interface"
@@ -698,6 +876,8 @@ qmi_dial()
     case $pdp_type in
         "ip") cmd_line="$cmd_line -4" ;;
         "ipv6") cmd_line="$cmd_line -6" ;;
+        # Debug
+        #"ipv6") cmd_line="$cmd_line -v -6" ;;
         "ipv4v6") cmd_line="$cmd_line -4 -6" ;;
         *) cmd_line="$cmd_line -4 -6" ;;
     esac
@@ -724,16 +904,16 @@ qmi_dial()
         cmd_line="$cmd_line $auth"
     fi
     if [ -n "$modem_netcard" ]; then
-    qmi_if=$modem_netcard
-    #if is wwan* ,use the first part of the name
-    if  [[ "$modem_netcard" = "wwan"* ]];then
-        qmi_if=$(echo "$modem_netcard" | cut -d_ -f1)
-    fi
-    #if is rmnet* ,use the first part of the name
-    if [[ "$modem_netcard" = "rmnet"* ]];then
-        qmi_if=$(echo "$modem_netcard" | cut -d. -f1)
-    fi
-        cmd_line="${cmd_line} -i ${qmi_if}"
+	qmi_if=$modem_netcard
+	#if is wwan* ,use the first part of the name
+	if  [[ "$modem_netcard" = "wwan"* ]];then
+    	    qmi_if=$(echo "$modem_netcard" | cut -d_ -f1)
+	fi
+	#if is rmnet* ,use the first part of the name
+	if [[ "$modem_netcard" = "rmnet"* ]];then
+    	    qmi_if=$(echo "$modem_netcard" | cut -d. -f1)
+	fi
+    	cmd_line="${cmd_line} -i ${qmi_if}"
     fi
     if [ "$en_bridge" = "1" ];then
         cmd_line="${cmd_line} -b"
@@ -742,16 +922,65 @@ qmi_dial()
         cmd_line="${cmd_line} -D"
     fi
     if [ -e "/usr/bin/quectel-CM-M" ];then
-        [ -n "$metric" ] && cmd_line="$cmd_line -d -M $metric"
-        [ "$force_set_apn" == "1" ] && cmd_line="$cmd_line -F"
+	[ -n "$metric" ] && cmd_line="$cmd_line -d -M $metric"
+    	[ "$force_set_apn" == "1" ] && cmd_line="$cmd_line -F"
     else
         [ -n "$metric" ] && cmd_line="$cmd_line"
     fi
-    cmd_line="$cmd_line -f $log_file"
+    
+    # Separate log for quectel-CM-M
+    #cmd_line="$cmd_line -f $log_file"
+    cmd_line="$cmd_line -f ${log_file}_CM"
+
+    #-------------------------------------------------------------------
+    # Launch quectel-CM-M in the background, then poll for the data call
+    # to come up.  Once connected, start the dhcpv6 interface.
+    # quectel-CM-M must keep running (it monitors the bearer), so we
+    # wait on it after the start.
+    #-------------------------------------------------------------------
     while true; do
         m_debug "dialing: $cmd_line"
-        $cmd_line
+        $cmd_line &
+        local cm_pid=$!
+		m_debug "quectel-CM-M PID $cm_pid"
+        		
+        # Wait for the QMI data call to come up.
+        # quectel-CM-M brings rmnet_mhi0.1 NOARP,UP and writes
+        # "requestSetupDataCall WdsConnection" or
+        # "requestQueryDataCall IPv6ConnectionStatus: CONNECTED"
+        # to the log file.  We also verify via AT+CGPADDR.
+        local wait_count=0
+        local data_call_up=0
+        while [ $wait_count -lt 90 ]; do
+            # Check if quectel-CM-M exited prematurely
+            if ! kill -0 $cm_pid 2>/dev/null; then
+                m_debug "$cm_pid quectel-CM-M exited during wait"
+                break
+            fi
+            # Check for IPv6 connectivity via AT command
+            check_ip
+            if [ "$connection_status" -ge 2 ] 2>/dev/null; then
+                data_call_up=1
+                m_debug "data call confirmed up (connection_status=$connection_status ipv6=$ipv6)"
+                break
+            fi
+            sleep 2
+            wait_count=$((wait_count + 1))
+        done
+
+        if [ "$data_call_up" = "1" ]; then
+            # Data call is live — now bring up the dhcpv6 interface
+            ifup_v6if
+            # Wait for quectel-CM-M to exit (it runs until bearer drops)
+            wait $cm_pid
+        else
+            m_debug "data call did not come up within timeout, killing quectel-CM-M"
+            kill $cm_pid 2>/dev/null
+            wait $cm_pid 2>/dev/null
+        fi
+
         m_debug "quectel-CM exited, retrying dial"
+        sleep 3
     done
 }
 
@@ -774,11 +1003,11 @@ at_dial()
                     ;;
 
                 "unisoc")
-                    at_command="AT+QNETDEVCTL=1,$pdp_index,1" # +QNETDEVCTL: <cid>,<op>,<state> 
+                    at_command="AT+QNETDEVCTL=1,$pdp_index,1"
                     cgdcont_command="AT+CGDCONT=$pdp_index,\"$pdp_type\""$apn_append
                     ;;
                 *)
-                    at_command="AT+QNETDEVCTL=3,$pdp_index,1" #LTE Standard AT+QNETDEVCTL=<connect_type>[,<CID>[,<URC_switch>]] 
+                    at_command="AT+QNETDEVCTL=3,$pdp_index,1"
                     cgdcont_command="AT+CGDCONT=$pdp_index,\"$pdp_type\""$apn_append
                     ;;
             esac
@@ -786,8 +1015,6 @@ at_dial()
         "fibocom")
             case $platform in
                 "mediatek")
-                    # delay=3
-                    # [ "$apn" = "auto" ] || [ -z "$apn" ] && apn="cbnet"
                     if [ "$pdp_index" = "3" ];then
                         delay=3
                         [ "$apn" = "auto" ] || [ -z "$apn" ] && apn="cbnet"
@@ -1018,7 +1245,6 @@ ip_change_fm350()
         ipv4_dns2=$(echo "$config" | grep "ipv4dnsserver:" | tail -n 1 | awk '{print $2}')
         [ -z "$ipv4_dns1" ] && ipv4_dns1="$public_dns1_ipv4"
         [ -z "$ipv4_dns2" ] && ipv4_dns2="$public_dns2_ipv4"
-        # m_debug "umbim config: ipv4=$ipv4_config, gateway=$gateway, netmask=$netmask, dns1=$ipv4_dns1, dns2=$ipv4_dns2"
     else
         at_command="AT+CGPADDR=$pdp_index"
         response=$(at ${at_port} ${at_command})

@@ -34,12 +34,18 @@ start_service() {
 }
 
 boot() {
+    logger -t qmodem_init "In boot()"
     local delay=$(uci -q get qmodem.main.start_delay || echo 0)
     if [ "$delay" -gt 0 ]; then
-        logger "Delay QModem Boot init scan for $delay S"
+        logger -t qmodem_init "Delay QModem Boot init scan for $delay s"
         sleep $delay
-        /usr/share/qmodem/modem_scan.sh scan >/dev/null 2>&1 &
+    else
+        # Event-driven wait: poll for PCIe modem readiness instead of blind sleep.
+        # Exits immediately if no PCIe modem hardware is present (USB-only systems).
+        # Falls through to start on timeout — scan/hotplug will retry later.
+        /usr/share/qmodem/modem_pciew.sh 30
     fi
+    /usr/share/qmodem/modem_scan.sh scan >/dev/null 2>&1 &
     start
 }
 
@@ -115,7 +121,7 @@ _try_slot()
     esac
 
     if [ -d "$path" ]; then
-        logger -t modem_init "try modem $1"
+        logger -t qmodem_init "try modem $1"
         procd_open_instance "try_$1"
         procd_set_param command  "ash" "/usr/share/qmodem/modem_scan.sh" "add" "$slot" "$type"
         procd_close_instance
