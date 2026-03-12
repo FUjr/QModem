@@ -593,9 +593,11 @@ dial(){
 
 wwan_hang()
 {
-    m_debug "wwan_hang"
-    #killall quectel-CM
-    #killall quectel-CM-M
+    pid=$(cat "${MODEM_RUNDIR}/${modem_config}_dir/$modem_config.pid")
+    m_debug "wwan_hang, pid = $pid"
+    if [ -n $pid ]; then
+        kill $pid
+    fi
 }
 
 ecm_hang()
@@ -752,7 +754,10 @@ qmi_dial()
     cmd_line="$cmd_line -f $log_file"
     while true; do
         m_debug "dialing: $cmd_line"
-        $cmd_line
+        $cmd_line &
+        echo "$!" > "${MODEM_RUNDIR}/${modem_config}_dir/$modem_config.pid"
+        m_debug "pid: $!"
+        wait
         m_debug "quectel-CM exited, retrying dial"
     done
 }
