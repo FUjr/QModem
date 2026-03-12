@@ -997,6 +997,9 @@ int main(int argc, char *argv[])
         if (!logfilefp) {
             dbg_time("Fail to open %s, errno: %d(%s)", ctx->logfile, errno, strerror(errno));
         }
+		else {
+			setvbuf(logfilefp, NULL, _IOLBF, 0); // Single line buffering for immediate visibility
+		}
     }
 
     signal(SIGINT, ql_sigaction);
