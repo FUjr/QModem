@@ -594,8 +594,8 @@ dial(){
 wwan_hang()
 {
     m_debug "wwan_hang"
-    killall quectel-CM
-    killall quectel-CM-M
+    #killall quectel-CM
+    #killall quectel-CM-M
 }
 
 ecm_hang()
