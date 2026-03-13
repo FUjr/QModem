@@ -463,6 +463,7 @@ get_rat()
 		"2"|"4"|"5"|"6"|"9"|"10") rat="WCDMA" ;;
         "7") rat="LTE" ;;
         "11"|"12") rat="NR" ;;
+        "13") rat="LTE-NR" ;;
 	esac
     echo "${rat}"
 }
