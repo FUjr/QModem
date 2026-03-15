@@ -879,6 +879,10 @@ at_dial()
                     at_command="AT+CNMP=$cnmp;+CNWINFO=1"
                     cgdcont_command="AT+CGDCONT=1,\"$pdp_type\""$apn_append
                     ;;
+                "lte")
+                    at_command="AT+CGACT=1,$pdp_index"
+                    cgdcont_command="AT+CGDCONT=$pdp_index,\"$pdp_type\""$apn_append
+                    ;;
             esac
             ;;
         "meig")
