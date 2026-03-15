@@ -1157,6 +1157,19 @@ handle_ip_change()
     esac
 }
 
+check_cfun(){
+    at_command="AT+CFUN?"
+    response=$(at ${at_port} "${at_command}")
+    cfun_status=$(echo "$response" | grep "+CFUN:" | awk '{print $2}')
+    if [ "$cfun_status" = "1" ]; then
+        return 0
+    else
+        at_command="AT+CFUN=1"
+        response=$(at ${at_port} "${at_command}")
+        return 1
+    fi
+}
+
 check_logfile_line()
 {
     local line=$(wc -l $log_file | awk '{print $1}')
@@ -1170,6 +1183,18 @@ unexpected_response_count=0
 at_dial_monitor()
 {
     #check if support auto dial
+    check_cfun
+    if [ $? -ne 0 ]; then
+        m_debug "CFUN is not 1, try to set it to 1"
+        sleep 5
+        check_cfun
+        if [ $? -ne 0 ]; then
+            m_debug "Failed to set CFUN to 1, continue with monitor"
+            return
+        else
+            m_debug "Successfully set CFUN to 1"
+        fi
+    fi
     auto_dial_support=0
     at_auto_dial
     auto_dial_support=$?
