@@ -870,6 +870,10 @@ at_dial()
             ;;
         "simcom")
             case $platform in
+                "asrmicro")                    
+                    at_command="AT+CGACT=1,$pdp_index"
+                    cgdcont_command="AT+CGDCONT=$pdp_index,\"$pdp_type\""$apn_append
+                    ;;
                 "qualcomm")
                     local cnmp=$(at ${at_port} "AT+CNMP?" | grep "+CNMP:" | sed 's/+CNMP: //g' | sed 's/\r//g')
                     at_command="AT+CNMP=$cnmp;+CNWINFO=1"
