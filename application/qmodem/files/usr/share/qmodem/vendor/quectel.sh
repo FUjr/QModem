@@ -1599,7 +1599,7 @@ EOF
                 nr_band_num=$(echo "$response" | awk -F',' '{print $11}')
                 nr_band=$(get_band "NR" $nr_band_num)
                 [ -n "$ca_scc_band_num" ] && nr_band="$nr_band / $ca_scc_band_num"
-                nr_dl_bandwidth_num=$(echo "$response" | awk -F',' '{print $12}')
+                nr_dl_bandwidth_num=$(echo "$ca_response" | grep "+QCAINFO:" | grep "PCC" | awk -F',' '{print $3}')
                 nr_dl_bandwidth=$(get_bandwidth "NR" $nr_dl_bandwidth_num)
                 nr_ul_bandwidth=$nr_dl_bandwidth
                 [ -n "$scc_nr_dl_bandwidth" ] && nr_dl_bandwidth="$nr_dl_bandwidth / $scc_nr_dl_bandwidth"
