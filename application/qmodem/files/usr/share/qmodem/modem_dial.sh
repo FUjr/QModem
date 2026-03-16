@@ -928,9 +928,9 @@ qmi_dial()
         [ -n "$metric" ] && cmd_line="$cmd_line"
     fi
     
+    cmd_line="$cmd_line -f $log_file"
     # Separate log for quectel-CM-M
-    #cmd_line="$cmd_line -f $log_file"
-    cmd_line="$cmd_line -f ${log_file}_CM"
+    # cmd_line="$cmd_line -f ${log_file}_CM"
 
     #-------------------------------------------------------------------
     # Launch quectel-CM-M in the background, then poll for the data call
@@ -969,7 +969,8 @@ qmi_dial()
         done
 
         if [ "$data_call_up" = "1" ]; then
-            # Data call is live — now bring up the dhcpv6 interface
+            # Data call is live - bring up the dhcpv6 interface (1 s delay for device updates)
+            sleep 1
             ifup_v6if
             # Wait for quectel-CM-M to exit (it runs until bearer drops)
             wait $cm_pid
