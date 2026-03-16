@@ -96,6 +96,15 @@
                 "include": [
                     "1.2"
                 ]
+            },
+            "1e0e:9011": {
+                "name": "simcom_a8200_serias",
+                "mode": "rndis",
+                "option_driver": 0,
+                "include": [
+                    "1.4",
+                    "1.5"
+                ]
             }
         }
     }
