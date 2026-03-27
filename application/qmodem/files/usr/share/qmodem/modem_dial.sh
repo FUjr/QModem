@@ -1160,7 +1160,7 @@ handle_ip_change()
 check_cfun(){
     at_command="AT+CFUN?"
     response=$(at ${at_port} "${at_command}")
-    cfun_status=$(echo "$response" | grep "+CFUN:" | awk '{print $2}')
+    cfun_status=$(echo "$response" | tr -d "\r" | grep "+CFUN:" | awk '{print $2}')
     if [ "$cfun_status" = "1" ]; then
         return 0
     else
