@@ -490,7 +490,7 @@ get_connect_status()
         result=`at  $at_port $at_cmd | grep $expect|tr '\r' '\n'`
         # for fm350 pdp_index 0, GGACT will return empty,so we need to add it manually
         if [ -z "$result" ]; then
-            case $manufacturer in
+            case $vendor in
                 "fibocom")
                     case $platform in
                         "mediatek")

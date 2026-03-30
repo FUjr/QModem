@@ -94,6 +94,9 @@ fn990a40 | qualcomm |✔ usb(mbim,rndis,qmi,ecm) | ✔ pcie(mbim,qmi)
 # simcom
 Model | Platform | USB  | PCIe 
 --- | --- | --- | ---
+simcom_a8200_serias | asrmicro |✔ usb(ecm,rndis) | ✘
+a8200c-m2 | asrmicro |✔ usb(ecm,rndis) | ✘
+a7605c | lte |✔ usb(ecm,rndis,auto) | ✘
 simcom_d8200g | qualcomm |✔ usb(qmi,rndis) | ✘
 simcom_sim8200ea-m2 | qualcomm |✔ usb(qmi,rndis) | ✘
 simcom_sim8202g-m2 | qualcomm |✔ usb(qmi,rndis,mbim) | ✘

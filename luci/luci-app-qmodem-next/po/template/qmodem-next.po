@@ -97,7 +97,7 @@ msgstr ""
 #: vendor/neoway.sh:161
 #: vendor/quectel.sh:363
 #: vendor/sierra.sh:215
-#: vendor/simcom.sh:245
+#: vendor/simcom.sh:269
 #: vendor/telit.sh:164
 #: view/qmodem/settings.js:308
 msgid "AT Port"
@@ -120,8 +120,8 @@ msgstr ""
 #: vendor/huawei.sh:514
 #: vendor/neoway.sh:719
 #: vendor/neoway.sh:774
-#: vendor/simcom.sh:930
-#: vendor/simcom.sh:970
+#: vendor/simcom.sh:1179
+#: vendor/simcom.sh:1219
 #: vendor/telit.sh:763
 msgid "Absolute Radio-Frequency Channel Number"
 msgstr ""
@@ -312,9 +312,9 @@ msgstr ""
 #: vendor/neoway.sh:731
 #: vendor/neoway.sh:756
 #: vendor/neoway.sh:775
-#: vendor/simcom.sh:931
-#: vendor/simcom.sh:953
-#: vendor/simcom.sh:971
+#: vendor/simcom.sh:1180
+#: vendor/simcom.sh:1202
+#: vendor/simcom.sh:1220
 #: vendor/telit.sh:761
 #: view/qmodem/config_advanced.js:754
 msgid "Band"
@@ -340,7 +340,7 @@ msgstr ""
 #: vendor/neoway.sh:157
 #: vendor/quectel.sh:359
 #: vendor/sierra.sh:211
-#: vendor/simcom.sh:241
+#: vendor/simcom.sh:265
 #: vendor/telit.sh:160
 msgid "Base Information"
 msgstr ""
@@ -409,10 +409,10 @@ msgstr ""
 #: vendor/neoway.sh:717
 #: vendor/neoway.sh:728
 #: vendor/neoway.sh:752
-#: vendor/simcom.sh:927
-#: vendor/simcom.sh:949
-#: vendor/simcom.sh:982
-#: vendor/simcom.sh:1001
+#: vendor/simcom.sh:1176
+#: vendor/simcom.sh:1198
+#: vendor/simcom.sh:1231
+#: vendor/simcom.sh:1250
 msgid "Cell ID"
 msgstr ""
 
@@ -425,7 +425,7 @@ msgstr ""
 #: vendor/meig.sh:559
 #: vendor/neoway.sh:710
 #: vendor/quectel.sh:1658
-#: vendor/simcom.sh:920
+#: vendor/simcom.sh:1169
 #: vendor/telit.sh:759
 #: view/qmodem/config_advanced.js:927
 #: view/qmodem/config_advanced.js:952
@@ -460,9 +460,9 @@ msgstr ""
 #: vendor/neoway.sh:741
 #: vendor/quectel.sh:1683
 #: vendor/quectel.sh:1701
-#: vendor/simcom.sh:933
-#: vendor/simcom.sh:963
-#: vendor/simcom.sh:993
+#: vendor/simcom.sh:1182
+#: vendor/simcom.sh:1212
+#: vendor/simcom.sh:1242
 msgid "Channel Quality Indicator"
 msgstr ""
 
@@ -678,10 +678,10 @@ msgstr ""
 #: vendor/meig.sh:597
 #: vendor/meig.sh:613
 #: vendor/neoway.sh:742
-#: vendor/simcom.sh:932
-#: vendor/simcom.sh:955
-#: vendor/simcom.sh:972
-#: vendor/simcom.sh:987
+#: vendor/simcom.sh:1181
+#: vendor/simcom.sh:1204
+#: vendor/simcom.sh:1221
+#: vendor/simcom.sh:1236
 msgid "DL Bandwidth"
 msgstr ""
 
@@ -689,7 +689,7 @@ msgstr ""
 msgid "DL Bandwidth (CA)"
 msgstr ""
 
-#: vendor/simcom.sh:935
+#: vendor/simcom.sh:1184
 #: vendor/telit.sh:766
 msgid "DL/UL MOD"
 msgstr ""
@@ -849,9 +849,9 @@ msgstr ""
 #: vendor/quectel.sh:1662
 #: vendor/quectel.sh:1676
 #: vendor/quectel.sh:1695
-#: vendor/simcom.sh:926
-#: vendor/simcom.sh:948
-#: vendor/simcom.sh:981
+#: vendor/simcom.sh:1175
+#: vendor/simcom.sh:1197
+#: vendor/simcom.sh:1230
 msgid "Duplex Mode"
 msgstr ""
 
@@ -866,8 +866,8 @@ msgstr ""
 #: vendor/huawei.sh:531
 #: vendor/huawei.sh:556
 #: vendor/neoway.sh:730
-#: vendor/simcom.sh:951
-#: vendor/simcom.sh:984
+#: vendor/simcom.sh:1200
+#: vendor/simcom.sh:1233
 msgid "E-UTRA Absolute Radio Frequency Channel Number"
 msgstr ""
 
@@ -875,7 +875,7 @@ msgstr ""
 #: vendor/huawei.sh:582
 #: vendor/meig.sh:627
 #: vendor/neoway.sh:760
-#: vendor/simcom.sh:1005
+#: vendor/simcom.sh:1254
 msgid "Ec/Io"
 msgstr ""
 
@@ -1270,8 +1270,8 @@ msgstr ""
 #: vendor/foxconn.sh:637
 #: vendor/huawei.sh:532
 #: vendor/huawei.sh:557
-#: vendor/simcom.sh:952
-#: vendor/simcom.sh:985
+#: vendor/simcom.sh:1201
+#: vendor/simcom.sh:1234
 msgid "Freq band indicator"
 msgstr ""
 
@@ -1436,8 +1436,8 @@ msgstr ""
 #: vendor/neoway.sh:232
 #: vendor/quectel.sh:426
 #: vendor/quectel.sh:440
-#: vendor/simcom.sh:307
-#: vendor/simcom.sh:321
+#: vendor/simcom.sh:331
+#: vendor/simcom.sh:345
 #: vendor/telit.sh:223
 #: vendor/telit.sh:237
 msgid "Integrate Circuit Card Identity"
@@ -1461,9 +1461,9 @@ msgstr ""
 #: vendor/quectel.sh:424
 #: vendor/quectel.sh:430
 #: vendor/quectel.sh:438
-#: vendor/simcom.sh:305
-#: vendor/simcom.sh:311
-#: vendor/simcom.sh:319
+#: vendor/simcom.sh:329
+#: vendor/simcom.sh:335
+#: vendor/simcom.sh:343
 #: vendor/telit.sh:221
 #: vendor/telit.sh:227
 #: vendor/telit.sh:235
@@ -1482,8 +1482,8 @@ msgstr ""
 #: vendor/neoway.sh:231
 #: vendor/quectel.sh:425
 #: vendor/quectel.sh:439
-#: vendor/simcom.sh:306
-#: vendor/simcom.sh:320
+#: vendor/simcom.sh:330
+#: vendor/simcom.sh:344
 #: vendor/telit.sh:222
 #: vendor/telit.sh:236
 msgid "International Mobile Subscriber Identity"
@@ -1495,7 +1495,7 @@ msgstr ""
 #: vendor/meig.sh:283
 #: vendor/neoway.sh:213
 #: vendor/quectel.sh:421
-#: vendor/simcom.sh:302
+#: vendor/simcom.sh:326
 #: vendor/telit.sh:219
 msgid "Internet Service Provider"
 msgstr ""
@@ -1615,7 +1615,7 @@ msgstr ""
 #: vendor/huawei.sh:575
 #: vendor/meig.sh:622
 #: vendor/neoway.sh:751
-#: vendor/simcom.sh:1000
+#: vendor/simcom.sh:1249
 msgid "Location Area Code"
 msgstr ""
 
@@ -1681,7 +1681,7 @@ msgstr ""
 #: vendor/neoway.sh:159
 #: vendor/quectel.sh:361
 #: vendor/sierra.sh:213
-#: vendor/simcom.sh:243
+#: vendor/simcom.sh:267
 #: vendor/telit.sh:162
 msgid "Manufacturer"
 msgstr ""
@@ -1750,11 +1750,11 @@ msgstr ""
 #: vendor/neoway.sh:726
 #: vendor/neoway.sh:749
 #: vendor/neoway.sh:772
-#: vendor/simcom.sh:924
-#: vendor/simcom.sh:946
-#: vendor/simcom.sh:967
-#: vendor/simcom.sh:979
-#: vendor/simcom.sh:998
+#: vendor/simcom.sh:1173
+#: vendor/simcom.sh:1195
+#: vendor/simcom.sh:1216
+#: vendor/simcom.sh:1228
+#: vendor/simcom.sh:1247
 msgid "Mobile Country Code"
 msgstr ""
 
@@ -1784,11 +1784,11 @@ msgstr ""
 #: vendor/neoway.sh:727
 #: vendor/neoway.sh:750
 #: vendor/neoway.sh:773
-#: vendor/simcom.sh:925
-#: vendor/simcom.sh:947
-#: vendor/simcom.sh:968
-#: vendor/simcom.sh:980
-#: vendor/simcom.sh:999
+#: vendor/simcom.sh:1174
+#: vendor/simcom.sh:1196
+#: vendor/simcom.sh:1217
+#: vendor/simcom.sh:1229
+#: vendor/simcom.sh:1248
 msgid "Mobile Network Code"
 msgstr ""
 
@@ -1895,7 +1895,7 @@ msgstr ""
 #: vendor/neoway.sh:158
 #: vendor/quectel.sh:360
 #: vendor/sierra.sh:212
-#: vendor/simcom.sh:242
+#: vendor/simcom.sh:266
 #: vendor/telit.sh:161
 msgid "Name"
 msgstr ""
@@ -1919,7 +1919,7 @@ msgstr ""
 #: vendor/neoway.sh:287
 #: vendor/quectel.sh:504
 #: vendor/sierra.sh:222
-#: vendor/simcom.sh:340
+#: vendor/simcom.sh:364
 #: vendor/telit.sh:258
 msgid "Network Information"
 msgstr ""
@@ -1942,7 +1942,7 @@ msgstr ""
 #: vendor/meig.sh:560
 #: vendor/neoway.sh:711
 #: vendor/quectel.sh:1659
-#: vendor/simcom.sh:921
+#: vendor/simcom.sh:1170
 #: vendor/telit.sh:760
 msgid "Network Mode"
 msgstr ""
@@ -1961,7 +1961,7 @@ msgstr ""
 #: vendor/meig.sh:381
 #: vendor/neoway.sh:771
 #: vendor/quectel.sh:505
-#: vendor/simcom.sh:341
+#: vendor/simcom.sh:365
 #: vendor/telit.sh:259
 msgid "Network Type"
 msgstr ""
@@ -2212,10 +2212,10 @@ msgstr ""
 #: vendor/meig.sh:609
 #: vendor/neoway.sh:718
 #: vendor/neoway.sh:729
-#: vendor/simcom.sh:928
-#: vendor/simcom.sh:950
-#: vendor/simcom.sh:969
-#: vendor/simcom.sh:983
+#: vendor/simcom.sh:1177
+#: vendor/simcom.sh:1199
+#: vendor/simcom.sh:1218
+#: vendor/simcom.sh:1232
 #: vendor/telit.sh:764
 #: view/qmodem/config_advanced.js:729
 msgid "Physical Cell ID"
@@ -2299,7 +2299,7 @@ msgstr ""
 #: vendor/huawei.sh:578
 #: vendor/meig.sh:624
 #: vendor/neoway.sh:754
-#: vendor/simcom.sh:1003
+#: vendor/simcom.sh:1252
 msgid "Primary Scrambling Code"
 msgstr ""
 
@@ -2376,7 +2376,7 @@ msgstr ""
 #: vendor/foxconn.sh:590
 #: vendor/huawei.sh:544
 #: vendor/huawei.sh:566
-#: vendor/simcom.sh:962
+#: vendor/simcom.sh:1211
 msgid "Radio Signal Strength Noise Ratio"
 msgstr ""
 
@@ -2415,7 +2415,7 @@ msgstr ""
 #: vendor/huawei.sh:581
 #: vendor/meig.sh:626
 #: vendor/neoway.sh:759
-#: vendor/simcom.sh:1004
+#: vendor/simcom.sh:1253
 msgid "Received Signal Code Power"
 msgstr ""
 
@@ -2428,9 +2428,9 @@ msgstr ""
 #: vendor/huawei.sh:520
 #: vendor/huawei.sh:543
 #: vendor/huawei.sh:565
-#: vendor/simcom.sh:940
-#: vendor/simcom.sh:961
-#: vendor/simcom.sh:1007
+#: vendor/simcom.sh:1189
+#: vendor/simcom.sh:1210
+#: vendor/simcom.sh:1256
 msgid "Received Signal Level"
 msgstr ""
 
@@ -2446,9 +2446,9 @@ msgstr ""
 #: vendor/neoway.sh:738
 #: vendor/quectel.sh:1682
 #: vendor/quectel.sh:1700
-#: vendor/simcom.sh:938
-#: vendor/simcom.sh:959
-#: vendor/simcom.sh:991
+#: vendor/simcom.sh:1187
+#: vendor/simcom.sh:1208
+#: vendor/simcom.sh:1240
 #: vendor/telit.sh:770
 msgid "Received Signal Strength Indicator"
 msgstr ""
@@ -2472,10 +2472,10 @@ msgstr ""
 #: vendor/meig.sh:614
 #: vendor/neoway.sh:721
 #: vendor/neoway.sh:735
-#: vendor/simcom.sh:936
-#: vendor/simcom.sh:957
-#: vendor/simcom.sh:973
-#: vendor/simcom.sh:989
+#: vendor/simcom.sh:1185
+#: vendor/simcom.sh:1206
+#: vendor/simcom.sh:1222
+#: vendor/simcom.sh:1238
 #: vendor/telit.sh:768
 msgid "Reference Signal Received Power"
 msgstr ""
@@ -2498,10 +2498,10 @@ msgstr ""
 #: vendor/meig.sh:615
 #: vendor/neoway.sh:722
 #: vendor/neoway.sh:736
-#: vendor/simcom.sh:937
-#: vendor/simcom.sh:958
-#: vendor/simcom.sh:974
-#: vendor/simcom.sh:990
+#: vendor/simcom.sh:1186
+#: vendor/simcom.sh:1207
+#: vendor/simcom.sh:1223
+#: vendor/simcom.sh:1239
 #: vendor/telit.sh:769
 msgid "Reference Signal Received Quality"
 msgstr ""
@@ -2540,7 +2540,7 @@ msgstr ""
 #: vendor/neoway.sh:160
 #: vendor/quectel.sh:362
 #: vendor/sierra.sh:214
-#: vendor/simcom.sh:244
+#: vendor/simcom.sh:268
 #: vendor/telit.sh:163
 msgid "Revision"
 msgstr ""
@@ -2576,8 +2576,8 @@ msgstr ""
 #: vendor/meig.sh:601
 #: vendor/quectel.sh:1666
 #: vendor/quectel.sh:1692
-#: vendor/simcom.sh:941
-#: vendor/simcom.sh:976
+#: vendor/simcom.sh:1190
+#: vendor/simcom.sh:1225
 #: view/qmodem/config_advanced.js:771
 msgid "SCS"
 msgstr ""
@@ -2605,7 +2605,7 @@ msgstr ""
 #: vendor/neoway.sh:209
 #: vendor/quectel.sh:417
 #: vendor/sierra.sh:183
-#: vendor/simcom.sh:298
+#: vendor/simcom.sh:322
 #: vendor/telit.sh:215
 msgid "SIM Information"
 msgstr ""
@@ -2621,7 +2621,7 @@ msgstr ""
 #: vendor/meig.sh:285
 #: vendor/neoway.sh:215
 #: vendor/quectel.sh:423
-#: vendor/simcom.sh:304
+#: vendor/simcom.sh:328
 msgid "SIM Number"
 msgstr ""
 
@@ -2638,8 +2638,8 @@ msgstr ""
 #: vendor/quectel.sh:422
 #: vendor/quectel.sh:437
 #: vendor/sierra.sh:196
-#: vendor/simcom.sh:303
-#: vendor/simcom.sh:318
+#: vendor/simcom.sh:327
+#: vendor/simcom.sh:342
 #: vendor/telit.sh:220
 #: vendor/telit.sh:234
 msgid "SIM Slot"
@@ -2669,10 +2669,10 @@ msgstr ""
 #: vendor/quectel.sh:433
 #: vendor/quectel.sh:436
 #: vendor/sierra.sh:195
-#: vendor/simcom.sh:301
-#: vendor/simcom.sh:310
-#: vendor/simcom.sh:314
-#: vendor/simcom.sh:317
+#: vendor/simcom.sh:325
+#: vendor/simcom.sh:334
+#: vendor/simcom.sh:338
+#: vendor/simcom.sh:341
 #: vendor/telit.sh:218
 #: vendor/telit.sh:226
 #: vendor/telit.sh:230
@@ -2878,9 +2878,9 @@ msgstr ""
 #: vendor/quectel.sh:1667
 #: vendor/quectel.sh:1685
 #: vendor/quectel.sh:1703
-#: vendor/simcom.sh:942
-#: vendor/simcom.sh:965
-#: vendor/simcom.sh:995
+#: vendor/simcom.sh:1191
+#: vendor/simcom.sh:1214
+#: vendor/simcom.sh:1244
 msgid "Serving Cell Receive Level"
 msgstr ""
 
@@ -2916,10 +2916,10 @@ msgstr ""
 #: vendor/huawei.sh:542
 #: vendor/huawei.sh:548
 #: vendor/huawei.sh:564
-#: vendor/simcom.sh:939
-#: vendor/simcom.sh:960
-#: vendor/simcom.sh:975
-#: vendor/simcom.sh:992
+#: vendor/simcom.sh:1188
+#: vendor/simcom.sh:1209
+#: vendor/simcom.sh:1224
+#: vendor/simcom.sh:1241
 #: vendor/telit.sh:771
 msgid "Signal to Interference plus Noise Ratio Bandwidth"
 msgstr ""
@@ -3055,9 +3055,9 @@ msgstr ""
 #: vendor/meig.sh:617
 #: vendor/quectel.sh:1684
 #: vendor/quectel.sh:1702
-#: vendor/simcom.sh:934
-#: vendor/simcom.sh:964
-#: vendor/simcom.sh:994
+#: vendor/simcom.sh:1183
+#: vendor/simcom.sh:1213
+#: vendor/simcom.sh:1243
 #: vendor/telit.sh:767
 msgid "TX Power"
 msgstr ""
@@ -3087,7 +3087,7 @@ msgstr ""
 #: vendor/meig.sh:220
 #: vendor/quectel.sh:338
 #: vendor/sierra.sh:340
-#: vendor/simcom.sh:220
+#: vendor/simcom.sh:244
 #: vendor/telit.sh:144
 msgid "Temperature"
 msgstr ""
@@ -3142,9 +3142,9 @@ msgstr ""
 #: vendor/huawei.sh:513
 #: vendor/huawei.sh:539
 #: vendor/huawei.sh:561
-#: vendor/simcom.sh:929
-#: vendor/simcom.sh:956
-#: vendor/simcom.sh:988
+#: vendor/simcom.sh:1178
+#: vendor/simcom.sh:1205
+#: vendor/simcom.sh:1237
 msgid "Tracking area code of cell served by neighbor Enb"
 msgstr ""
 
@@ -3164,7 +3164,7 @@ msgstr ""
 msgid "Tuesday"
 msgstr ""
 
-#: vendor/simcom.sh:1006
+#: vendor/simcom.sh:1255
 msgid "Tx Power"
 msgstr ""
 
@@ -3186,8 +3186,8 @@ msgstr ""
 #: vendor/meig.sh:585
 #: vendor/meig.sh:612
 #: vendor/neoway.sh:743
-#: vendor/simcom.sh:954
-#: vendor/simcom.sh:986
+#: vendor/simcom.sh:1203
+#: vendor/simcom.sh:1235
 msgid "UL Bandwidth"
 msgstr ""
 
@@ -3252,7 +3252,7 @@ msgstr ""
 msgid "Unlocking..."
 msgstr ""
 
-#: vendor/simcom.sh:1002
+#: vendor/simcom.sh:1251
 msgid "Uplink Absolute Radio Frequency Channel Number"
 msgstr ""
 
@@ -3295,7 +3295,7 @@ msgstr ""
 #: vendor/meig.sh:187
 #: vendor/quectel.sh:313
 #: vendor/sierra.sh:333
-#: vendor/simcom.sh:203
+#: vendor/simcom.sh:227
 #: vendor/telit.sh:131
 msgid "Voltage"
 msgstr ""

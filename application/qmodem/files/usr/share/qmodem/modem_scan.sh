@@ -376,6 +376,24 @@ match_config()
     sa_available_band=$(echo $modem_config | jq -r ".sa_band")
 }
 
+get_model_name_by_id()
+{
+    local id=$1
+    local name=$(echo $modem_support | jq -r '.modem_support."'$slot_type'" | to_entries[] | select(.value.id=="'$id'") | .key')
+    modem_config=$(echo $modem_support | jq '.modem_support."'$slot_type'"."'$name'"')
+    [ "$modem_config" == "null"  ] && return
+    [ -z "$modem_config"  ] && return
+    modem_name=$name
+    manufacturer=$(echo $modem_config | jq -r ".manufacturer")
+    platform=$(echo $modem_config | jq -r ".platform")
+    suggest_pdp_index=$(echo $modem_config | jq -r ".pdp_index")
+    modes=$(echo $modem_config | jq -r ".modes[]")
+    wcdma_available_band=$(echo $modem_config | jq -r ".wcdma_band")
+    lte_available_band=$(echo $modem_config | jq -r ".lte_band")
+    nsa_available_band=$(echo $modem_config | jq -r ".nsa_band")
+    sa_available_band=$(echo $modem_config | jq -r ".sa_band")
+}
+
 get_modem_model()
 {
     local at_port=$1
@@ -443,6 +461,13 @@ add()
         [ -n "$modem_name" ] && break
         sleep 1
     done
+    if [ -z "$modem_name" ];then
+        m_debug "modem $modem_name not found, try to get modem model by id"
+        product_id=$(cat $modem_path/idProduct)
+        vendor_id=$(cat $modem_path/idVendor)
+        id="$vendor_id:$product_id"
+        get_model_name_by_id $id
+    fi
     [ -z "$modem_name" ] && lock -u /tmp/lock/modem_add_$slot && return
     m_debug  "add modem $modem_name slot $slot slot_type $slot_type"
     if [ -n "$is_exist" ]; then
