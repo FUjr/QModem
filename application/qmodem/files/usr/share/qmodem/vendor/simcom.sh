@@ -962,10 +962,10 @@ get_bandwidth()
         ;;
         "NR")
             case $bandwidth_num in
-                "0"|"1"|"2"|"3"|"4"|"5") bandwidth=$((($bandwidth_num + 1) * 5)) ;;
-                "6"|"7"|"8"|"9"|"10"|"11"|"12") bandwidth=$((($bandwidth_num - 2) * 10)) ;;
-                "13") bandwidth="200" ;;
-                "14") bandwidth="400" ;;
+                "5") bandwidth="30" ;;
+                "8") bandwidth="40" ;;
+                "10") bandwidth="60" ;;
+                "14") bandwidth="100" ;;
             esac
         ;;
     esac
@@ -1035,12 +1035,16 @@ cell_info()
 
     at_command1='AT+CPSI?'
     at_command2='AT+CNWINFO?'
+    at_command3='AT+CCAINFO?'
     response1=$(at $at_port $at_command1)
     response2=$(at $at_port $at_command2)
+    response3="$(at $at_port $at_command3)"
 
     local lte=$(echo "$response1" | grep "LTE")
     local nr5g_nsa=$(echo "$response1" | grep "NR5G_NSA")
     local CNWINFO=$(echo "$response2" | grep "+CNWINFO:")
+    local CCAINFO=$(echo "$response3" | grep -E '^\+CCAINFO:')
+    local CA_COUNT=$(echo "$CCAINFO" |wc -l)
     if [ -n "$lte" ] && [ -n "$nr5g_nsa" ] ; then
         #EN-DC模式
         network_mode="EN-DC Mode"
@@ -1095,17 +1099,24 @@ cell_info()
         local rat=$(echo "$response" | awk -F',' '{print $1}' | sed 's/+CPSI: //g')
         case $rat in
             "NR5G_SA")
-                network_mode="NR5G-SA Mode"
+                network_mode="NR5G-SA"
+                scc_arfcn=$(echo "$CCAINFO" | awk -F'[:,]' '/^\+CCAINFO:/ {gsub(/^[[:space:]]+/, "", $2); if ($2 ~ /"SCC"/) v=v (v?" ":"") $4} END{print v}')
+                scc_pci=$(echo "$CCAINFO" | awk -F'[:,]' '/^\+CCAINFO:/ {gsub(/^[[:space:]]+/, "", $2); if ($2 ~ /"SCC"/) v=v (v?" ":"") $6} END{print v}')
                 nr_duplex_mode=$(echo "$response" | awk -F',' '{print $2}')
                 nr_mcc=$(echo "$response" | awk -F',' '{print $3}' | awk -F'-' '{print $1}')
                 nr_mnc=$(echo "$response" | awk -F',' '{print $3}' | awk -F'-' '{print $2}')
                 nr_cell_id=$(echo "$response" | awk -F',' '{print $5}')
-                nr_physical_cell_id=$(echo "$response" | awk -F',' '{print $6}')
+                pcc_pci=$(echo "$response" | awk -F',' '{print $6}')
+                nr_physical_cell_id=$(echo "$pcc_pci $scc_pci" | sed -e 's/^ *//' -e 's/ *$//' -e 's/ \+/\\/g')
                 nr_tac=$(echo "$response" | awk -F',' '{print $4}')
-                nr_arfcn=$(echo "$response" | awk -F',' '{print $8}')
-                nr_band_num=$(echo "$response" | awk -F',' '{print $7}')
-                nr_band=$(get_band $nr_band_num)
-                nr_dl_bandwidth=$(echo $CNWINFO | awk -F',' '{print $11}')
+                pcc_arfcn=$(echo "$response" | awk -F',' '{print $8}') 
+                nr_arfcn=$(echo "$pcc_arfcn $scc_arfcn" | sed -e 's/^ *//' -e 's/ *$//' -e 's/ \+/\\/g')
+                pcc_band=$(echo "$CCAINFO" | awk -F'[:,]' '/^\+CCAINFO:/ {gsub(/^[[:space:]]+/, "", $2); if ($2 ~ /"PCC"/) v=v (v?" ":"") $3} END{print v}')
+                scc_band=$(echo "$CCAINFO" | awk -F'[:,]' '/^\+CCAINFO:/ {gsub(/^[[:space:]]+/, "", $2); if ($2 ~ /"SCC"/) v=v (v?" ":"") $3} END{print v}')
+                nr_band=$(echo "$pcc_band $scc_band" | sed -e 's/^ *//' -e 's/ *$//' -e 's/ \+/\\/g')
+                pcc_dl_bandwidth_num=$(echo "$CCAINFO" | awk -F'[:,]' '/^\+CCAINFO:/ {gsub(/^[[:space:]]+/, "", $2); if ($2 ~ /"PCC"/) v=v (v?" ":"") $5} END{print v}')
+                scc_dl_bandwidth_num=$(echo "$CCAINFO" | awk -F'[:,]' '/^\+CCAINFO:/ {gsub(/^[[:space:]]+/, "", $2); if ($2 ~ /"SCC"/) v=v (v?" ":"") $5} END{print v}')
+                nr_dl_bandwidth=$(echo "$(get_bandwidth "NR" "$pcc_dl_bandwidth_num") $(get_bandwidth "NR" "$scc_dl_bandwidth_num")"|sed -e 's/^ *//' -e 's/ *$//' -e 's/ \+/\\/g')
                 nr_rsrp=$(echo "$response" | awk -F',' '{print $9}')
                 nr_rsrp=$(process_signal_value $nr_rsrp)
                 nr_rsrq=$(echo "$response" | awk -F',' '{print $10}')
@@ -1167,19 +1178,20 @@ cell_info()
         esac
     fi
     class="Cell Information"
-    add_plain_info_entry "network_mode" "$network_mode" "Network Mode"
     case $network_mode in
-    "NR5G-SA Mode")
+    "NR5G-SA")
+        [ "$CA_COUNT" -gt 1 ] && network_mode="$network_mode with $CA_COUNT CA"                                          
+        add_plain_info_entry "network_mode" "$network_mode" "Network Mode"
         add_plain_info_entry "MMC" "$nr_mcc" "Mobile Country Code"
         add_plain_info_entry "MNC" "$nr_mnc" "Mobile Network Code"
         add_plain_info_entry "Duplex Mode" "$nr_duplex_mode" "Duplex Mode"
-        add_plain_info_entry "Cell ID" "$nr_cell_id" "Cell ID"
+        # add_plain_info_entry "Cell ID" "$nr_cell_id" "Cell ID"
         add_plain_info_entry "Physical Cell ID" "$nr_physical_cell_id" "Physical Cell ID"
-        add_plain_info_entry "TAC" "$nr_tac" "Tracking area code of cell served by neighbor Enb"
+        # add_plain_info_entry "TAC" "$nr_tac" "Tracking area code of cell served by neighbor Enb"
         add_plain_info_entry "ARFCN" "$nr_arfcn" "Absolute Radio-Frequency Channel Number"
         add_plain_info_entry "Band" "$nr_band" "Band"
         add_plain_info_entry "DL Bandwidth" "$nr_dl_bandwidth" "DL Bandwidth"
-        add_plain_info_entry "CQI" "$nr_cql" "Channel Quality Indicator"
+        # add_plain_info_entry "CQI" "$nr_cql" "Channel Quality Indicator"
         add_plain_info_entry "TX Power" "$nr_tx_power" "TX Power"
         add_plain_info_entry "DL/UL MOD" "$nr_dlmod / $nr_ulmod" "DL/UL MOD"
         add_bar_info_entry "RSRP" "$nr_rsrp" "Reference Signal Received Power" -140 -44 dBm
