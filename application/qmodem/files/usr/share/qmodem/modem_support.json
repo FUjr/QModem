@@ -1005,6 +1005,21 @@
                     "ncm"
                 ]
             },
+            "eg25": {
+                "manufacturer_id": "2c7c",
+                "manufacturer": "quectel",
+                "platform": "lte",
+                "data_interface": "usb",
+                "pdp_index": "1",
+                "modes": [
+                    "qmi",
+                    "gobinet",
+                    "ecm",
+                    "mbim",
+                    "rndis",
+                    "ncm"
+                ]
+            },
             "ec21": {
                 "manufacturer_id": "2c7c",
                 "manufacturer": "quectel",

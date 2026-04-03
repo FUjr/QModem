@@ -51,6 +51,7 @@ rg530f-na | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✔ pcie(qmi,gob
 rg650v-eu | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✔ pcie(qmi,gobinet,mbim)
 ec20f | lte |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
 ec25 | lte |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
+eg25 | lte |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
 ec21 | lte |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
 ec200a | lte |✔ usb(ecm,mbim,rndis,ncm) | ✘
 
