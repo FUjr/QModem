@@ -4,7 +4,7 @@ START=96
 STOP=10
 USE_PROCD=1
 
-. /lib/functions.sh
+. $IPKG_INSTROOT/lib/functions.sh
 
 MIN_INTERVAL=60
 DEFAULT_INTERVAL=300

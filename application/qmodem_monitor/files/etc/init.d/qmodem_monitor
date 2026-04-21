@@ -3,7 +3,7 @@ START=99
 STOP=13
 USE_PROCD=1
 service="$(basename ${basescript:-$initscript})"
-. /lib/functions.sh
+. $IPKG_INSTROOT/lib/functions.sh
 service_triggers()
 {
 	procd_add_reload_trigger "qmodem"
