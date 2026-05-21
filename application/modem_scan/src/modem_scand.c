@@ -726,9 +726,9 @@ static int at_command(const char *port, const char *cmd, int fast, int timeout, 
 	time_t start;
 	const char *script =
 		". /usr/share/qmodem/modem_util.sh; "
-		"if [ \"$QMODEM_AT_FAST\" = 1 ]; then "
-		"fastat \"$QMODEM_AT_PORT\" \"$QMODEM_AT_CMD\"; "
-		"else at \"$QMODEM_AT_PORT\" \"$QMODEM_AT_CMD\"; fi";
+		"if [ \"$1\" = 1 ]; then "
+		"fastat \"$2\" \"$3\"; "
+		"else at \"$2\" \"$3\"; fi";
 
 	if (out_len)
 		out[0] = '\0';
@@ -747,10 +747,7 @@ static int at_command(const char *port, const char *cmd, int fast, int timeout, 
 		dup2(pipefd[1], STDERR_FILENO);
 		close(pipefd[0]);
 		close(pipefd[1]);
-		setenv("QMODEM_AT_PORT", port, 1);
-		setenv("QMODEM_AT_CMD", cmd, 1);
-		setenv("QMODEM_AT_FAST", fast ? "1" : "0", 1);
-		execl("/bin/sh", "sh", "-c", script, NULL);
+		execl("/bin/sh", "sh", "-c", script, "qmodem-at", fast ? "1" : "0", port, cmd, NULL);
 		_exit(127);
 	}
 
@@ -1208,16 +1205,13 @@ static void scan_usb_all(void)
 		return;
 	while ((de = readdir(d))) {
 		char dev_path[512], real[512], slot[128] = "";
-		ssize_t n;
 		if (de->d_name[0] == '.')
 			continue;
 		if (strncmp(de->d_name, "usb", 3) && strncmp(de->d_name, "eth", 3) && strncmp(de->d_name, "wwan", 4))
 			continue;
 		snprintf(dev_path, sizeof(dev_path), "/sys/class/net/%s/device", de->d_name);
-		n = readlink(dev_path, real, sizeof(real) - 1);
-		if (n < 0)
+		if (!realpath(dev_path, real))
 			continue;
-		real[n] = '\0';
 		if (!strstr(real, "usb"))
 			continue;
 		{
@@ -1257,16 +1251,13 @@ static void scan_pcie_all(void)
 		return;
 	while ((de = readdir(d))) {
 		char dev_path[512], real[512], tmp[512], *save = NULL, *tok, last[128] = "";
-		ssize_t n;
 		if (de->d_name[0] == '.')
 			continue;
 		if (strncmp(de->d_name, "rmnet", 5) && strncmp(de->d_name, "wwan", 4))
 			continue;
 		snprintf(dev_path, sizeof(dev_path), "/sys/class/net/%s/device", de->d_name);
-		n = readlink(dev_path, real, sizeof(real) - 1);
-		if (n < 0)
+		if (!realpath(dev_path, real))
 			continue;
-		real[n] = '\0';
 		if (!strstr(real, "pci"))
 			continue;
 		snprintf(tmp, sizeof(tmp), "%s", real);
