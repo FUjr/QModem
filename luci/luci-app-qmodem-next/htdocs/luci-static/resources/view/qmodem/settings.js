@@ -144,6 +144,11 @@ return view.extend({
 		o.datatype = 'and(uinteger,min(1),max(60))';
 		o.default = '8';
 
+		o = s.option(form.Value, 'hotplug_add_delay', _('Hotplug Add Delay'));
+		o.description = _('Units: seconds');
+		o.datatype = 'and(uinteger,min(0),max(60))';
+		o.default = '8';
+
 		o = s.option(form.Flag, 'try_preset_usb', _('Try Preset USB Port'));
 		o.description = _('Attempt to use pre-configured USB settings from the CPE vendor.');
 		o.default = '0';

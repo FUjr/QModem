@@ -3,6 +3,14 @@
 action="$1"
 config="$2"
 slot_type="$3"
+delay="$4"
+
+case "$slot_type" in
+    --delay)
+        delay="$4"
+        slot_type=""
+        ;;
+esac
 
 scanc()
 {
@@ -20,17 +28,17 @@ scanc()
 case "$action" in
     add)
         [ -n "$config" ] && [ -n "$slot_type" ] || exit 1
-        scanc add "$config" "$slot_type"
+        scanc add "$config" "$slot_type" "${delay:-0}"
         exit $?
         ;;
     remove)
         [ -n "$config" ] || exit 1
-        scanc remove "$config"
+        scanc remove "$config" "${delay:-0}"
         exit $?
         ;;
     disable)
         [ -n "$config" ] || exit 1
-        scanc disable "$config"
+        scanc disable "$config" "${delay:-0}"
         exit $?
         ;;
     scan)
@@ -38,26 +46,26 @@ case "$action" in
         # Also accept: modem_scan.sh scan [usb|pcie|all]
         case "$config" in
             usb|pcie|all)
-                scanc scan "$config"
+                scanc scan "$config" "${delay:-0}"
                 exit $?
                 ;;
         esac
         if [ -n "$config" ] && [ "$config" -gt 0 ] 2>/dev/null; then
-            sleep "$config"
+            delay="$config"
         fi
         case "$slot_type" in
             usb|pcie)
-                scanc scan "$slot_type"
+                scanc scan "$slot_type" "${delay:-0}"
                 exit $?
                 ;;
             *)
-                scanc scan all
+                scanc scan all "${delay:-0}"
                 exit $?
                 ;;
         esac
         ;;
     *)
-        echo "Usage: $0 add <slot> <usb|pcie> | remove <section> | disable <slot> | scan [delay] [usb|pcie]" >&2
+        echo "Usage: $0 add <slot> <usb|pcie> [delay] | remove <section> [delay] | disable <slot> [delay] | scan [delay] [usb|pcie]" >&2
         exit 1
         ;;
 esac

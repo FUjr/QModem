@@ -49,6 +49,11 @@ at_timeout_model.description = translate("Units: seconds")
 at_timeout_model.datatype = "and(uinteger,min(1),max(60))"
 at_timeout_model.default = "8"
 
+hotplug_add_delay = s:option(Value, "hotplug_add_delay", translate("Hotplug Add Delay"))
+hotplug_add_delay.description = translate("Units: seconds")
+hotplug_add_delay.datatype = "and(uinteger,min(0),max(60))"
+hotplug_add_delay.default = "8"
+
 try_vendor_preset_usb = s:option(Flag,"try_preset_usb",translate("Try Preset USB Port"))
 try_vendor_preset_usb.description = translate("Attempt to use pre-configured USB settings from the cpe vendor.") 
 

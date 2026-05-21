@@ -4,6 +4,7 @@ manual=$(uci -q get qmodem.main.block_auto_probe)
 [ "${manual}" -eq 1 ] && exit
 
 logger -t modem_hotplug "net slot: ${DEVPATH} action: ${ACTION}"
+hotplug_add_delay=$(uci -q get qmodem.main.hotplug_add_delay || echo 8)
 #网络设备名称不存在，退出
 [ -z "${INTERFACE}" ] && exit
 #网络设备路径不存在，退出
@@ -26,6 +27,6 @@ logger -t modem_hotplug "net slot: ${slot} action: ${ACTION} slot_type: ${slot_t
 case "${ACTION}" in
     add|\
     bind)
-        /usr/share/qmodem/modem_scan.sh add "${slot}" "${slot_type}" >/dev/null 2>&1
+        (/usr/share/qmodem/modem_scan.sh add "${slot}" "${slot_type}" "${hotplug_add_delay}" >/dev/null 2>&1) &
         ;;
 esac

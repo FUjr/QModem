@@ -48,6 +48,7 @@ struct event {
 	char slot_type[16];
 	char section[128];
 	char key[256];
+	time_t not_before;
 	struct event *next;
 };
 
@@ -91,6 +92,7 @@ struct daemon_state {
 	pthread_cond_t queue_cond;
 	struct event *queue_head;
 	struct event *queue_tail;
+	struct str_list active_keys;
 	int queue_len;
 	int active_jobs;
 	int stop;
@@ -1291,7 +1293,7 @@ static int queue_has_key(const char *key)
 		if (!strcmp(e->key, key))
 			return 1;
 	}
-	return 0;
+	return sl_contains(&g.active_keys, key);
 }
 
 static void queue_remove_pending_add_for_slot(const char *slot)
@@ -1316,7 +1318,7 @@ static void queue_remove_pending_add_for_slot(const char *slot)
 	}
 }
 
-static int enqueue_event(enum event_type type, const char *arg, const char *slot_type)
+static int enqueue_event(enum event_type type, const char *arg, const char *slot_type, int delay_sec)
 {
 	struct event *e = calloc(1, sizeof(*e));
 	if (!e)
@@ -1328,6 +1330,9 @@ static int enqueue_event(enum event_type type, const char *arg, const char *slot
 			 "%s", arg);
 	if (slot_type)
 		snprintf(e->slot_type, sizeof(e->slot_type), "%s", slot_type);
+	if (delay_sec < 0)
+		delay_sec = 0;
+	e->not_before = time(NULL) + delay_sec;
 	event_key(type, arg, slot_type, e->key, sizeof(e->key));
 
 	pthread_mutex_lock(&g.queue_lock);
@@ -1347,7 +1352,7 @@ static int enqueue_event(enum event_type type, const char *arg, const char *slot
 	g.queue_len++;
 	pthread_cond_signal(&g.queue_cond);
 	pthread_mutex_unlock(&g.queue_lock);
-	log_msg(LOG_L_INFO, "queued %s", e->key);
+	log_msg(LOG_L_INFO, "queued %s delay=%d", e->key, delay_sec);
 	return 0;
 }
 
@@ -1355,28 +1360,51 @@ static struct event *dequeue_event(void)
 {
 	struct event *e;
 	pthread_mutex_lock(&g.queue_lock);
-	while (!g.stop && !g.queue_head)
-		pthread_cond_wait(&g.queue_cond, &g.queue_lock);
-	if (g.stop) {
-		pthread_mutex_unlock(&g.queue_lock);
-		return NULL;
+	for (;;) {
+		time_t now;
+		struct timespec ts;
+
+		while (!g.stop && !g.queue_head)
+			pthread_cond_wait(&g.queue_cond, &g.queue_lock);
+		if (g.stop) {
+			pthread_mutex_unlock(&g.queue_lock);
+			return NULL;
+		}
+
+		e = g.queue_head;
+		now = time(NULL);
+		if (e->not_before <= now)
+			break;
+		ts.tv_sec = e->not_before;
+		ts.tv_nsec = 0;
+		pthread_cond_timedwait(&g.queue_cond, &g.queue_lock, &ts);
 	}
-	e = g.queue_head;
+
 	g.queue_head = e->next;
 	if (!g.queue_head)
 		g.queue_tail = NULL;
 	g.queue_len--;
 	g.active_jobs++;
+	sl_add(&g.active_keys, e->key);
 	pthread_mutex_unlock(&g.queue_lock);
 	e->next = NULL;
 	return e;
 }
 
-static void finish_event(void)
+static void finish_event_key(const char *key)
 {
 	pthread_mutex_lock(&g.queue_lock);
 	if (g.active_jobs > 0)
 		g.active_jobs--;
+	for (size_t i = 0; i < g.active_keys.len; i++) {
+		if (!strcmp(g.active_keys.items[i], key)) {
+			free(g.active_keys.items[i]);
+			memmove(&g.active_keys.items[i], &g.active_keys.items[i + 1],
+				(g.active_keys.len - i - 1) * sizeof(g.active_keys.items[0]));
+			g.active_keys.len--;
+			break;
+		}
+	}
 	pthread_mutex_unlock(&g.queue_lock);
 }
 
@@ -1414,8 +1442,8 @@ static void *worker_thread(void *arg)
 		if (!e)
 			return NULL;
 		process_event(e);
+		finish_event_key(e->key);
 		free(e);
-		finish_event();
 	}
 }
 
@@ -1423,22 +1451,28 @@ static void handle_client(int fd)
 {
 	char buf[QMODEM_MAX_LINE];
 	ssize_t n = read(fd, buf, sizeof(buf) - 1);
-	char cmd[64], a[128], b[128];
+	char cmd[64], a[128], b[128], c[128];
 	int rc = -1;
+	int delay_sec = 0;
 	if (n <= 0)
 		return;
 	buf[n] = '\0';
 	trim(buf);
-	cmd[0] = a[0] = b[0] = '\0';
-	sscanf(buf, "%63s %127s %127s", cmd, a, b);
-	if (!strcmp(cmd, "add") && a[0] && b[0])
-		rc = enqueue_event(EV_ADD, a, b);
-	else if (!strcmp(cmd, "remove") && a[0])
-		rc = enqueue_event(EV_REMOVE, a, NULL);
-	else if (!strcmp(cmd, "disable") && a[0])
-		rc = enqueue_event(EV_DISABLE, a, NULL);
-	else if (!strcmp(cmd, "scan"))
-		rc = enqueue_event(EV_SCAN, a[0] ? a : "all", NULL);
+	cmd[0] = a[0] = b[0] = c[0] = '\0';
+	sscanf(buf, "%63s %127s %127s %127s", cmd, a, b, c);
+	if (!strcmp(cmd, "add") && a[0] && b[0]) {
+		delay_sec = c[0] ? atoi(c) : 0;
+		rc = enqueue_event(EV_ADD, a, b, delay_sec);
+	} else if (!strcmp(cmd, "remove") && a[0]) {
+		delay_sec = b[0] ? atoi(b) : 0;
+		rc = enqueue_event(EV_REMOVE, a, NULL, delay_sec);
+	} else if (!strcmp(cmd, "disable") && a[0]) {
+		delay_sec = b[0] ? atoi(b) : 0;
+		rc = enqueue_event(EV_DISABLE, a, NULL, delay_sec);
+	} else if (!strcmp(cmd, "scan")) {
+		delay_sec = b[0] ? atoi(b) : 0;
+		rc = enqueue_event(EV_SCAN, a[0] ? a : "all", NULL, delay_sec);
+	}
 	else if (!strcmp(cmd, "set-log-level") && a[0]) {
 		g.log_level = parse_log_level(a);
 		rc = 0;
@@ -1522,6 +1556,7 @@ int main(int argc, char **argv)
 	memset(&g, 0, sizeof(g));
 	pthread_mutex_init(&g.queue_lock, NULL);
 	pthread_cond_init(&g.queue_cond, NULL);
+	sl_init(&g.active_keys);
 	load_config_defaults();
 
 	g.support_json = json_object_from_file(QMODEM_SUPPORT_JSON);
@@ -1572,6 +1607,7 @@ int main(int argc, char **argv)
 		json_object_put(g.support_json);
 	if (g.port_rule_json)
 		json_object_put(g.port_rule_json);
+	sl_free(&g.active_keys);
 	closelog();
 	return 0;
 }

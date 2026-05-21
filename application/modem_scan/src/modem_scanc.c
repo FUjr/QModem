@@ -12,10 +12,10 @@ static void usage(FILE *out)
 {
 	fprintf(out,
 		"Usage:\n"
-		"  modem_scanc add <slot> <usb|pcie>\n"
-		"  modem_scanc remove <section>\n"
-		"  modem_scanc disable <slot>\n"
-		"  modem_scanc scan [usb|pcie|all]\n"
+		"  modem_scanc add <slot> <usb|pcie> [delay_seconds]\n"
+		"  modem_scanc remove <section> [delay_seconds]\n"
+		"  modem_scanc disable <slot> [delay_seconds]\n"
+		"  modem_scanc scan [usb|pcie|all] [delay_seconds]\n"
 		"  modem_scanc set-log-level <debug|info|notice|warn|err>\n"
 		"  modem_scanc status\n");
 }
@@ -73,26 +73,27 @@ int main(int argc, char **argv)
 	}
 
 	if (!strcmp(argv[1], "add")) {
-		if (argc != 4) {
+		if (argc != 4 && argc != 5) {
 			usage(stderr);
 			return 1;
 		}
-		snprintf(line, sizeof(line), "add %s %s", argv[2], argv[3]);
+		snprintf(line, sizeof(line), "add %s %s %s", argv[2], argv[3], argc == 5 ? argv[4] : "0");
 	} else if (!strcmp(argv[1], "remove")) {
-		if (argc != 3) {
+		if (argc != 3 && argc != 4) {
 			usage(stderr);
 			return 1;
 		}
-		snprintf(line, sizeof(line), "remove %s", argv[2]);
+		snprintf(line, sizeof(line), "remove %s %s", argv[2], argc == 4 ? argv[3] : "0");
 	} else if (!strcmp(argv[1], "disable")) {
-		if (argc != 3) {
+		if (argc != 3 && argc != 4) {
 			usage(stderr);
 			return 1;
 		}
-		snprintf(line, sizeof(line), "disable %s", argv[2]);
+		snprintf(line, sizeof(line), "disable %s %s", argv[2], argc == 4 ? argv[3] : "0");
 	} else if (!strcmp(argv[1], "scan")) {
 		const char *type = argc >= 3 ? argv[2] : "all";
-		snprintf(line, sizeof(line), "scan %s", type);
+		const char *delay = argc >= 4 ? argv[3] : "0";
+		snprintf(line, sizeof(line), "scan %s %s", type, delay);
 	} else if (!strcmp(argv[1], "set-log-level")) {
 		if (argc != 3) {
 			usage(stderr);
