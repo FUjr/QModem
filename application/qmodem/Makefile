@@ -19,12 +19,12 @@ define Package/$(PKG_NAME)
 		+kmod-usb-serial +kmod-usb-serial-option +kmod-usb-serial-qualcomm \
 		+kmod-usb-net +kmod-usb-acm \
 		+kmod-usb-wdm \
-		+kmod-usb-net-cdc-ether \
+  		+kmod-usb-net-cdc-ether \
 		+kmod-usb-net-cdc-mbim \
 		+kmod-usb-net-rndis \
 		+kmod-usb-net-cdc-ncm +kmod-usb-net-huawei-cdc-ncm \
   		+ubus-at-daemon +tom_modem +terminfo +sms-tool_q \
-		+libjson-c \
+		+modem_scan \
 		+jq +bc\
 		+coreutils +coreutils-stat \
 		+usbutils \
@@ -54,22 +54,13 @@ define Package/$(PKG_NAME)/description
 endef
 
 define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) ./src/* $(PKG_BUILD_DIR)/
 endef
 
 define Build/Compile
-	$(MAKE) -C $(PKG_BUILD_DIR) \
-		$(TARGET_CONFIGURE_OPTS) \
-		CFLAGS="$(TARGET_CFLAGS) -Wall -Wextra -std=c99 -D_GNU_SOURCE -I$(STAGING_DIR)/usr/include" \
-		LDFLAGS="$(TARGET_LDFLAGS) -ljson-c -lpthread"
 endef
 
 define Package/$(PKG_NAME)/install
 		$(CP) ./files/* $(1)/
-		$(INSTALL_DIR) $(1)/usr/bin
-		$(INSTALL_BIN) $(PKG_BUILD_DIR)/modem_scand $(1)/usr/bin/
-		$(INSTALL_BIN) $(PKG_BUILD_DIR)/modem_scanc $(1)/usr/bin/
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))

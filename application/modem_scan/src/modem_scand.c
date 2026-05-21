@@ -4,7 +4,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <json.h>
+#include <json-c/json.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>

@@ -1,5 +1,6 @@
 CFLAGS ?= -Wall -Wextra -std=c99 -D_GNU_SOURCE
 CFLAGS += -I$(STAGING_DIR)/usr/include
+CFLAGS += -I$(STAGING_DIR)/usr/include/json-c
 LDFLAGS ?=
 LDFLAGS += -ljson-c -lpthread
 
