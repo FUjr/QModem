@@ -11,9 +11,9 @@ logger -t modem_hotplug "usb_event run slot: ${slot} action: ${ACTION}"
 case "${ACTION}" in
     bind|\
     add)
-        /usr/share/qmodem/modem_scan.sh add "${slot}" usb
+        /usr/share/qmodem/modem_scan.sh add "${slot}" usb >/dev/null 2>&1
         ;;
     remove)
-        /usr/share/qmodem/modem_scan.sh disable "${slot}" usb
+        /usr/share/qmodem/modem_scan.sh disable "${slot}" >/dev/null 2>&1
         ;;
 esac

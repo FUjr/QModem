@@ -1058,11 +1058,11 @@ EOF
             scan_pcie)
                 json_init
                 if [ -x "/usr/share/qmodem/modem_scan.sh" ]; then
-                    output=$(/usr/share/qmodem/modem_scan.sh scan 0 pcie 2>&1)
+                    output=$(/usr/share/qmodem/modem_scan.sh scan pcie 2>&1)
                     scan_result=$?
                     json_add_int "code" "$scan_result"
                     if [ "$scan_result" -eq 0 ]; then
-                        json_add_string "message" "PCIe scan completed successfully"
+                        json_add_string "message" "PCIe scan queued successfully"
                     else
                         json_add_string "message" "PCIe scan failed with exit code: $scan_result"
                         json_add_string "output" "$output"
@@ -1077,11 +1077,11 @@ EOF
             scan_usb)
                 json_init
                 if [ -x "/usr/share/qmodem/modem_scan.sh" ]; then
-                    output=$(/usr/share/qmodem/modem_scan.sh scan 0 usb 2>&1)
+                    output=$(/usr/share/qmodem/modem_scan.sh scan usb 2>&1)
                     scan_result=$?
                     json_add_int "code" "$scan_result"
                     if [ "$scan_result" -eq 0 ]; then
-                        json_add_string "message" "USB scan completed successfully"
+                        json_add_string "message" "USB scan queued successfully"
                     else
                         json_add_string "message" "USB scan failed with exit code: $scan_result"
                         json_add_string "output" "$output"
@@ -1096,11 +1096,11 @@ EOF
             scan_all)
                 json_init
                 if [ -x "/usr/share/qmodem/modem_scan.sh" ]; then
-                    output=$(/usr/share/qmodem/modem_scan.sh scan 2>&1)
+                    output=$(/usr/share/qmodem/modem_scan.sh scan all 2>&1)
                     scan_result=$?
                     json_add_int "code" "$scan_result"
                     if [ "$scan_result" -eq 0 ]; then
-                        json_add_string "message" "Full scan completed successfully"
+                        json_add_string "message" "Full scan queued successfully"
                     else
                         json_add_string "message" "Full scan failed with exit code: $scan_result"
                         json_add_string "output" "$output"
