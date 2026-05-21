@@ -54,6 +54,15 @@ hotplug_add_delay.description = translate("Units: seconds")
 hotplug_add_delay.datatype = "and(uinteger,min(0),max(60))"
 hotplug_add_delay.default = "8"
 
+add_retry_delay = s:option(Value, "add_retry_delay", translate("Add Retry Delay"))
+add_retry_delay.description = translate("Units: seconds")
+add_retry_delay.datatype = "and(uinteger,min(0),max(60))"
+add_retry_delay.default = "8"
+
+add_retry_max = s:option(Value, "add_retry_max", translate("Add Retry Max"))
+add_retry_max.datatype = "and(uinteger,min(0),max(20))"
+add_retry_max.default = "5"
+
 try_vendor_preset_usb = s:option(Flag,"try_preset_usb",translate("Try Preset USB Port"))
 try_vendor_preset_usb.description = translate("Attempt to use pre-configured USB settings from the cpe vendor.") 
 

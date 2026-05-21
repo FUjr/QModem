@@ -141,10 +141,10 @@ _try_device()
         /etc/init.d/network reload
         return
     fi
-    # if device_path not parent of netdevice_path,then disable device path an scan again
+    # if device_path is not parent of netdevice_path, disable device path and scan again
     netdevice_path=`readlink -f /sys/class/net/$network/device/`
     device_path=`readlink -f $path`
-    echo "$device_path" | grep -q "^$netdevice_path"
+    echo "$netdevice_path" | grep -q "^$device_path"
     is_parent=$?
     if [ "$is_parent" -ne 0 ] || [ ! -d "$netdevice_path" ]; then
         ( sleep 1; /usr/share/qmodem/modem_scan.sh disable "$1" >/dev/null 2>&1 ) &

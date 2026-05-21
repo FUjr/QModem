@@ -49,6 +49,7 @@ struct event {
 	char section[128];
 	char key[256];
 	time_t not_before;
+	int attempts;
 	struct event *next;
 };
 
@@ -100,6 +101,8 @@ struct daemon_state {
 	int at_probe_workers;
 	int at_timeout_fast;
 	int at_timeout_model;
+	int add_retry_delay;
+	int add_retry_max;
 	enum log_level log_level;
 	json_object *support_json;
 	json_object *port_rule_json;
@@ -1011,7 +1014,7 @@ static void reload_network(void)
 	run_exec(argv, 60);
 }
 
-static void add_modem(const char *slot, const char *slot_type)
+static int add_modem(const char *slot, const char *slot_type)
 {
 	struct scan_result res;
 	struct modem_profile profile;
@@ -1032,7 +1035,7 @@ static void add_modem(const char *slot, const char *slot_type)
 	if (!strcmp(fixed, "1")) {
 		log_msg(LOG_L_INFO, "skip fixed device slot=%s section=%s", slot, section);
 		exec_post_init(section);
-		goto out;
+		goto out_success;
 	}
 
 	if (!strcmp(slot_type, "usb")) {
@@ -1041,21 +1044,21 @@ static void add_modem(const char *slot, const char *slot_type)
 		scan_pcie_slot(slot, &res);
 		scan_associated_usb(slot, &res);
 	} else {
-		goto out;
+		goto out_fail;
 	}
 
 	if (!res.net_devices.len) {
-		log_msg(LOG_L_DEBUG, "slot=%s type=%s has no net device", slot, slot_type);
-		goto out;
+		log_msg(LOG_L_INFO, "slot=%s type=%s has no net device yet", slot, slot_type);
+		goto out_fail;
 	}
 	validate_ports(&res);
 	if (!res.valid_at_ports.len) {
-		log_msg(LOG_L_DEBUG, "slot=%s type=%s has no valid AT port", slot, slot_type);
-		goto out;
+		log_msg(LOG_L_INFO, "slot=%s type=%s has no valid AT port yet ports=%zu", slot, slot_type, res.at_ports.len);
+		goto out_fail;
 	}
 	if (detect_profile(slot_type, &res, &profile) != 0) {
 		log_msg(LOG_L_WARN, "slot=%s type=%s modem profile not matched", slot, slot_type);
-		goto out;
+		goto out_fail;
 	}
 
 	join_list(&res.net_devices, net_join, sizeof(net_join));
@@ -1149,11 +1152,19 @@ static void add_modem(const char *slot, const char *slot_type)
 	log_msg(LOG_L_INFO, "added modem section=%s name=%s type=%s ports=%zu valid=%zu",
 		section, profile.name, slot_type, res.at_ports.len, res.valid_at_ports.len);
 	sl_free(&profile.modes);
-out:
+out_success:
 	sl_free(&res.net_devices);
 	sl_free(&res.at_ports);
 	sl_free(&res.pcie_at_ports);
 	sl_free(&res.valid_at_ports);
+	return 0;
+
+out_fail:
+	sl_free(&res.net_devices);
+	sl_free(&res.at_ports);
+	sl_free(&res.pcie_at_ports);
+	sl_free(&res.valid_at_ports);
+	return 1;
 }
 
 static void remove_modem(const char *section)
@@ -1293,7 +1304,7 @@ static int queue_has_key(const char *key)
 		if (!strcmp(e->key, key))
 			return 1;
 	}
-	return sl_contains(&g.active_keys, key);
+	return 0;
 }
 
 static void queue_remove_pending_add_for_slot(const char *slot)
@@ -1318,7 +1329,7 @@ static void queue_remove_pending_add_for_slot(const char *slot)
 	}
 }
 
-static int enqueue_event(enum event_type type, const char *arg, const char *slot_type, int delay_sec)
+static int enqueue_event_ex(enum event_type type, const char *arg, const char *slot_type, int delay_sec, int attempts)
 {
 	struct event *e = calloc(1, sizeof(*e));
 	if (!e)
@@ -1333,27 +1344,41 @@ static int enqueue_event(enum event_type type, const char *arg, const char *slot
 	if (delay_sec < 0)
 		delay_sec = 0;
 	e->not_before = time(NULL) + delay_sec;
+	e->attempts = attempts;
 	event_key(type, arg, slot_type, e->key, sizeof(e->key));
 
 	pthread_mutex_lock(&g.queue_lock);
 	if (type == EV_DISABLE)
 		queue_remove_pending_add_for_slot(arg);
-	if (queue_has_key(e->key)) {
+	if (queue_has_key(e->key) || (!attempts && sl_contains(&g.active_keys, e->key))) {
 		pthread_mutex_unlock(&g.queue_lock);
 		free(e);
 		return 1;
 	}
-	if (!g.queue_tail)
-		g.queue_head = g.queue_tail = e;
-	else {
-		g.queue_tail->next = e;
-		g.queue_tail = e;
+	if (!g.queue_head || e->not_before < g.queue_head->not_before) {
+		e->next = g.queue_head;
+		g.queue_head = e;
+		if (!g.queue_tail)
+			g.queue_tail = e;
+	} else {
+		struct event *cur = g.queue_head;
+		while (cur->next && cur->next->not_before <= e->not_before)
+			cur = cur->next;
+		e->next = cur->next;
+		cur->next = e;
+		if (!e->next)
+			g.queue_tail = e;
 	}
 	g.queue_len++;
 	pthread_cond_signal(&g.queue_cond);
 	pthread_mutex_unlock(&g.queue_lock);
-	log_msg(LOG_L_INFO, "queued %s delay=%d", e->key, delay_sec);
+	log_msg(LOG_L_INFO, "queued %s delay=%d attempts=%d", e->key, delay_sec, attempts);
 	return 0;
+}
+
+static int enqueue_event(enum event_type type, const char *arg, const char *slot_type, int delay_sec)
+{
+	return enqueue_event_ex(type, arg, slot_type, delay_sec, 0);
 }
 
 static struct event *dequeue_event(void)
@@ -1410,10 +1435,19 @@ static void finish_event_key(const char *key)
 
 static void process_event(struct event *e)
 {
-	log_msg(LOG_L_INFO, "processing %s", e->key);
+	log_msg(LOG_L_INFO, "processing %s attempts=%d", e->key, e->attempts);
 	switch (e->type) {
 	case EV_ADD:
-		add_modem(e->slot, e->slot_type);
+		if (add_modem(e->slot, e->slot_type) != 0) {
+			if (e->attempts < g.add_retry_max) {
+				log_msg(LOG_L_INFO, "retry add slot=%s type=%s next_delay=%d attempt=%d/%d",
+					e->slot, e->slot_type, g.add_retry_delay, e->attempts + 1, g.add_retry_max);
+				enqueue_event_ex(EV_ADD, e->slot, e->slot_type, g.add_retry_delay, e->attempts + 1);
+			} else {
+				log_msg(LOG_L_WARN, "give up add slot=%s type=%s after %d attempts",
+					e->slot, e->slot_type, e->attempts);
+			}
+		}
 		break;
 	case EV_REMOVE:
 		remove_modem(e->section);
@@ -1522,6 +1556,8 @@ static void load_config_defaults(void)
 	g.at_probe_workers = 4;
 	g.at_timeout_fast = 2;
 	g.at_timeout_model = 8;
+	g.add_retry_delay = 8;
+	g.add_retry_max = 5;
 	g.log_level = LOG_L_INFO;
 	if (!uci_get("qmodem.main.scan_workers", val, sizeof(val)) && atoi(val) > 0)
 		g.scan_workers = atoi(val);
@@ -1531,6 +1567,10 @@ static void load_config_defaults(void)
 		g.at_timeout_fast = atoi(val);
 	if (!uci_get("qmodem.main.at_timeout_model", val, sizeof(val)) && atoi(val) > 0)
 		g.at_timeout_model = atoi(val);
+	if (!uci_get("qmodem.main.add_retry_delay", val, sizeof(val)) && atoi(val) >= 0)
+		g.add_retry_delay = atoi(val);
+	if (!uci_get("qmodem.main.add_retry_max", val, sizeof(val)) && atoi(val) >= 0)
+		g.add_retry_max = atoi(val);
 	if (!uci_get("qmodem.main.scan_log_level", val, sizeof(val)) && val[0])
 		g.log_level = parse_log_level(val);
 	env_level = getenv("QMODEM_SCAN_LOG_LEVEL");
@@ -1580,8 +1620,8 @@ int main(int argc, char **argv)
 	for (int i = 0; i < g.scan_workers; i++)
 		pthread_create(&threads[i], NULL, worker_thread, NULL);
 
-	log_msg(LOG_L_NOTICE, "modem_scand started workers=%d at_timeout_fast=%d at_timeout_model=%d",
-		g.scan_workers, g.at_timeout_fast, g.at_timeout_model);
+	log_msg(LOG_L_NOTICE, "modem_scand started workers=%d at_timeout_fast=%d at_timeout_model=%d add_retry_delay=%d add_retry_max=%d",
+		g.scan_workers, g.at_timeout_fast, g.at_timeout_model, g.add_retry_delay, g.add_retry_max);
 
 	while (!g.stop) {
 		int cfd = accept(sockfd, NULL, NULL);

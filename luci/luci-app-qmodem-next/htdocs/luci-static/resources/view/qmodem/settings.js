@@ -149,6 +149,15 @@ return view.extend({
 		o.datatype = 'and(uinteger,min(0),max(60))';
 		o.default = '8';
 
+		o = s.option(form.Value, 'add_retry_delay', _('Add Retry Delay'));
+		o.description = _('Units: seconds');
+		o.datatype = 'and(uinteger,min(0),max(60))';
+		o.default = '8';
+
+		o = s.option(form.Value, 'add_retry_max', _('Add Retry Max'));
+		o.datatype = 'and(uinteger,min(0),max(20))';
+		o.default = '5';
+
 		o = s.option(form.Flag, 'try_preset_usb', _('Try Preset USB Port'));
 		o.description = _('Attempt to use pre-configured USB settings from the CPE vendor.');
 		o.default = '0';
