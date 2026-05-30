@@ -362,6 +362,9 @@ get_platform_suggest_pdp_index()
             mediatek)
                 echo 3
                 ;;
+            intel)
+                echo 0
+                ;;
             *)
                 echo 1
                 ;;
@@ -618,6 +621,10 @@ set_if()
         "fibocom")
             case $platform in
                 "mediatek")
+                    proto="static"
+                    protov6="dhcpv6"
+                    ;;
+                "intel")
                     proto="static"
                     protov6="dhcpv6"
                     ;;
@@ -906,6 +913,10 @@ ecm_hang()
                 "mediatek")
                     at_command="AT+CGACT=0,$pdp_index"
                     ;;
+                "intel")
+                    at "${at_port}" "AT+XDATACHANNEL=0"
+                    at_command="AT+CGDATA=0"
+                    ;;
                 *)
                     at_command="AT+GTRNDIS=0,$pdp_index"
                     ;;
@@ -1077,6 +1088,24 @@ at_dial()
             ;;
         "fibocom")
             case $platform in
+                "intel")
+                    # Fibocom L850/L860-GL (XMM7360) NCM: RAW-IP over CDC-NCM (ref: mrhaav atc)
+                    # idempotent init: enable dynamic DNS + IPv6 address format
+                    at "${at_port}" "AT+XDNS=0,1;+XDNS=0,2"
+                    at "${at_port}" "AT+CGPIAF=1,1,0,1"
+                    # order sent by generic dialer: cgdcont -> ppp_auth -> nat_cfg -> at_command
+                    cgdcont_command="AT+CGDCONT=0,\"$pdp_type\"$apn_append"
+                    if [ -n "$auth" ] && [ -n "$username" ]; then
+                        case $auth in
+                            "pap") auth_num=1 ;;
+                            "chap") auth_num=2 ;;
+                            *) auth_num=2 ;;
+                        esac
+                        ppp_auth_command="AT+XGAUTH=0,$auth_num,\"$username\",\"$password\""
+                    fi
+                    nat_cfg="AT+XDATACHANNEL=1,1,\"/USBCDC/0\",\"/USBHS/NCM/0\",2,0"
+                    at_command="AT+CGDATA=\"M-RAW_IP\",0"
+                    ;;
                 "mediatek")
                     # delay=3
                     # [ "$apn" = "auto" ] || [ -z "$apn" ] && apn="cbnet"
@@ -1300,6 +1329,59 @@ auto_dial_hang(){
     return 1
 }
 
+subnet_calc_l850() {
+    # Derive point-to-point /3x subnet + peer gateway from XMM RAW-IP address (ref: mrhaav atc)
+    local A B C D x y netaddr res subnet gateway
+    A=$(echo "$1" | awk -F. '{print $1}')
+    B=$(echo "$1" | awk -F. '{print $2}')
+    C=$(echo "$1" | awk -F. '{print $3}')
+    D=$(echo "$1" | awk -F. '{print $4}')
+    x=1; y=4; netaddr=$((y-1)); res=$((D%y))
+    while [ $res -eq 0 ] || [ $res -eq $netaddr ]; do
+        x=$((x+1)); y=$((y*2)); netaddr=$((y-1)); res=$((D%y))
+    done
+    subnet=$((31-x)); gateway=$((D/y))
+    [ $res -eq 1 ] && gateway=$((gateway*y+2)) || gateway=$((gateway*y+1))
+    echo "$subnet $A.$B.$C.$gateway"
+}
+
+ip_change_l850()
+{
+    m_debug "ip_change_l850 (XMM NCM static IP)"
+    local public_dns1_ipv4="223.5.5.5"
+    local public_dns2_ipv4="119.29.29.29"
+    local rdp v4addr v4prefix v4gw v4dns1 v4dns2 sc
+    # +CGCONTRDP: <cid>,<bid>,<apn>,<local_addr.mask>,<gw>,<dns1>,<dns2>,...
+    rdp=$(at ${at_port} "AT+CGCONTRDP=$pdp_index" | grep "+CGCONTRDP:" | head -1 | sed 's/\r//g')
+    v4addr=$(echo "$rdp" | awk -F, '{print $4}' | sed 's/"//g' | awk -F. '{print $1"."$2"."$3"."$4}')
+    v4dns1=$(echo "$rdp" | awk -F, '{print $6}' | sed 's/"//g' | tr -d ' ')
+    v4dns2=$(echo "$rdp" | awk -F, '{print $7}' | sed 's/"//g' | tr -d ' ')
+    echo "$v4addr" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || return
+    # gateway: prefer real value from CGCONTRDP field 5 (verified on L850 live); else derive (mrhaav)
+    v4gw=$(echo "$rdp" | awk -F, '{print $5}' | sed 's/"//g' | tr -d ' ')
+    if echo "$v4gw" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' && [ "$v4gw" != "0.0.0.0" ]; then
+        v4prefix=$(awk -v a="$v4addr" -v b="$v4gw" 'function i(s,A){split(s,A,".");return A[1]*16777216+A[2]*65536+A[3]*256+A[4]} BEGIN{x=i(a);y=i(b);for(p=30;p>=8;p--){d=2^(32-p);if(int(x/d)==int(y/d)){print p;exit}}print 30}')
+    else
+        sc=$(subnet_calc_l850 "$v4addr")
+        v4prefix=$(echo "$sc" | awk '{print $1}')
+        v4gw=$(echo "$sc" | awk '{print $2}')
+    fi
+    [ -z "$v4dns1" ] && v4dns1="$public_dns1_ipv4"
+    [ -z "$v4dns2" ] && v4dns2="$public_dns2_ipv4"
+    uci set network.${interface_name}.proto='static'
+    uci set network.${interface_name}.ipaddr="${v4addr}/${v4prefix}"
+    uci set network.${interface_name}.gateway="${v4gw}"
+    uci set network.${interface_name}.peerdns='0'
+    uci -q del network.${interface_name}.dns
+    uci add_list network.${interface_name}.dns="${v4dns1}"
+    uci add_list network.${interface_name}.dns="${v4dns2}"
+    uci commit network
+    ifup ${interface_name}
+    local dev=$(uci -q get network.${interface_name}.device)
+    [ -n "$dev" ] && ip link set dev "$dev" arp off 2>/dev/null
+    m_debug "set $interface_name to $v4addr/$v4prefix gw $v4gw"
+}
+
 ip_change_fm350()
 {
     m_debug "ip_change_fm350"
@@ -1436,6 +1518,9 @@ handle_ip_change()
             case $platform in
                 "mediatek")
                     ip_change_fm350
+                    ;;
+                "intel")
+                    ip_change_l850
                     ;;
             esac
             ;;

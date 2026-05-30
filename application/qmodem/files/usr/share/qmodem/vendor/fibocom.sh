@@ -7,7 +7,15 @@ _Maintainer="Fujr <fjrcn@outlook.com>"
 source /usr/share/qmodem/generic.sh
 
 vendor_get_disabled_features(){
-    json_add_string "" ""
+    case "$platform" in
+        "intel")
+            json_add_string "" "NeighborCell"
+            json_add_string "" "IMEI"
+            ;;
+        *)
+            json_add_string "" ""
+            ;;
+    esac
 }
 
 debug_subject="fibocom_ctrl"
@@ -69,6 +77,13 @@ get_mode()
                     mode="mbim" ;;
             esac
         ;;
+        "intel")
+            case "$mode_num" in
+                "0") mode="ncm" ;;
+                "7") mode="mbim" ;;
+                *) mode="$mode_num" ;;
+            esac
+        ;;
         *)
             mode="$mode_num"
         ;;
@@ -126,6 +141,13 @@ set_mode()
                     "ncm") mode_num="18" ;;
                     *) mode_num="32" ;;
                 esac
+            ;;
+        "intel")
+            case "$mode_config" in
+                "ncm") mode_num="0" ;;
+                "mbim") mode_num="7" ;;
+                *) mode_num="7" ;;
+            esac
             ;;
         *)
             mode_num="32"
@@ -319,6 +341,58 @@ set_network_prefer_lte()
     json_close_object
 }
 
+#获取网络偏好 (Intel XMM, AT+XACT)
+get_network_prefer_intel()
+{
+    at_command="AT+XACT?"
+    local network_prefer_num=$(at $at_port $at_command | grep "+XACT:" | awk -F',' '{print $1}' | sed 's/+XACT: //g')
+
+    local network_prefer_3g="0";
+    local network_prefer_4g="0";
+
+    case "$network_prefer_num" in
+        "1") network_prefer_3g="1" ;;
+        "2") network_prefer_4g="1" ;;
+        "4")
+            network_prefer_3g="1"
+            network_prefer_4g="1"
+        ;;
+        *)
+            network_prefer_3g="1"
+            network_prefer_4g="1"
+        ;;
+    esac
+
+    json_add_object network_prefer
+    json_add_string 3G $network_prefer_3g
+    json_add_string 4G $network_prefer_4g
+    json_close_array
+}
+
+#设置网络偏好 (Intel XMM, AT+XACT)
+set_network_prefer_intel()
+{
+    network_prefer_3g=$(echo $1 |jq -r 'contains(["3G"])')
+    network_prefer_4g=$(echo $1 |jq -r 'contains(["4G"])')
+    count=$(echo $1 |jq -r 'length')
+    case "$count" in
+        "1")
+            if [ "$network_prefer_3g" = "true" ]; then
+                network_prefer_num="1"
+            elif [ "$network_prefer_4g" = "true" ]; then
+                network_prefer_num="2"
+            fi
+        ;;
+        *) network_prefer_num="4" ;;
+    esac
+
+    at_command="AT+XACT=$network_prefer_num,,,0"
+    res=$(at $at_port "$at_command")
+    json_select_object "result"
+    json_add_string "status" "$res"
+    json_close_object
+}
+
 get_network_prefer()
 {
     case $platform in
@@ -333,6 +407,9 @@ get_network_prefer()
             ;;
         "lte")
             get_network_prefer_lte
+            ;;
+        "intel")
+            get_network_prefer_intel
             ;;
         *)
             get_network_prefer_nr
@@ -354,6 +431,9 @@ set_network_prefer()
             ;;
         "lte")
             set_network_prefer_lte $1
+            ;;
+        "intel")
+            set_network_prefer_intel $1
             ;;
         *)
             set_network_prefer_nr $1
@@ -596,6 +676,85 @@ network_info()
     esac
 }
 
+#锁频信息 (Intel XMM, AT+XACT)
+get_lockband_intel()
+{
+    m_debug "Fibocom get lockband info intel(xmm)"
+    get_lockband_config_res=$(at $at_port "AT+XACT?" | grep "+XACT:" | sed 's/\r//g')
+    get_available_band_res=$(at $at_port "AT+XACT=?" | grep "+XACT:" | sed 's/\r//g')
+    json_add_object "UMTS"
+    json_add_array "available_band"
+    json_close_array
+    json_add_array "lock_band"
+    json_close_array
+    json_close_object
+    json_add_object "LTE"
+    json_add_array "available_band"
+    json_close_array
+    json_add_array "lock_band"
+    json_close_array
+    json_close_object
+    #avail  +XACT: (0-6),(0-2),0,<umts...>,<lte 1xx...>  bands start field 4
+    #config +XACT: <act>,<pref1>,<pref2>,<bands...>      bands start field 4
+    first_bandcfg=$(echo "$get_lockband_config_res" | cut -d, -f4)
+    [ -z "$first_bandcfg" ] && first_bandcfg=1
+    { [ "$first_bandcfg" -eq 0 ] 2>/dev/null && select_all_band=1; } || select_all_band=0
+    for i in $(echo "$get_available_band_res"| sed 's/\r//g' | awk -F"," '{for(j=4; j<=NF;j+=1) if ($j ~ /^[0-9]+$/) print $j;}' ); do
+        if [ -z "$i" ]; then
+            continue
+        fi
+        if [ $i -lt 100 ]; then
+            json_select "UMTS"
+            json_select "available_band"
+            add_avalible_band_entry  "$i" "UMTS_$i"
+            json_select ".."
+            json_select ".."
+            if [ $select_all_band -eq 1 ]; then
+                json_select "UMTS"
+                json_select "lock_band"
+                json_add_string "" "$i"
+                json_select ".."
+                json_select ".."
+            fi
+        else
+            json_select "LTE"
+            json_select "available_band"
+            trim_first_letter=$(echo "$i" | sed 's/^.//')
+            add_avalible_band_entry  "$i" "LTE_$trim_first_letter"
+            json_select ".."
+            json_select ".."
+            if [ $select_all_band -eq 1 ]; then
+                json_select "LTE"
+                json_select "lock_band"
+                json_add_string "" "$i"
+                json_select ".."
+                json_select ".."
+            fi
+        fi
+    done
+    for i in $(echo "$get_lockband_config_res" | sed 's/\r//g' | awk -F"," '{for(k=4; k<=NF; k++) print $k}' ); do
+        if [ -z "$i" ]; then
+            continue
+        fi
+        case "$i" in *[!0-9]*) continue ;; esac
+        [ "$i" -eq 0 ] && continue
+        if [ $i -lt 100 ]; then
+            json_select "UMTS"
+            json_select "lock_band"
+            json_add_string "" "$i"
+            json_select ".."
+            json_select ".."
+        elif [ $i -lt 500 ]; then
+            json_select "LTE"
+            json_select "lock_band"
+            json_add_string "" "$i"
+            json_select ".."
+            json_select ".."
+        fi
+    done
+    json_close_array
+}
+
 get_lockband(){
     json_add_object "lockband"
     case $platform in
@@ -610,6 +769,9 @@ get_lockband(){
             ;;
         "lte")
             get_lockband_lte
+            ;;
+        "intel")
+            get_lockband_intel
             ;;
         *)
             get_lockband_nr
@@ -807,6 +969,19 @@ get_lockband_lte()
     json_close_array
 }
 
+#设置锁频 (Intel XMM, AT+XACT=<rat>,,,<bands>)
+set_lockband_intel()
+{
+    m_debug "Fibocom set lockband info intel(xmm)"
+    case "$band_class" in
+        "UMTS") local rat="1" ;;
+        *) local rat="2" ;;
+    esac
+    local bands=$(echo "$lock_band" | tr -s ' \r\n' ',' | sed 's/^,//; s/,$//')
+    [ -z "$bands" ] && bands="0"
+    res=$(at $at_port "AT+XACT=$rat,,,$bands")
+}
+
 set_lockband()
 {
     config=$1
@@ -824,6 +999,9 @@ set_lockband()
             ;;
         "lte")
             set_lockband_lte
+            ;;
+        "intel")
+            set_lockband_intel
             ;;
         *)
             set_lockband_nr
@@ -1209,10 +1387,75 @@ get_ecio()
     echo "$ecio"
 }
 
+#LTE带宽编码(3GPP)转MHz
+_xmm_bw_mhz()
+{
+    case "$1" in
+        "0") echo "1.4" ;;
+        "1") echo "3" ;;
+        "2") echo "5" ;;
+        "3") echo "10" ;;
+        "4") echo "15" ;;
+        "5") echo "20" ;;
+        *) echo "" ;;
+    esac
+}
+
+#小区信息 (Intel XMM: AT+GTCAINFO? + AT+XCESQ?)
+cell_info_intel()
+{
+    m_debug "Fibocom cell info intel(xmm)"
+    class="Cell Information"
+    #data line has >=14 fields: idx,band,mcc,mnc,tac,cellid,pci,rsrp,rsrq,snr,dl_earfcn,ul_earfcn,dl_bw,ul_bw
+    local ca=$(at $at_port "AT+GTCAINFO?" | grep "+GTCAINFO:" | sed 's/+GTCAINFO://g' | sed 's/\r//g' | awk -F',' 'NF>=14' | head -n1)
+    if [ -z "$ca" ]; then
+        add_plain_info_entry "network_mode" "No Service" "Network Mode"
+        return
+    fi
+    local sq=$(at $at_port "AT+XCESQ?" | grep "+XCESQ:" | sed 's/+XCESQ://g' | sed 's/\r//g' | head -n1)
+    local csq=$(at $at_port "AT+CSQ" | grep "+CSQ:" | sed 's/+CSQ://g' | awk -F',' '{print $1}' | tr -d ' \r')
+
+    local band=$(echo "$ca" | awk -F',' '{print $2}' | tr -d ' ')
+    local mcc=$(echo "$ca" | awk -F',' '{print $3}' | tr -d ' ')
+    local mnc=$(echo "$ca" | awk -F',' '{print $4}' | tr -d ' ')
+    local tac=$(echo "$ca" | awk -F',' '{print $5}' | tr -d ' ')
+    local cellid=$(echo "$ca" | awk -F',' '{print $6}' | tr -d ' ')
+    local pci=$(echo "$ca" | awk -F',' '{print $7}' | tr -d ' ')
+    local earfcn=$(echo "$ca" | awk -F',' '{print $11}' | tr -d ' ')
+    local dl_bw=$(_xmm_bw_mhz "$(echo "$ca" | awk -F',' '{print $13}' | tr -d ' ')")
+    local ul_bw=$(_xmm_bw_mhz "$(echo "$ca" | awk -F',' '{print $14}' | tr -d ' ')")
+
+    local rsrq_num=$(echo "$sq" | awk -F',' '{print $6}' | tr -d ' ')
+    local rsrp_num=$(echo "$sq" | awk -F',' '{print $7}' | tr -d ' ')
+    local snr_num=$(echo "$sq" | awk -F',' '{print $8}' | tr -d ' ')
+    local rsrp=""
+    local rsrq=""
+    local sinr=""
+    case "$rsrp_num" in ''|*[!0-9]*) ;; *) rsrp=$(get_rsrp "LTE" "$rsrp_num") ;; esac
+    case "$rsrq_num" in ''|*[!0-9]*) ;; *) rsrq=$(get_rsrq "LTE" "$rsrq_num") ;; esac
+    #RSSNR(XMM): valid range -100..100 in 0.5dB units (SNR=rssnr/2), 255=N/A
+    case "$snr_num" in
+        ''|255|*[!0-9-]*) ;;
+        *) { [ "$snr_num" -ge -100 ] && [ "$snr_num" -le 100 ]; } 2>/dev/null && \
+           sinr=$(awk "BEGIN{printf \"%.1f\", $snr_num/2}" | sed 's/\.0$//') ;;
+    esac
+
+    add_plain_info_entry "network_mode" "LTE Mode" "Network Mode"
+    set_4g_cell_info "$mcc" "$mnc" "$tac" "$cellid" "$earfcn" "$pci" "$band" "$ul_bw" "$dl_bw" "$rsrp" "$rsrq" "$sinr" "" ""
+
+    local rssi=""
+    case "$csq" in ''|99|*[!0-9]*) ;; *) rssi=$(( -113 + 2 * csq )) ;; esac
+    [ -n "$rssi" ] && add_bar_info_entry "RSSI" "$rssi" "Received Signal Strength Indicator" -120 -20 dBm
+}
+
 #小区信息
 cell_info()
 {
     m_debug "Fibocom cell info"
+    if [ "$platform" = "intel" ]; then
+        cell_info_intel
+        return
+    fi
 
     at_command='AT+GTCCINFO?'
     response=$(at $at_port $at_command)

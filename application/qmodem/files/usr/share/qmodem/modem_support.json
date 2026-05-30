@@ -965,6 +965,22 @@
                     "ncm"
                 ]
             },
+            "l850-gl": {
+                "manufacturer_id": "2cb7",
+                "id": "2cb7:0007",
+                "manufacturer": "fibocom",
+                "platform": "intel",
+                "data_interface": "usb",
+                "pdp_index": "0",
+                "wcdma_band": "1/2/4/5/8",
+                "lte_band": "1/2/3/4/5/7/8/11/12/13/17/18/19/20/21/26/28/29/30/38/39/40/41/66",
+                "nsa_band": "0",
+                "sa_band": "0",
+                "modes": [
+                    "mbim",
+                    "ncm"
+                ]
+            },
             "srm815": {
                 "manufacturer_id": "2dee",
                 "manufacturer": "meig",
