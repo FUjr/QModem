@@ -9,7 +9,6 @@ source /usr/share/qmodem/generic.sh
 vendor_get_disabled_features(){
     case "$platform" in
         "intel")
-            json_add_string "" "NeighborCell"
             json_add_string "" "IMEI"
             ;;
         *)
@@ -1129,9 +1128,66 @@ set_lockband_lte()
     res=$(at $at_port $set_lockband_command)
 }
 
+#邻区/锁频信息 (Intel XMM: AT+RSRP? + at@nvm freq_lock_params)
+get_neighborcell_intel()
+{
+    m_debug "Fibocom get neighborcell intel(xmm)"
+    local rl s_pci s_earfcn s_rsrp lp en freq pci_l
+    rl=$(at $at_port "AT+RSRP?" | grep "+RSRP:" | head -1 | sed 's/+RSRP://g' | sed 's/\r//g')
+    s_pci=$(echo "$rl" | awk -F, '{print $1}' | tr -d ' ')
+    s_earfcn=$(echo "$rl" | awk -F, '{print $2}' | tr -d ' ')
+    s_rsrp=$(echo "$rl" | awk -F, '{print $3}' | tr -d ' ')
+    json_add_object "neighborcell"
+    json_add_array "NR"
+    json_close_array
+    json_add_array "LTE"
+    if echo "$s_earfcn" | grep -qE '^[0-9]+$'; then
+        json_add_object ""
+        json_add_string "arfcn" "$s_earfcn"
+        json_add_string "pci" "$s_pci"
+        json_add_string "rsrp" "$s_rsrp"
+        json_close_object
+    fi
+    json_close_array
+    lp=$(at $at_port 'at@nvm:dyn_cps.nas_asm.freq_lock_params.*??' | sed 's/\r//g')
+    en=$(echo "$lp" | grep 'inter_freq_lock_support=' | head -1 | cut -d= -f2 | tr -d ' ')
+    freq=$(echo "$lp" | grep '^frequency=' | head -1 | cut -d= -f2 | tr -d ' ')
+    pci_l=$(echo "$lp" | grep 'psc_or_pci=' | head -1 | cut -d= -f2 | tr -d ' ')
+    json_add_object "lockcell_status"
+    [ "$en" = "1" ] && json_add_string "Status" "lock" || json_add_string "Status" "unlock"
+    json_add_string "Rat" "LTE"
+    json_add_string "Lock Type" "arfcn"
+    json_add_string "ARFCN" "$freq"
+    [ "$pci_l" = "65535" ] && json_add_string "PCI" "" || json_add_string "PCI" "$pci_l"
+    json_add_string "SCS" ""
+    json_add_string "NR BAND" ""
+    json_close_object
+    json_close_object
+}
+
+#锁频 (Intel XMM: at@sic:freq_lock(0,3,band,enable,earfcn,pci)); applied via CFUN cycle
+lockcell_intel()
+{
+    local b=255 p=65535 cur
+    [ -n "$band" ] && [ "$band" != "null" ] && b="$band"
+    [ -n "$pci" ] && [ "$pci" != "null" ] && [ "$pci" != "0" ] && p="$pci"
+    if [ -z "$arfcn" ] || [ "$arfcn" = "null" ] || [ "$arfcn" = "0" ]; then
+        cur=$(at $at_port 'at@nvm:dyn_cps.nas_asm.freq_lock_params.*??' | grep '^frequency=' | head -1 | cut -d= -f2 | tr -d ' \r')
+        [ -z "$cur" ] && cur=0
+        res=$(at $at_port "at@sic:freq_lock(0,3,255,0,$cur,65535)")
+    else
+        res=$(at $at_port "at@sic:freq_lock(0,3,$b,1,$arfcn,$p)")
+    fi
+    at $at_port "AT+CFUN=4;+CFUN=1"
+}
+
 get_neighborcell()
 {
     m_debug "Fibocom get neighborcell info"
+    if [ "$platform" = "intel" ]; then
+        get_neighborcell_intel
+        return
+    fi
     get_neighborcell_command="AT+GTCCINFO?"
     get_lockcell_command="AT+GTCELLLOCK?"
     cell_type="undefined"
@@ -1254,6 +1310,7 @@ set_neighborcell(){
 }
 
 lockcell_all(){
+    [ "$platform" = "intel" ] && { lockcell_intel; return; }
     if [ -z "$pci" ] && [ -z "$arfcn" ]; then
         local unlockcell="AT+GTCELLLOCK=0"
         res1=$(at $at_port $unlockcell)
