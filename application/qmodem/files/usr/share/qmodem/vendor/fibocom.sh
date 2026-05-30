@@ -1132,22 +1132,28 @@ set_lockband_lte()
 get_neighborcell_intel()
 {
     m_debug "Fibocom get neighborcell intel(xmm)"
-    local rl s_pci s_earfcn s_rsrp lp en freq pci_l
-    rl=$(at $at_port "AT+RSRP?" | grep "+RSRP:" | head -1 | sed 's/+RSRP://g' | sed 's/\r//g')
-    s_pci=$(echo "$rl" | awk -F, '{print $1}' | tr -d ' ')
-    s_earfcn=$(echo "$rl" | awk -F, '{print $2}' | tr -d ' ')
-    s_rsrp=$(echo "$rl" | awk -F, '{print $3}' | tr -d ' ')
+    local ln t pci ph earfcn eh ridx rsrp lp en freq pci_l
+    at $at_port "AT+XMCI=1" | grep "+XMCI:" | sed 's/+XMCI://g; s/"//g; s/\r//g' > /tmp/xmci_$$
     json_add_object "neighborcell"
     json_add_array "NR"
     json_close_array
     json_add_array "LTE"
-    if echo "$s_earfcn" | grep -qE '^[0-9]+$'; then
+    while IFS= read -r ln; do
+        t=$(echo "$ln" | awk -F, '{print $1}' | tr -d ' ')
+        case "$t" in 4|5|6) ;; *) continue ;; esac
+        ph=$(echo "$ln" | awk -F, '{print $6}' | tr -d ' ')
+        eh=$(echo "$ln" | awk -F, '{print $7}' | tr -d ' ')
+        ridx=$(echo "$ln" | awk -F, '{print $10}' | tr -d ' ')
+        case "$ph" in 0[xX]*) pci=$((ph)) ;; [0-9]*) pci="$ph" ;; *) continue ;; esac
+        case "$eh" in 0[xX]*) earfcn=$((eh)) ;; [0-9]*) earfcn="$eh" ;; *) continue ;; esac
+        case "$ridx" in [0-9]*) rsrp=$(get_rsrp "LTE" "$ridx") ;; *) rsrp="" ;; esac
         json_add_object ""
-        json_add_string "arfcn" "$s_earfcn"
-        json_add_string "pci" "$s_pci"
-        json_add_string "rsrp" "$s_rsrp"
+        json_add_string "arfcn" "$earfcn"
+        json_add_string "pci" "$pci"
+        json_add_string "rsrp" "$rsrp"
         json_close_object
-    fi
+    done < /tmp/xmci_$$
+    rm -f /tmp/xmci_$$
     json_close_array
     lp=$(at $at_port 'at@nvm:dyn_cps.nas_asm.freq_lock_params.*??' | sed 's/\r//g')
     en=$(echo "$lp" | grep 'inter_freq_lock_support=' | head -1 | cut -d= -f2 | tr -d ' ')
