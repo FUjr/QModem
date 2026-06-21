@@ -100,3 +100,4 @@
 - [obsy/sms_tool](https://github.com/obsy/sms_tool)
 - [gl-inet/gl-modem-at](https://github.com/gl-inet/gl-modem-at)
 - [ouyangzq/sendat](https://github.com/ouyangzq/sendat)
+- [qosmio/nss-packages](https://github.com/qosmio/nss-packages) — 感谢作者为 Qualcomm NSS 驱动包所做的出色工作

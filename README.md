@@ -119,3 +119,4 @@ This project builds upon the work of several other open-source projects and comm
 - [obsy/sms_tool](https://github.com/obsy/sms_tool)
 - [gl-inet/gl-modem-at](https://github.com/gl-inet/gl-modem-at)
 - [ouyangzq/sendat](https://github.com/ouyangzq/sendat)
+- [qosmio/nss-packages](https://github.com/qosmio/nss-packages) — Thanks to the author for the excellent work on Qualcomm NSS driver packages
