@@ -1,6 +1,11 @@
 local dispatcher = require "luci.dispatcher"
 local uci = require "luci.model.uci".cursor()
 local http = require "luci.http"
+local fs = require "nixio.fs"
+
+local function safe_dir(path)
+    return fs.dir(path) or function() return nil end
+end
 
 m = Map("qmodem", translate("Modem Configuration"))
 m.redirect = dispatcher.build_url("admin", "modem", "qmodem","dial_overview")
@@ -81,11 +86,9 @@ bridge_mode.default = "0"
 bridge_port = s:taboption("advanced", Value, "bridge_port", translate("Bridge Port"))
 bridge_port.description = translate("Device-level bridge port for passthrough. If set, it overrides the slot default bridge port.")
 bridge_port.rmempty = true
-local bridge_ports = io.popen("ls /sys/class/net/")
-for line in bridge_ports:lines() do
+for line in safe_dir("/sys/class/net/") do
     bridge_port:value(line, line)
 end
-bridge_ports:close()
 
 do_not_add_dns = s:taboption("advanced", Flag, "do_not_add_dns", translate("Do Not modify resolv.conf"))
 do_not_add_dns.description = translate("quectel-CM will append the DNS server to the resolv.conf file by default.if you do not want to modify the resolv.conf file, please check this option.")

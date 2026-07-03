@@ -56,6 +56,11 @@ function setSIM()
     local sim_gpio = "/sys/class/gpio/sim/value"
     local modem_gpio = "/sys/class/gpio/4g/value"
     local sim_slot = http.formvalue("slot")
+    if sim_slot ~= "SIM1" and sim_slot ~= "SIM2" then
+        luci.http.status(400, "Bad Request")
+        return writeJsonResponse("Invalid", "Invalid")
+    end
+
     local pre_detect = getSimSlot(sim_gpio)
     
     local reset_module = 1
@@ -63,18 +68,18 @@ function setSIM()
         reset_module = 0
     end
     if sim_slot == "SIM1" then
-        sysfs_cmd = "echo 1 >"..sim_gpio
+        sysfs_value = "1"
         fw_setenv_cmd = "fw_setenv sim2"
     elseif sim_slot == "SIM2" then
-        sysfs_cmd = "echo 0 >"..sim_gpio
+        sysfs_value = "0"
         fw_setenv_cmd = "fw_setenv sim2 1"
     end
-    shell(sysfs_cmd)
+    fs.writefile(sim_gpio, sysfs_value)
     shell(fw_setenv_cmd)
     if reset_module == 1 then
-        shell("echo 0 >"..modem_gpio)
+        fs.writefile(modem_gpio, "0")
         os.execute("sleep 1")
-        shell("echo 1 >"..modem_gpio)
+        fs.writefile(modem_gpio, "1")
     end
     local current_slot = getSimSlot(sim_gpio)
     local nextboot_slot = getNextBootSlot()

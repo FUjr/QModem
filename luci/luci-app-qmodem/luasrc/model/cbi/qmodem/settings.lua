@@ -1,5 +1,11 @@
 local sys  = require "luci.sys"
 local d = require "luci.dispatcher"
+local fs = require "nixio.fs"
+
+local function safe_dir(path)
+    return fs.dir(path) or function() return nil end
+end
+
 m = Map("qmodem")
 m.title = translate("QModem Setting")
 
@@ -121,20 +127,16 @@ s.template = "cbi/tblsection"
 s.template_addremove = "qmodem/modem_config_add"
 s.extedit = d.build_url("admin", "modem", "qmodem", "modem_config", "%s")
 s.sectionhead = translate("Config Name")
-local pcie_slots = io.popen("ls /sys/bus/pci/devices/")
 local pcie_slot_list = {}
-for line in pcie_slots:lines() do
+for line in safe_dir("/sys/bus/pci/devices/") do
     table.insert(pcie_slot_list, line)
 end
-pcie_slots:close()
-local usb_slots = io.popen("ls /sys/bus/usb/devices/")
 local usb_slot_list = {}
-for line in usb_slots:lines() do
+for line in safe_dir("/sys/bus/usb/devices/") do
     if not line:match("usb%d+") then
         table.insert(usb_slot_list, line)
     end
 end
-usb_slots:close()
 local avalibale_name_list = {}
 for i,v in ipairs(pcie_slot_list) do
     local uci_name = v:gsub("%.", "_"):gsub(":", "_"):gsub("-", "_")
