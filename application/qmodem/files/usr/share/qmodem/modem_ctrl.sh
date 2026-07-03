@@ -61,7 +61,7 @@ get_sms(){
     if [ ! -f $cache_file ] || [ $(($current_time - $file_time)) -gt $cache_timeout ]; then
         touch $cache_file
         #sms_tool_q -d $at_port -j recv > $cache_file
-        tom_modem $use_ubus_flag  -d $at_port -o r > $cache_file
+        tom_modem $use_ubus_flag  -d "$at_port" -o r > $cache_file
         echo $(cat $cache_file ; json_dump) | jq -s 'add'
     else
         echo $(cat $cache_file ; json_dump) | jq -s 'add'
@@ -158,7 +158,7 @@ case $method in
         index=$3
         [ -n "$sms_at_port" ] && at_port=$sms_at_port
         for i in $index; do
-            tom_modem $use_ubus_flag  -d $at_port -o d -i $i
+            tom_modem $use_ubus_flag  -d "$at_port" -o d -i "$i"
             touch /tmp/cache_sms_$2
             if [ "$?" == 0 ]; then
                 json_add_string status "1"
@@ -243,7 +243,7 @@ case $method in
     "send_at")
         cmd=$(echo "$3" | jq -r '.at')
         port=$(echo "$3" | jq -r '.port')
-        res=$(at $port $cmd)
+        res=$(at "$port" "$cmd")
         json_add_object at_cfg
         if [ "$?" == 0 ]; then
             json_add_string status "1"
@@ -256,7 +256,7 @@ case $method in
     "send_raw_pdu")
         cmd=$3
         [ -n "$sms_at_port" ] && at_port=$sms_at_port
-        res=$(tom_modem $use_ubus_flag  -d $at_port -o s -p "$cmd")
+        res=$(tom_modem $use_ubus_flag  -d "$at_port" -o s -p "$cmd")
         json_select result
         if [ "$?" == 0 ]; then
             json_add_string status "1"
@@ -271,7 +271,7 @@ case $method in
         phone_number=$(echo $cmd_json | jq -r '.phone_number')
         message_content=$(echo $cmd_json | jq -r '.message_content')
         [ -n "$sms_at_port" ] && at_port=$sms_at_port
-        sms_tool_q -d $at_port send "$phone_number" "$message_content" > /dev/null
+        sms_tool_q -d "$at_port" send "$phone_number" "$message_content" > /dev/null
         json_select result
         if [ "$?" == 0 ]; then
             json_add_string status "1"
