@@ -4,28 +4,28 @@
 
 at()
 {
-  local at_port=$1
+  local at_port="$1"
   local new_str="${2/[$]/$}"
   local atcmd="${new_str/\"/\"}"
   [ "$clear_buffer" == "1" ] && options="$options -M"
   #过滤空行
   if [ "$(uci get qmodem.main.at_tool 2>/dev/null)" == "1" ]; then
-   sms_tool_q -d $at_port at "$atcmd"
+   sms_tool_q -d "$at_port" at "$atcmd"
   else
-   tom_modem $use_ubus_flag  -d $at_port -o a -c "$atcmd" $options
+   tom_modem $use_ubus_flag  -d "$at_port" -o a -c "$atcmd" $options
   fi
 }
 
 fastat()
 {
-  local at_port=$1
+  local at_port="$1"
   local new_str="${2/[$]/$}"
   local atcmd="${new_str/\"/\"}"
   #过滤空行
   if [ "$(uci get qmodem.main.at_tool 2>/dev/null)" == "1" ]; then
-   sms_tool_q -t 1 -d $at_port at "$atcmd"
+   sms_tool_q -t 1 -d "$at_port" at "$atcmd"
   else
-   tom_modem -d $at_port -o a -c "$atcmd" -t 1
+   tom_modem -d "$at_port" -o a -c "$atcmd" -t 1
   fi
 }
 

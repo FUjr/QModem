@@ -1,5 +1,6 @@
 local d = require "luci.dispatcher"
 local sys  = require "luci.sys"
+local util = require "luci.util"
 
 m = Map("qmodem")
 m.title = translate("Dial Overview")
@@ -31,7 +32,7 @@ o.rmempty = false
 restart_btn = s:option(Button, "_redial", translate("ReDial"))
 restart_btn.inputstyle = "remove"
 function restart_btn.write(self, section)
-    sys.call("/etc/init.d/qmodem_network redial "..section.." > /dev/null 2>&1")
+    sys.call("/etc/init.d/qmodem_network redial "..util.shellquote(section).." > /dev/null 2>&1")
     luci.http.redirect(d.build_url("admin", "modem", "qmodem", "dial_overview"))
 end
 
@@ -82,7 +83,7 @@ remove_btn = s:option(Button, "_remove", translate("Remove Modem"))
 remove_btn.inputstyle = "remove"
 function remove_btn.write(self, section)
     local shell
-    shell="/usr/share/qmodem/modem_scan.sh remove "..section
+    shell="/usr/share/qmodem/modem_scan.sh remove "..util.shellquote(section)
     luci.sys.call(shell)
     --refresh the page
     luci.http.redirect(d.build_url("admin", "modem", "qmodem", "dial_overview"))

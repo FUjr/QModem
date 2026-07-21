@@ -2,6 +2,7 @@ module("luci.controller.qmodem_sms", package.seeall)
 local http = require "luci.http"
 local fs = require "nixio.fs"
 local json = require("luci.jsonc")
+local util = require "luci.util"
 local modem_ctrl = "/usr/share/qmodem/modem_ctrl.sh "
 
 function shell(command)
@@ -9,6 +10,23 @@ function shell(command)
 	local odp = odpall:read("*a")
 	odpall:close()
 	return odp
+end
+
+local function valid_token(value)
+	return value and value:match("^[A-Za-z0-9_-]+$") ~= nil
+end
+
+local function valid_index(value)
+	return value and value:match("^[0-9 ]+$") ~= nil
+end
+
+local function valid_pdu(value)
+	return value and value:match("^[A-Fa-f0-9]+$") ~= nil
+end
+
+local function write_error(message)
+	http.prepare_content("application/json")
+	http.write(json.stringify({ status = "0", error = message }))
 end
 
 function index()
@@ -23,31 +41,52 @@ end
 
 function getSMS()
     local cfg_id = http.formvalue("cfg")
-    response = shell(modem_ctrl .. "get_sms " .. cfg_id)
+	if not valid_token(cfg_id) then
+		return write_error("Invalid config section")
+	end
+
+    response = shell(modem_ctrl .. "get_sms " .. util.shellquote(cfg_id))
     http.prepare_content("application/json")
     http.write(response)
 end
 
 function sendSMS()
 	local cfg_id = http.formvalue("cfg")
+	if not valid_token(cfg_id) then
+		return write_error("Invalid config section")
+	end
+
 	local pdu = http.formvalue("pdu")
 	if pdu then
-		response = shell(modem_ctrl .. "send_raw_pdu " .. cfg_id .. " \"" .. pdu .. "\"")
+		if not valid_pdu(pdu) then
+			return write_error("Invalid PDU")
+		end
+		response = shell(modem_ctrl .. "send_raw_pdu " .. util.shellquote(cfg_id) .. " " .. util.shellquote(pdu))
 	else
-		local phone_number = http.formvalue("phone_number")
-		local message_content = http.formvalue("message_content")
-		json_cmd = string.format('{\\"phone_number\\":\\"%s\\",\\"message_content\\":\\"%s\\"}', phone_number, message_content)
-		response = shell(modem_ctrl .. "send_sms " .. cfg_id .." \"".. json_cmd .. "\"")
+		local phone_number = http.formvalue("phone_number") or ""
+		local message_content = http.formvalue("message_content") or ""
+		local json_cmd = json.stringify({
+			phone_number = phone_number,
+			message_content = message_content
+		})
+		response = shell(modem_ctrl .. "send_sms " .. util.shellquote(cfg_id) .. " " .. util.shellquote(json_cmd))
 		
 	end
 	http.prepare_content("application/json")
-		http.write(response)
+	http.write(response)
 end
 
 function delSMS()
 	local cfg_id = http.formvalue("cfg")
 	local index = http.formvalue("index")
-	response = shell(modem_ctrl .. "delete_sms " .. cfg_id .. " \"" ..index.."\"")
+	if not valid_token(cfg_id) then
+		return write_error("Invalid config section")
+	end
+	if not valid_index(index) then
+		return write_error("Invalid SMS index")
+	end
+
+	response = shell(modem_ctrl .. "delete_sms " .. util.shellquote(cfg_id) .. " " .. util.shellquote(index))
 	http.prepare_content("application/json")
 	http.write(response)
 end
