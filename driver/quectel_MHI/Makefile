@@ -17,6 +17,7 @@ include $(INCLUDE_DIR)/package.mk
 define KernelPackage/pcie_mhi
   SUBMENU:=WWAN Support
   TITLE:=Kernel pcie driver for MHI device
+  DEPENDS:=+kmod-rmnet-core
   FILES:=$(PKG_BUILD_DIR)/pcie_mhi.ko
 # AUTOLOAD:=$(call AutoLoad,90,pcie_mhi)
 endef
