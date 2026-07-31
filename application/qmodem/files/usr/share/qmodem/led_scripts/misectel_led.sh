@@ -6,6 +6,13 @@ misectel_led_init()
 
 	board="$(cat /tmp/sysinfo/board_name 2>/dev/null)"
 	case "$board" in
+		misectel,m01k21)
+			LED_SIGNAL_POOR='lede:blue:4gyellow'
+			LED_SIGNAL_GOOD='lede:blue:5gblue'
+			LED_SIGNAL_EXCELLENT='lede:blue:5gyellow'
+			LED_SIM='lede:blue:4gblue'
+			LED_5G='lede:blue:red'
+			;;
 		misectel,m01k43|misectel,m01k43-usb|misectel,m01k43-usb-p|misectel,m01k43-p)
 			LED_4G_POOR='yellow:4g'
 			LED_4G_GOOD='blue:4g'
@@ -24,6 +31,27 @@ misectel_led_init()
 			;;
 		*) return 1 ;;
 	esac
+}
+
+misectel_3led_signal_level()
+{
+	local rsrp="$1"
+
+	case "$rsrp" in
+		-*) ;;
+		*) echo none; return ;;
+	esac
+	[ "$rsrp" -ge -140 ] 2>/dev/null && [ "$rsrp" -le -30 ] 2>/dev/null || {
+		echo none
+		return
+	}
+	if [ "$rsrp" -ge -90 ]; then
+		echo excellent
+	elif [ "$rsrp" -gt -110 ]; then
+		echo good
+	else
+		echo poor
+	fi
 }
 
 led_turn()
