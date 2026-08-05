@@ -545,6 +545,9 @@ case "$1" in
     "get_mode": {
         "config_section": "string"
     },
+    "get_5g_lan": {
+        "config_section": "string"
+    },
     "get_neighborcell": {
         "config_section": "string"
     },
@@ -595,6 +598,10 @@ case "$1" in
     "set_mode": {
         "config_section": "string",
         "mode": "string"
+    },
+    "set_5g_lan": {
+        "config_section": "string",
+        "enabled": "bool"
     },
     "set_neighborcell": {
         "config_section": "string",
@@ -654,7 +661,7 @@ EOF
 
         case "$2" in
             base_info|cell_info|info|network_info|sim_info|get_copyright|\
-            get_current_band|get_current_band_capabilities|get_disabled_features|get_dns|get_imei|get_lockband|get_mode|\
+            get_current_band|get_current_band_capabilities|get_disabled_features|get_dns|get_imei|get_lockband|get_mode|get_5g_lan|\
             get_neighborcell|get_network_prefer|get_reboot_caps|get_stats|save_stats|\
             get_traffic_reset_schedule|\
             get_sms|\
@@ -753,6 +760,11 @@ EOF
                     get_mode)
                         json_init
                         get_mode
+                        json_dump
+                        ;;
+                    get_5g_lan)
+                        json_init
+                        get_5g_lan
                         json_dump
                         ;;
                     get_neighborcell)
@@ -1002,6 +1014,15 @@ EOF
                 json_init
                 set_mode "$mode"
                 json_add_string result "$mode"
+                json_dump
+                ;;
+
+            set_5g_lan)
+                enabled=$(echo "$input" | jsonfilter -e '@.enabled')
+                [ "$enabled" = "true" ] && enabled=1
+                [ "$enabled" = "false" ] && enabled=0
+                json_init
+                set_5g_lan "$enabled"
                 json_dump
                 ;;
                 

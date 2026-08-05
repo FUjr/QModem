@@ -728,6 +728,18 @@ rate_convert()
     echo "$rate `echo $rate_units | cut -d ' ' -f $(($i+1))`"
 }
 
+get_5g_lan()
+{
+    json_add_boolean supported 0
+}
+
+set_5g_lan()
+{
+    json_add_boolean supported 0
+    json_add_string error "5G LAN is not supported by this modem"
+    return 1
+}
+
 get_modem_disabled_features()
 {
     . /lib/functions.sh

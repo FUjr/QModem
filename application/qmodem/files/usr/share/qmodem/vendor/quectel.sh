@@ -6,6 +6,45 @@ _Author="Siriling,Fujr"
 _Maintainer="Fujr <fjrcn@outlook.com>"
 source /usr/share/qmodem/generic.sh
 debug_subject="quectel_ctrl"
+
+get_5g_lan()
+{
+    local response enabled
+    response=$(at "$at_port" 'AT+QCFG="5glan"')
+    enabled=$(printf '%s\n' "$response" | sed -n 's/.*+QCFG: *"5glan",1,\([01]\).*/\1/p' | head -n 1)
+
+    json_add_boolean supported 1
+    if [ -n "$enabled" ]; then
+        json_add_boolean enabled "$enabled"
+    else
+        json_add_string error "Unable to read 5G LAN state"
+    fi
+}
+
+set_5g_lan()
+{
+    local enabled="$1" response ret
+
+    case "$enabled" in
+        0|1) ;;
+        *)
+            json_add_boolean supported 1
+            json_add_string error "Invalid 5G LAN state"
+            return 1
+            ;;
+    esac
+
+    response=$(at "$at_port" "AT+QCFG=\"5glan\",1,$enabled")
+    ret=$?
+    json_add_boolean supported 1
+    json_add_string response "$response"
+    if [ "$ret" -ne 0 ] || ! printf '%s\n' "$response" | grep -q '^OK\r*$'; then
+        json_add_string error "The modem rejected the 5G LAN setting"
+        return 1
+    fi
+
+    json_add_boolean enabled "$enabled"
+}
 #return raw data
 get_imei(){
     at_command="AT+CGSN"
