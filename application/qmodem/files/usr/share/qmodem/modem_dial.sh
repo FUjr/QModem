@@ -498,18 +498,7 @@ update_config()
     bridge_ports_selected="$slot_bridge_ports"
     [ -n "$device_bridge_ports" ] && bridge_ports_selected="$device_bridge_ports"
     config_get bridge_management_ip $modem_config bridge_management_ip
-    quectel_5g_lan=0
-    if [ "$en_bridge" = "1" ]; then
-        if [ -n "$bridge_ports_selected" ]; then
-            bridge_enabled=1
-        elif [ "$manufacturer" = "quectel" ]; then
-            quectel_5g_lan_response=$(at "$at_port" 'AT+QCFG="5glan"')
-            if printf '%s\n' "$quectel_5g_lan_response" | grep -q '+QCFG: *"5glan",1,1'; then
-                quectel_5g_lan=1
-                bridge_enabled=1
-            fi
-        fi
-    fi
+    [ "$en_bridge" = "1" ] && bridge_enabled=1
     driver=$(get_driver)
     update_sim_slot
     case $sim_slot in
