@@ -39,7 +39,7 @@ get_slot_network_config()
     config_get slot "$cfg" slot
     if [ "$modem_slot" = "$slot" ];then
         config_get ethernet_5g "$cfg" ethernet_5g
-        config_get slot_bridge_port "$cfg" bridge_port
+        config_get slot_bridge_ports "$cfg" bridge_port
     fi
 }
 
@@ -167,7 +167,7 @@ save_bridge_port_backup()
     uci -q set qmodem.${backup_section}=bridge-port-backup
     uci -q set qmodem.${backup_section}.modem_config="${modem_config}"
     uci -q set qmodem.${backup_section}.device_section="${source_section}"
-    uci -q set qmodem.${backup_section}.bridge_port="${bridge_port}"
+    uci -q set qmodem.${backup_section}.bridge_port="${bridge_scan_target_port}"
     uci -q delete qmodem.${backup_section}.ports
     for port in $source_ports; do
         uci -q add_list qmodem.${backup_section}.ports="${port}"
@@ -200,6 +200,17 @@ remove_bridge_port_from_device()
     m_debug "remove bridge port $bridge_scan_target_port from bridge device $cfg"
 }
 
+remove_selected_bridge_ports()
+{
+    local port
+
+    for port in $bridge_ports_selected; do
+        bridge_scan_target_port="$port"
+        config_load network
+        config_foreach remove_bridge_port_from_device device
+    done
+}
+
 ensure_bridge_device()
 {
     local wwan_port="$1"
@@ -216,16 +227,20 @@ ensure_bridge_device()
     current_name=$(uci -q get network.${bridge_section}.name)
     current_ports=$(uci -q get network.${bridge_section}.ports)
 
-    desired_ports="$bridge_port"
-    [ -n "$wwan_port" ] && [ "$wwan_port" != "$bridge_port" ] && desired_ports="$desired_ports $wwan_port"
+    desired_ports="$bridge_ports_selected"
+    case " $desired_ports " in
+        *" $wwan_port "*) ;;
+        *) [ -n "$wwan_port" ] && append desired_ports "$wwan_port" ;;
+    esac
 
     if [ "$(uci -q get network.${bridge_section})" != "device" ] || [ "$current_type" != "bridge" ] || [ "$current_name" != "$bridge_device_name" ] || [ "$current_ports" != "$desired_ports" ]; then
         uci -q set network.${bridge_section}=device
         uci -q set network.${bridge_section}.name="${bridge_device_name}"
         uci -q set network.${bridge_section}.type='bridge'
         uci -q delete network.${bridge_section}.ports
-        uci -q add_list network.${bridge_section}.ports="${bridge_port}"
-        [ -n "$wwan_port" ] && [ "$wwan_port" != "$bridge_port" ] && uci -q add_list network.${bridge_section}.ports="${wwan_port}"
+        for port in $desired_ports; do
+            uci -q add_list network.${bridge_section}.ports="${port}"
+        done
         bridge_network_dirty=1
         m_debug "set dedicated bridge ${bridge_device_name} ports: ${desired_ports}"
     fi
@@ -237,11 +252,67 @@ ensure_bridge_passthrough()
 
     bridge_device_name=""
     bridge_device_section=$(get_bridge_device_section)
-    bridge_scan_target_port="$bridge_port"
-
-    config_load network
-    config_foreach remove_bridge_port_from_device device
+    remove_selected_bridge_ports
     ensure_bridge_device "$wwan_port"
+}
+
+get_bridge_management_section()
+{
+    local safe_cfg
+    safe_cfg=$(sanitize_bridge_id "$modem_config")
+    [ -z "$safe_cfg" ] && safe_cfg="modem"
+    echo "qmodem_mgmt_${safe_cfg}"
+}
+
+find_lan_firewall_zone()
+{
+    local cfg="$1"
+    local name
+
+    config_get name "$cfg" name
+    [ "$name" = "lan" ] && lan_firewall_zone="$cfg"
+}
+
+ensure_bridge_management_interface()
+{
+    local management_section
+    local management_address
+    local management_prefix
+    local octets
+    local octet
+
+    management_section=$(get_bridge_management_section)
+    management_address=${bridge_management_ip%/*}
+    management_prefix=${bridge_management_ip#*/}
+    [ "$management_address" = "$bridge_management_ip" ] && return 1
+    case "$management_prefix" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$management_prefix" -ge 1 ] && [ "$management_prefix" -le 31 ] || return 1
+    octets=$(printf '%s\n' "$management_address" | tr '.' ' ')
+    [ "$(printf '%s\n' "$octets" | wc -w)" -eq 4 ] || return 1
+    for octet in $octets; do
+        case "$octet" in
+            ''|*[!0-9]*) return 1 ;;
+        esac
+        [ "$octet" -ge 0 ] && [ "$octet" -le 255 ] || return 1
+    done
+
+    uci -q set network.${management_section}=interface
+    uci -q set network.${management_section}.modem_config="${modem_config}"
+    uci -q set network.${management_section}.proto='static'
+    uci -q set network.${management_section}.device="${bridge_device_name}"
+    uci -q set network.${management_section}.ipaddr="${management_address}/${management_prefix}"
+
+    lan_firewall_zone=""
+    config_load firewall
+    config_foreach find_lan_firewall_zone zone
+    if [ -n "$lan_firewall_zone" ]; then
+        append_to_fw_zone "$lan_firewall_zone" "$management_section"
+        firewall_reload_flag=1
+    fi
+    bridge_network_dirty=1
+    m_debug "set bridge management interface $management_section to $bridge_management_ip in lan firewall zone"
 }
 
 restore_bridge_backup_ports()
@@ -276,6 +347,7 @@ restore_bridge_port_backup()
 cleanup_bridge_passthrough()
 {
     local bridge_section
+    local management_section
 
     bridge_network_dirty=0
     bridge_qmodem_dirty=0
@@ -288,6 +360,18 @@ cleanup_bridge_passthrough()
         uci -q delete network.${bridge_section}
         bridge_network_dirty=1
         m_debug "delete dedicated bridge section $bridge_section"
+    fi
+    management_section=$(get_bridge_management_section)
+    if [ -n "$(uci -q get network.${management_section})" ]; then
+        uci -q delete network.${management_section}
+        bridge_network_dirty=1
+        m_debug "delete bridge management interface $management_section"
+    fi
+    lan_firewall_zone=""
+    config_load firewall
+    config_foreach find_lan_firewall_zone zone
+    if [ -n "$lan_firewall_zone" ] && remove_from_fw_zone "$lan_firewall_zone" "$management_section"; then
+        firewall_reload_flag=1
     fi
 }
 
@@ -402,17 +486,30 @@ update_config()
     config_get donot_nat $modem_config donot_nat 0
     config_get global_dial main enable_dial
     modem_slot=$(basename $modem_path)
-    slot_bridge_port=""
+    slot_bridge_ports=""
     ethernet_5g=""
-    bridge_port=""
+    bridge_ports_selected=""
+    bridge_management_ip=""
     bridge_enabled=0
     # config_get ethernet_5g u$modem_config ethernet 转往口获取命令更新，待测试
     config_foreach get_slot_network_config modem-slot
     config_get alias $modem_config alias
-    config_get device_bridge_port $modem_config bridge_port
-    bridge_port="$slot_bridge_port"
-    [ -n "$device_bridge_port" ] && bridge_port="$device_bridge_port"
-    [ "$en_bridge" = "1" ] && [ -n "$bridge_port" ] && bridge_enabled=1
+    config_get device_bridge_ports "$modem_config" bridge_port
+    bridge_ports_selected="$slot_bridge_ports"
+    [ -n "$device_bridge_ports" ] && bridge_ports_selected="$device_bridge_ports"
+    config_get bridge_management_ip $modem_config bridge_management_ip
+    quectel_5g_lan=0
+    if [ "$en_bridge" = "1" ]; then
+        if [ -n "$bridge_ports_selected" ]; then
+            bridge_enabled=1
+        elif [ "$manufacturer" = "quectel" ]; then
+            quectel_5g_lan_response=$(at "$at_port" 'AT+QCFG="5glan"')
+            if printf '%s\n' "$quectel_5g_lan_response" | grep -q '+QCFG: *"5glan",1,1'; then
+                quectel_5g_lan=1
+                bridge_enabled=1
+            fi
+        fi
+    fi
     driver=$(get_driver)
     update_sim_slot
     case $sim_slot in
@@ -570,25 +667,57 @@ append_to_fw_zone()
 {
     local fw_zone=$1
     local if_name=$2
+    local fw_zone_path
     source /etc/os-release
     local os_version=${VERSION_ID:0:2}
+    case "$fw_zone" in
+        ''|*[!0-9]*) fw_zone_path="firewall.${fw_zone}" ;;
+        *) fw_zone_path="firewall.@zone[${fw_zone}]" ;;
+    esac
+    origin_line=$(uci -q get ${fw_zone_path}.network)
+    for i in $origin_line; do
+        [ "$i" = "$if_name" ] && return
+    done
     if [ "$os_version" -le 21 ];then
-        has_ifname=0
-        origin_line=$(uci -q get firewall.@zone[${fw_zone}].network)
-        for i in $origin_line
-        do
-            if [ "$i" = "$if_name" ];then
-                has_ifname=1
-            fi
-        done
-        if [ -n "$origin_line" ] && [ "$has_ifname" -eq 0 ];then
-            uci set firewall.@zone[${fw_zone}].network="${origin_line} ${if_name}"
+        if [ -n "$origin_line" ];then
+            uci set ${fw_zone_path}.network="${origin_line} ${if_name}"
         elif [ -z "$origin_line" ];then
-            uci set firewall.@zone[${fw_zone}].network="${if_name}"
+            uci set ${fw_zone_path}.network="${if_name}"
         fi
     else
-        uci add_list firewall.@zone[${fw_zone}].network=${if_name}
+        uci add_list ${fw_zone_path}.network=${if_name}
     fi
+}
+
+remove_from_fw_zone()
+{
+    local fw_zone=$1
+    local if_name=$2
+    local fw_zone_path
+    local origin_line
+    local network
+    local retained_networks=""
+    local found=0
+
+    case "$fw_zone" in
+        ''|*[!0-9]*) fw_zone_path="firewall.${fw_zone}" ;;
+        *) fw_zone_path="firewall.@zone[${fw_zone}]" ;;
+    esac
+    origin_line=$(uci -q get ${fw_zone_path}.network)
+    for network in $origin_line; do
+        if [ "$network" = "$if_name" ]; then
+            found=1
+        else
+            append retained_networks "$network"
+        fi
+    done
+    [ "$found" = "1" ] || return 1
+
+    uci -q delete ${fw_zone_path}.network
+    for network in $retained_networks; do
+        uci -q add_list ${fw_zone_path}.network="$network"
+    done
+    return 0
 }
 
 set_if()
@@ -747,6 +876,9 @@ set_if()
     fi
     if [ "$bridge_enabled" = "1" ]; then
         ensure_bridge_passthrough "$set_modem_netcard"
+        if ! ensure_bridge_management_interface; then
+            m_debug "invalid bridge management IP: $bridge_management_ip"
+        fi
         target_netcard="$bridge_device_name"
     else
         cleanup_bridge_passthrough
@@ -808,6 +940,7 @@ flush_if()
 {
     network_reload_needed=0
     qmodem_reload_needed=0
+    firewall_reload_flag=0
     ifdown ${interface_name} >/dev/null 2>&1
     ifdown ${interface6_name} >/dev/null 2>&1
     config_load network
@@ -822,6 +955,10 @@ flush_if()
     uci commit network
     uci commit dhcp
     [ "$qmodem_reload_needed" -eq 1 ] && uci commit qmodem
+    if [ "$firewall_reload_flag" -eq 1 ]; then
+        uci commit firewall
+        /etc/init.d/firewall restart
+    fi
     if [ "$network_reload_needed" -eq 1 ]; then
         /etc/init.d/network reload
     fi
@@ -841,7 +978,7 @@ flush_ip_cb()
 
 dial(){
     update_config
-    m_debug "modem_path=$modem_path,driver=$driver,interface=$interface_name,at_port=$at_port,using_sim_slot:$sim_slot,dns_list:$dns_list,bridge_enabled:$bridge_enabled,bridge_port:$bridge_port"
+    m_debug "modem_path=$modem_path,driver=$driver,interface=$interface_name,at_port=$at_port,using_sim_slot:$sim_slot,dns_list:$dns_list,bridge_enabled:$bridge_enabled,bridge_ports:$bridge_ports_selected,bridge_management_ip:$bridge_management_ip"
     while [ "$dial_prepare" != 1 ] ; do
         sleep 5
         update_config
