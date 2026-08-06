@@ -143,7 +143,7 @@ resolve_bridge_device_name()
 
     seed=$(sanitize_bridge_id "$modem_config")
     [ -z "$seed" ] && seed="modem"
-    suffix=$(printf '%s' "$modem_config" | cksum | awk '{print $1}' | cut -c1-4)
+    suffix=$(printf '%s' "$modem_config" | sha256sum | cut -c1-4)
     printf 'b%s%s\n' "$(printf '%s' "$seed" | cut -c1-10)" "$suffix" | cut -c1-15
 }
 
