@@ -547,6 +547,34 @@
             }
         ]
     },
+    "thales": {
+        "qualcomm": [
+            {
+                "Switch USB Data Mode (MBIM/RMNET) > AT^SETCONFIG=0/1": "AT^SETCONFIG?"
+            },
+            {
+                "Switch USB/PCIe Mode > AT+MODESWITCH?": "AT+MODESWITCH?"
+            },
+            {
+                "Get SIM Card Slot Status > AT+SWITCH_SLOT?": "AT+SWITCH_SLOT?"
+            },
+            {
+                "Set Current SIM to Slot 1 > at+switch_slot=0": "at+switch_slot=0"
+            },
+            {
+                "Set Current SIM to Slot 2 > at+switch_slot=1": "at+switch_slot=1"
+            },
+            {
+                "Query Network and Carrier Information > AT^DEBUG?": "AT^DEBUG?"
+            },
+            {
+                "Get Module Temperature > AT^TEMP?": "AT^TEMP?"
+            },
+            {
+                "Restart Module > AT+RESET": "AT+RESET"
+            }
+        ]
+    },
     "huawei": {
         "hisilicon": [
             {

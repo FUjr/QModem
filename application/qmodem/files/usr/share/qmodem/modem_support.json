@@ -1288,6 +1288,18 @@
                     "rmnet"
                 ]
             },
+            "mv32-w-b": {
+                "manufacturer_id": "1e2d",
+                "id": "1e2d:00f2",
+                "manufacturer": "thales",
+                "platform": "qualcomm",
+                "data_interface": "usb",
+                "pdp_index": "1",
+                "modes": [
+                    "mbim",
+                    "rmnet"
+                ]
+            },
             "srm821": {
                 "manufacturer_id": "1782",
                 "manufacturer": "meig",
@@ -1359,6 +1371,15 @@
             },
             "t99w373": {
                 "manufacturer": "foxconn",
+                "platform": "qualcomm",
+                "data_interface": "pcie",
+                "pdp_index": "1",
+                "modes": [
+                    "mbim"
+                ]
+            },
+            "mv32-w-b": {
+                "manufacturer": "thales",
                 "platform": "qualcomm",
                 "data_interface": "pcie",
                 "pdp_index": "1",
@@ -1996,6 +2017,16 @@
                         "e0ab",
                         "81d7",
                         "0a6c"
+                    ]
+                }
+            },
+            "thales": {
+                "qualcomm": {
+                    "vendor_id": [
+                        "1e2d"
+                    ],
+                    "product_id": [
+                        "00f2"
                     ]
                 }
             },

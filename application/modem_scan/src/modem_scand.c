@@ -874,6 +874,7 @@ static void normalize_model_name(char *name, size_t len)
 	else if (strstr(lower, "fm190w-gl")) snprintf(name, len, "fm190w-gl");
 	else if (strstr(lower, "rm500u-ea")) snprintf(name, len, "rm500u-ea");
 	else if (strstr(lower, "mv31-w") || strstr(lower, "t99w175")) snprintf(name, len, "t99w175");
+	else if (strstr(lower, "mv32-w")) snprintf(name, len, "mv32-w-b");
 	else if (strstr(lower, "t99w373")) snprintf(name, len, "t99w373");
 	else if (strstr(lower, "dp25-42843-47")) snprintf(name, len, "t99w640");
 	else if (strstr(lower, "sim8380g")) snprintf(name, len, "SIM8380G-M2");

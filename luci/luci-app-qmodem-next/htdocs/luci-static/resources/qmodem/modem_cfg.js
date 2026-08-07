@@ -12,6 +12,7 @@ return baseclass.extend({
 		huawei: 'Huawei',
 		neoway: 'Neoway',
 		telit: 'Telit',
+		thales: 'Thales',
 		nk: "Tom's Love"
 	},
 	platforms: {
