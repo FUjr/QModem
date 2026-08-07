@@ -1,8 +1,8 @@
 #!/bin/sh
 # Copyright (C) 2026 x-shark
 _Vendor="thales"
-_Author="x-shark"
-_Maintainer="x-shark <unknown>"
+_Author="ArlongLi"
+_Maintainer="arlong2693@gmail.com"
 # Thales MV32-W / MV32-W-B (Gemalto Cinterion / Telit Cinterion) 5G M.2 module
 # - USB VID:PID 1e2d:00f2 (Gemalto M2M GmbH / Thales DIS)
 # - Qualcomm X65 (SDX65) platform, Foxconn-built firmware (revision prefix "FDE")
