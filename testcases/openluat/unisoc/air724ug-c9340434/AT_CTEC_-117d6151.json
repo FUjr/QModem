@@ -1,0 +1,11 @@
+{
+  "vendor": "openluat",
+  "platform": "unisoc",
+  "model": "air724ug",
+  "command": "AT+CTEC?",
+  "response_hex": "41542b435445433f0d0a0d0a2b435445433a20302c300d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-08T10:56:11Z",
+  "sanitized": true
+}

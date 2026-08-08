@@ -1,3 +1,8 @@
+# openluat
+Model | Platform | USB  | PCIe 
+--- | --- | --- | ---
+air724ug | unisoc |✔ usb(ecm,rndis) | ✘
+
 # huawei
 Model | Platform | USB  | PCIe 
 --- | --- | --- | ---

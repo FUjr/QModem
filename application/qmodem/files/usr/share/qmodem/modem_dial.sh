@@ -2,13 +2,14 @@
 source /lib/functions.sh
 #运行目录
 MODEM_RUNDIR="/var/run/qmodem"
-SCRIPT_DIR="/usr/share/qmodem"
+SCRIPT_DIR="${QMODEM_HOME:-/usr/share/qmodem}"
 
 modem_config=$1
 mkdir -p "${MODEM_RUNDIR}/${modem_config}_dir"
 log_file="${MODEM_RUNDIR}/${modem_config}_dir/dial_log"
 debug_subject="modem_dial"
 source "${SCRIPT_DIR}/generic.sh"
+source "${SCRIPT_DIR}/cmds/modem_dial.sh"
 touch $log_file
 
 exec_pre_dial()
@@ -413,7 +414,7 @@ unlock_sim()
         m_debug "pin code is already try"
     else
         
-        res=$(at "$at_port" "AT+CPIN=\"$pin\"")
+        res=$(cmd_dial_cpin_unlock "$at_port" "$pin")
         case "$?" in
             0)
                 m_debug "unlock sim card with pin code $pin success"
@@ -543,11 +544,11 @@ update_config()
 
 check_dial_prepare()
 {
-    cpin=$(at "$at_port" "AT+CPIN?")
+    cpin=$(cmd_dial_cpin_query "$at_port")
     get_sim_status "$cpin"
     [ "$manufacturer" = "neoway" ] && {
         local res
-        res=$(at $at_port 'AT+SIMCROSS=1,1;$MYCCID' | grep -q "ERROR")
+        res=$(cmd_dial_neoway_simcross_iccid "$at_port" | grep -q "ERROR")
         if [ $? -ne 0 ]; then
             sim_state_code="1"
         else
@@ -586,7 +587,7 @@ check_dial_prepare()
         config_fullfill=1
     fi
     if [ "$config_fullfill" = "1" ] && [ "$sim_fullfill" = "1" ] && [ "$netdev_fullfill" = "1" ] ;then
-        at "$at_port" "AT+CFUN=1"
+        cmd_dial_cfun_enable "$at_port"
         return 1
     else
         return 0
@@ -621,7 +622,7 @@ check_ip()
             ipaddr=$(echo "$config" | grep "ipv4address:" | awk '{print $2}' | cut -d'/' -f1)
             ipaddr="$ipaddr $(echo "$config" | grep "ipv6address:" | awk '{print $2}' | cut -d'/' -f1)"
         else
-            ipaddr=$(at "$at_port" "$check_ip_command" | grep +CGPADDR:)
+            ipaddr=$(cmd_dial_command "$at_port" "$check_ip_command" | grep +CGPADDR:)
         fi
 
         if [ -n "$ipaddr" ];then
@@ -1054,7 +1055,7 @@ ecm_hang()
             at_command="ATI"
             ;;
     esac
-    at "${at_port}" "${at_command}"
+    cmd_dial_command "${at_port}" "${at_command}"
     [ -n "$delay" ] && sleep "$delay"
 }
 
@@ -1180,7 +1181,7 @@ at_dial()
     fi
     [ -n "$apn" ] && apn_append=",\"$apn\"" || apn_append=""
     local at_command='AT+COPS=0,0'
-    tmp=$(at "${at_port}" "${at_command}")
+    tmp=$(cmd_dial_command "${at_port}" "${at_command}")
     pdp_type=$(echo $pdp_type | tr 'a-z' 'A-Z')
     case $manufacturer in
         "quectel")
@@ -1290,7 +1291,7 @@ at_dial()
                                 auth_num=0 ;;
                         esac
                         if [ -n "$username" ] || [ -n "$password" ] && [ "$auth_num" != "0" ] ; then
-                            plmn=$(at ${at_port} "AT+COPS=3,2;+COPS?" | grep "+COPS:" | sed 's/+COPS: //g' | cut -d',' -f3 | sed 's/\"//g' | cut -c1-5 | grep -o  -o '[0-9]\{5\}')
+                            plmn=$(cmd_dial_cops_numeric_query "$at_port" | grep "+COPS:" | sed 's/+COPS: //g' | cut -d',' -f3 | sed 's/\"//g' | cut -c1-5 | grep -o -o '[0-9]\{5\}')
                             [ -z "$plmn" ] && plmn="00000"
                             ppp_auth_command="AT^AUTHDATA=$pdp_index,$auth_num,$plmn,\"$username\",\"$password\""
                         fi
@@ -1305,7 +1306,7 @@ at_dial()
                     cgdcont_command="AT+CGDCONT=$pdp_index,\"$pdp_type\""$apn_append
                     ;;
                 "qualcomm")
-                    local cnmp=$(at ${at_port} "AT+CNMP?" | grep "+CNMP:" | sed 's/+CNMP: //g' | sed 's/\r//g')
+                    local cnmp=$(cmd_dial_cnmp_query "$at_port" | grep "+CNMP:" | sed 's/+CNMP: //g' | sed 's/\r//g')
                     at_command="AT+CNMP=$cnmp;+CNWINFO=1"
                     cgdcont_command="AT+CGDCONT=1,\"$pdp_type\""$apn_append
                     ;;
@@ -1361,10 +1362,10 @@ at_dial()
         	umbim -d $mbim_port connect 0 --apn $apn
 		 	;;
 		*)
-  			at "${at_port}" "${cgdcont_command}"
-            [ -n "$ppp_auth_command" ] && at "${at_port}" "$ppp_auth_command"
-            [ -n "$nat_cfg" ] && at "${at_port}" "$nat_cfg"
-        	at "${at_port}" "$at_command"
+			cmd_dial_command "${at_port}" "${cgdcont_command}"
+            [ -n "$ppp_auth_command" ] && cmd_dial_command "${at_port}" "$ppp_auth_command"
+            [ -n "$nat_cfg" ] && cmd_dial_command "${at_port}" "$nat_cfg"
+			cmd_dial_command "${at_port}" "$at_command"
 		 	;;
 	esac
 }
@@ -1373,9 +1374,17 @@ at_auto_dial()
 {
     case $manufacturer in
         "huawei")
-            case $platform in
+            case "$platform" in
                 "unisoc")
                     huawei_auto_dial_unisoc
+                    return 0
+                    ;;
+            esac
+            ;;
+        "openluat")
+            case "$platform" in
+                "unisoc")
+                    openluat_auto_dial_unisoc
                     return 0
                     ;;
             esac
@@ -1384,16 +1393,35 @@ at_auto_dial()
     return 1
 }
 
+openluat_auto_dial_unisoc()
+{
+    local at_command="AT+RNDISCALL=1"
+    local at_res
+    local at_res_log
+    m_debug "openluat_auto_dial: enable RNDIS/ECM auto dial(no monitor)"
+    m_debug "openluat_auto_dial: vendor:$manufacturer; platform:$platform; driver:$driver; command:$at_command; pdp_index:$pdp_index; at_port:$at_port"
+    at_res=$(cmd_dial_command "$at_port" "$at_command")
+    at_res_log=$(echo "$at_res" | tr '\r\n' '  ')
+    if echo "$at_res" | grep -q "OK"; then
+        m_debug "openluat_auto_dial: RNDIS/ECM enabled successfully"
+    else
+        m_debug "openluat_auto_dial: unexpected response from $at_command: $at_res_log"
+    fi
+    # Air724UG maintains the PDP connection itself. Always report auto-dial
+    # support so the generic AT dialer does not fall back to AT+COPS=0,0.
+    return 0
+}
+
 huawei_auto_dial_unisoc()
 {
     m_debug "huawei_auto_dial: auto dial(no monitor)"
     m_debug "huawei_auto_dial: vendor:$manufacturer; platform:$platform; driver:$driver; apn:$apn; command:$at_command; pdp_index:$pdp_index; huawei_dial_mode:$huawei_dial_mode; at_port:$at_port"
     # dial prepare
     cgdcont_command="AT+CGDCONT=$pdp_index,\"$pdp_type\",\"$apn\""
-    at "$at_port" "$cgdcont_command"
+    cmd_dial_command "$at_port" "$cgdcont_command"
     # get current auto dial setting
     at_command='AT^SETAUTODIAL?'
-    at_res=$(at "$at_port" "$at_command" | grep 'SETAUTO')
+    at_res=$(cmd_dial_command "$at_port" "$at_command" | grep 'SETAUTO')
     # return ^SETAUTODAIL:1,x
     current_setting=${at_res##*:}
     dial_status=$(echo "$current_setting" | cut -d ',' -f 1)
@@ -1403,7 +1431,7 @@ huawei_auto_dial_unisoc()
     if [ "$dial_status" = "0" ] || [ ! -z "$huawei_dial_mode" ] && [ "$current_dial_mode" != "$huawei_dial_mode" ]; then
         [ -n "$huawei_dial_mode" ] && dial_mode=",$huawei_dial_mode" || dial_mode=",4"
         at_command="AT^SETAUTODIAL=1$dial_mode"
-        at "$at_port" "$at_command"
+        cmd_dial_command "$at_port" "$at_command"
     fi
 }
 
@@ -1411,23 +1439,29 @@ auto_dial_hang_huawei_unisoc()
 {
     m_debug "huawei_auto_hang"
     at_command='AT^SETAUTODIAL?'
-    current_setting=$(at "$at_port" "$at_command" | grep 'SETAUTO')
+    current_setting=$(cmd_dial_command "$at_port" "$at_command" | grep 'SETAUTO')
     # return ^SETAUTODAIL:1,x
     current_setting=${current_setting##*:}
     dial_status=$(echo "$current_setting" | cut -d ',' -f 1)
     if [ "$dial_status" = "1" ]; then 
         at_command="AT^SETAUTODIAL=0"
-        at "$at_port" "$at_command"
+        cmd_dial_command "$at_port" "$at_command"
         m_debug "huawei_at_hang: auto hang done"
         m_debug "huawei_at_hang: turning radio off"
         off_cmd="AT+CFUN=0"
         on_cmd="AT+CFUN=1"
-        at "$at_port" "$off_cmd"
+        cmd_dial_command "$at_port" "$off_cmd"
         m_debug "huawei_at_hang: turning radio on"
-        at "$at_port" "$on_cmd"
+        cmd_dial_command "$at_port" "$on_cmd"
         return 0
     fi
     return 1
+}
+
+auto_dial_hang_openluat_unisoc()
+{
+    m_debug "openluat auto dial hang: keep modem PDP/RNDIS active; stop host interface only"
+    return 0
 }
 
 auto_dial_hang(){
@@ -1437,6 +1471,14 @@ auto_dial_hang(){
             case "$platform" in
                 "unisoc")
                     auto_dial_hang_huawei_unisoc
+                    return $?
+                    ;;
+            esac
+            ;;
+        "openluat")
+            case "$platform" in
+                "unisoc")
+                    auto_dial_hang_openluat_unisoc
                     return $?
                     ;;
             esac
@@ -1466,11 +1508,11 @@ ip_change_fm350()
         # m_debug "umbim config: ipv4=$ipv4_config, gateway=$gateway, netmask=$netmask, dns1=$ipv4_dns1, dns2=$ipv4_dns2"
     else
         at_command="AT+CGPADDR=$pdp_index"
-        response=$(at ${at_port} ${at_command})
+        response=$(cmd_dial_cgpaddr "$at_port" "$pdp_index")
         ipv4_config=$(echo "$response" | grep "+CGPADDR:" | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+"' | head -1 | tr -d '"')
         gateway="${ipv4_config%.*}.1"
 
-        response=$(at ${at_port} "AT+GTDNS=$pdp_index")
+        response=$(cmd_dial_gtdns "$at_port" "$pdp_index")
         ipv4_dns=$(echo "$response" | grep "+GTDNS:" | head -1)
         ipv4_dns1=$(echo "$ipv4_dns" | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+"' | head -1 | tr -d '"')
         ipv4_dns2=$(echo "$ipv4_dns" | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+"' | tail -1 | tr -d '"')
@@ -1518,7 +1560,7 @@ quectel_unisoc_ethernet()
             check_ethernet_cmd="AT+QCFG=\"ethernet\""
             time=0
             while [ $time -lt 5 ]; do
-                result=$(at $at_port $check_ethernet_cmd | grep "+QCFG:")
+                result=$(cmd_dial_command "$at_port" "$check_ethernet_cmd" | grep "+QCFG:")
                 if [ -n "$result" ]; then
                     if [ -n "$(echo $result | grep "ethernet\",1")" ]; then
                         echo "1"
@@ -1544,7 +1586,7 @@ quectel_qualcomm_ethernet()
 
             time=0
             while [ $time -lt 5 ]; do
-                eth_driver_result=$(at $at_port $eth_driver_at | grep "+QETH:")
+                eth_driver_result=$(cmd_dial_command "$at_port" "$eth_driver_at" | grep "+QETH:")
                 time=$(($time+1))
                 sleep 1
                 if [ -n "$eth_driver_result" ];then
@@ -1553,7 +1595,7 @@ quectel_qualcomm_ethernet()
             done
             time=0
             while [ $time -lt 5 ]; do
-                data_interface_result=$(at $at_port $data_interface_at | grep "+QCFG:")
+                data_interface_result=$(cmd_dial_command "$at_port" "$data_interface_at" | grep "+QCFG:")
                 time=$(($time+1))
                 sleep 1
                 if [ -n "$data_interface_result" ];then
@@ -1589,14 +1631,14 @@ handle_ip_change()
 
 check_cfun(){
     at_command="AT+CFUN?"
-    response=$(at ${at_port} "${at_command}")
+    response=$(cmd_dial_command "$at_port" "${at_command}")
     cfun_status=$(echo "$response" | tr -d "\r" | grep "+CFUN:" | awk '{print $2}')
     cfun_status=$(echo "$cfun_status" | cut -d',' -f1)
     if [ "$cfun_status" = "1" ]; then
         return 0
     else
         at_command="AT+CFUN=1"
-        response=$(at ${at_port} "${at_command}")
+        response=$(cmd_dial_command "$at_port" "${at_command}")
         return 1
     fi
 }

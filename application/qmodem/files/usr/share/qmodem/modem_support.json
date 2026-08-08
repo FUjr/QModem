@@ -1,6 +1,21 @@
 {
     "modem_support": {
         "usb": {
+            "air724ug": {
+                "manufacturer_id": "1782",
+                "manufacturer": "openluat",
+                "platform": "unisoc",
+                "data_interface": "usb",
+                "pdp_index": "5",
+                "wcdma_band": "0",
+                "lte_band": "1/3/5/8/34/38/39/40/41",
+                "nsa_band": "0",
+                "sa_band": "0",
+                "modes": [
+                    "ecm",
+                    "rndis"
+                ]
+            },
             "s10": {
                 "manufacturer_id": "12dc",
                 "manufacturer": "huawei",
