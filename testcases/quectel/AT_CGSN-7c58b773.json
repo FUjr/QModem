@@ -1,0 +1,10 @@
+{
+  "vendor": "quectel",
+  "command": "AT+CGSN",
+  "response_hex": "41542b4347534e0d0d0a3836303030303030303030303031320d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-07T00:00:00Z",
+  "sanitized": true,
+  "source": "example"
+}

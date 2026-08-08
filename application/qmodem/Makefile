@@ -26,7 +26,7 @@ define Package/$(PKG_NAME)
   		+ubus-at-daemon +tom_modem +terminfo +sms-tool_q \
 		+modem_scan \
 		+jq +bc\
-		+coreutils +coreutils-stat \
+		+coreutils +coreutils-stat +xxd \
 		+usbutils \
 		+PACKAGE_luci-app-qmodem_INCLUDE_rdisc6:rdisc6 \
 		+PACKAGE_luci-app-qmodem_INCLUDE_ndisc6:ndisc6 \

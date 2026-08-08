@@ -101,3 +101,8 @@
 - [gl-inet/gl-modem-at](https://github.com/gl-inet/gl-modem-at)
 - [ouyangzq/sendat](https://github.com/ouyangzq/sendat)
 - [qosmio/nss-packages](https://github.com/qosmio/nss-packages) — 感谢作者为 Qualcomm NSS 驱动包所做的出色工作
+## Vendor AT fixture 开发
+
+所有 vendor 和拨号实现发送的 AT 指令统一定义在 `application/qmodem/files/usr/share/qmodem/cmds/`。Vendor、generic、modem 工具及拨号脚本只能调用 `cmd_*` 封装；CI 会拒绝这些文件中绕过该层的 `at` / `fastat` 调用。
+
+在设备上执行 `uci set qmodem.main.testcase_collect=1 && uci commit qmodem` 开启采集，触发待测试的模组功能后运行 `qmodem_collect pack`。在开发机上用 `scripts/import_testcases.sh <archive.tar.gz>` 导入。Fixture 存放于 `testcases/<vendor>/`，可选的方法级输出快照存放于 `expected/`。格式、脱敏规则和回放命令见 [testcases/README.md](testcases/README.md)。

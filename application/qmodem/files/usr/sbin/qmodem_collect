@@ -1,0 +1,133 @@
+#!/bin/sh
+# qmodem_collect - pack collected AT command testcases (fixtures) for submission
+#
+# workflow:
+#   uci set qmodem.main.testcase_collect=1 && uci commit qmodem
+#   (exercise modem features via LuCI/ubus/CLI)
+#   qmodem_collect pack          # sanitized tarball in /tmp
+#   qmodem_collect pack --raw    # keep raw responses (may contain IMEI/IMSI/...)
+# then scp the tarball off the device and run scripts/import_testcases.sh in the repo.
+
+COLLECT_DIR="${QMODEM_COLLECT_DIR:-/tmp/qmodem/testcases}"
+
+usage()
+{
+    echo "usage: qmodem_collect <status|pack [--raw]|clear>" >&2
+    exit 1
+}
+
+collect_enabled()
+{
+    [ "$(uci -q get qmodem.main.testcase_collect 2>/dev/null)" = "1" ]
+}
+
+#mask long digit runs (IMEI/IMSI/ICCID/phone numbers), keeping length and
+#first/last 2 digits so parsers still see plausible values
+mask_digits()
+{
+    awk '{
+        line=$0; out=""
+        while (match(line, /[0-9]{11,20}/)) {
+            num=substr(line, RSTART, RLENGTH)
+            zeros=""
+            for (i=0; i<RLENGTH-4; i++) zeros=zeros "0"
+            out=out substr(line, 1, RSTART-1) substr(num, 1, 2) zeros substr(num, RLENGTH-1, 2)
+            line=substr(line, RSTART+RLENGTH)
+        }
+        print out line
+    }'
+}
+
+cmd_status()
+{
+    if collect_enabled; then
+        echo "testcase_collect: on"
+    else
+        echo "testcase_collect: off (enable: uci set qmodem.main.testcase_collect=1 && uci commit qmodem)"
+    fi
+    if [ -d "$COLLECT_DIR" ]; then
+        echo "collect dir: $COLLECT_DIR ($(find "$COLLECT_DIR" -name '*.json' 2>/dev/null | wc -l) fixture files)"
+    else
+        echo "collect dir: $COLLECT_DIR (empty)"
+    fi
+}
+
+cmd_clear()
+{
+    [ -d "$COLLECT_DIR" ] && rm -rf "$COLLECT_DIR"
+    echo "cleared $COLLECT_DIR"
+}
+
+cmd_pack()
+{
+    local raw=0
+    [ "$1" = "--raw" ] && raw=1
+    [ -d "$COLLECT_DIR" ] || {
+        echo "nothing collected in $COLLECT_DIR" >&2
+        exit 1
+    }
+    local work out_file file count
+    work=$(mktemp -d) || exit 1
+    count=0
+    #copy fixtures, sanitizing unless --raw
+    for file in $(find "$COLLECT_DIR" -name '*.json' | sort); do
+        local rel="${file#$COLLECT_DIR/}"
+        mkdir -p "$work/$(dirname "$rel")"
+        if [ "$raw" = "1" ]; then
+            cp "$file" "$work/$rel"
+        elif [ "${rel#*/expected/}" != "$rel" ]; then
+            mask_digits < "$file" > "$work/$rel"
+            jq -e . "$work/$rel" >/dev/null 2>&1 || {
+                rm -rf "$work"
+                echo "failed to sanitize expected snapshot: $file" >&2
+                exit 1
+            }
+        else
+            local cmd_masked resp_hex raw_response sanitized_response
+            cmd_masked=$(jq -r '.command // ""' "$file" | mask_digits)
+            raw_response="$work/.response.raw"
+            sanitized_response="$work/.response.sanitized"
+            resp_hex=$(jq -r '.response_hex // empty' "$file")
+            if [ -n "$resp_hex" ]; then
+                printf '%s' "$resp_hex" | xxd -r -p > "$raw_response" || {
+                    rm -rf "$work"
+                    echo "invalid response_hex in fixture: $file" >&2
+                    exit 1
+                }
+            else
+                jq -j '.response // ""' "$file" > "$raw_response"
+            fi
+            mask_digits < "$raw_response" > "$sanitized_response"
+            resp_hex=$(xxd -p "$sanitized_response" | tr -d '\n') || {
+                rm -rf "$work"
+                echo "failed to encode fixture response: $file" >&2
+                exit 1
+            }
+            jq --arg c "$cmd_masked" --arg h "$resp_hex" \
+                '.command=$c | .response_hex=$h | del(.response) | .sanitized=true' "$file" > "$work/$rel" || {
+                rm -rf "$work"
+                echo "failed to sanitize fixture: $file" >&2
+                exit 1
+            }
+            rm -f "$raw_response" "$sanitized_response"
+        fi
+        count=$((count + 1))
+    done
+    out_file="/tmp/qmodem_testcases_$(date +%Y%m%d_%H%M%S).tar.gz"
+    tar -czf "$out_file" -C "$work" . || {
+        rm -rf "$work"
+        echo "failed to create tarball" >&2
+        exit 1
+    }
+    rm -rf "$work"
+    [ "$raw" = "1" ] || echo "sanitized: long digit sequences (including expected snapshots) are masked"
+    echo "packed $count fixture files -> $out_file"
+    echo "next: scp root@<device>:$out_file . && scripts/import_testcases.sh $out_file"
+}
+
+case "$1" in
+    status) cmd_status ;;
+    pack) cmd_pack "$2" ;;
+    clear) cmd_clear ;;
+    *) usage ;;
+esac

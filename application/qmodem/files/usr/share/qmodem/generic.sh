@@ -1,6 +1,6 @@
 #!/bin/sh
-SCRIPT_DIR="/usr/share/qmodem"
-source /usr/share/libubox/jshn.sh
+SCRIPT_DIR="${QMODEM_HOME:-/usr/share/qmodem}"
+source "${QMODEM_JSHN:-/usr/share/libubox/jshn.sh}"
 source "${SCRIPT_DIR}/modem_util.sh"
 add_plain_info_entry()
 {
@@ -404,8 +404,7 @@ get_dns()
     local public_dns2_ipv6="2402:4e00::"
 
     #获取DNS地址
-    at_command="AT+GTDNS=${pdp_index}"
-    local response=$(at ${at_port} ${at_command} | grep "+GTDNS: ")
+    local response=$(cmd_gtdns "$at_port" "$pdp_index" | grep "+GTDNS: ")
 
     local ipv4_dns1=$(echo "${response}" | awk -F'"' '{print $2}' | awk -F',' '{print $1}')
     [ -z "$ipv4_dns1" ] && {
@@ -563,9 +562,8 @@ get_connect_status()
             connect_status="Yes"
         fi
     else
-        at_cmd="AT+CGACT?"
         expect="+CGACT:"
-        result=`at  $at_port $at_cmd | grep $expect|tr '\r' '\n'`
+        result=`cmd_cgact_query "$at_port" | grep $expect|tr '\r' '\n'`
         # for fm350 pdp_index 0, GGACT will return empty,so we need to add it manually
         if [ -z "$result" ]; then
             case $vendor in
@@ -580,11 +578,8 @@ get_connect_status()
         fi
         
         for pdp_index in `echo  "$result" | tr -d "\r" | awk -F'[,:]' '$3 == 1 {print $2}'`; do
-            at_cmd="AT+CGPADDR=%s"
-            at_cmd=$(printf "$at_cmd" "$pdp_index")
             expect="+CGPADDR:"
-
-            result=$(at  $at_port $at_cmd | grep $expect)
+            result=$(cmd_cgpaddr "$at_port" "$pdp_index" | grep $expect)
             if [ -n "$result" ];then
                 ipv6=$(echo $result | grep -oE "\b([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\b")
                 ipv4=$(echo $result | grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b")
@@ -637,14 +632,13 @@ get_info()
 
 soft_reboot()
 {
-    at_command="AT+CFUN=1,1"
-    at $at_port $at_command
+    cmd_cfun_soft_reboot "$at_port"
 }
 
 hard_reboot()
 {
     #get power_gpio_pin
-    source /lib/functions.sh
+    source "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
     config_load qmodem
     config_foreach get_gpio_by_slot modem-slot
     if [ -z "$gpio" ] || [ -z "$gpio_up" ] || [ -z "$gpio_down" ]; then
@@ -686,7 +680,7 @@ get_gpio_by_device()
 
 get_reboot_caps()
 {
-    source /lib/functions.sh
+    source "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
     config_load qmodem
     config_foreach get_gpio_by_slot modem-slot
     if [ -z "$gpio" ] || [ -z "$gpio_up" ] || [ -z "$gpio_down" ]; then
@@ -742,7 +736,7 @@ set_5g_lan()
 
 get_modem_disabled_features()
 {
-    . /lib/functions.sh
+    . "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
     config_load qmodem 
     config_list_foreach $config_section disabled_features _add_disabled_features
 }
@@ -754,7 +748,7 @@ vendor_get_disabled_features()
 
 get_sms_capabilities() {
     local res sms_cap
-    res=$(at $at_port "AT+CPMS?" | grep "CPMS:" | xargs)
+    res=$(cmd_cpms_query "$at_port" | grep "CPMS:" | xargs)
     [ -z "$res" ] && return
 
     sms_cap=${res##*+CPMS:}
@@ -805,9 +799,9 @@ set_sms_storage()
         return
     fi
     if [ "$mem3" == "Loading" ];then
-        res=$(at $at_port "AT+CPMS=\"$mem1\",\"$mem2\"")
+        res=$(cmd_cpms_set "$at_port" "$mem1" "$mem2")
     else
-        res=$(at $at_port "AT+CPMS=\"$mem1\",\"$mem2\",\"$mem3\"")
+        res=$(cmd_cpms_set "$at_port" "$mem1" "$mem2" "$mem3")
     fi
     
     json_select "result"
@@ -838,7 +832,7 @@ clear_usage_stats()
 
 get_global_disabled_features()
 {
-    . /lib/functions.sh
+    . "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
     config_load qmodem 
     config_list_foreach main disabled_features _add_disabled_features
 }
@@ -856,3 +850,7 @@ _copyright()
     json_add_string "Maintainer" "${_Maintainer}"
     json_close_object
 }
+
+#generic AT command wrappers (cmds layer); vendor-specific wrappers
+#are loaded by modem_ctrl.sh from cmds/<vendor>.sh
+source "${SCRIPT_DIR}/cmds/generic.sh"
