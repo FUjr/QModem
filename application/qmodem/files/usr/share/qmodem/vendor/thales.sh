@@ -8,7 +8,7 @@ _Maintainer="arlong2693@gmail.com"
 # - Qualcomm X65 (SDX65) platform, Foxconn-built firmware (revision prefix "FDE")
 # - Self-contained vendor script based on the generic template. The command set
 #   below is verified against TC_MV32-W_AT_Command_Reference_Guide_r2.pdf:
-#     AT^SETCONFIG   15.50  USB RMNET/MBIM data mode switch (AT^ form documented)
+#     AT+SETCONFIG   15.50  USB RMNET/MBIM data mode switch
 #     AT+MODESWITCH  15.49  USB/PCIe mode switch (manual uses AT+ only)
 #     AT^SLMODE      15.24  network preference (AT^ form documented)
 #     AT+BAND_PREF   15.32  band lock (manual uses AT+ only)
@@ -47,14 +47,14 @@ base_info()
     _get_temperature
 }
 
-# MV32-W switches the USB data path with AT^SETCONFIG (section 15.50):
-#   AT^SETCONFIG?  -> +SETCONFIG:0  (MBIM mode)
-#                 -> +SETCONFIG:1  (RmNet mode)
+# MV32-W switches the USB data path with AT+SETCONFIG (section 15.50):
+#   AT+SETCONFIG?  -> +SETCONFIG:0  (Now is MBIM mode)
+#                 -> +SETCONFIG:1  (Now is RmNet mode)
 get_mode()
 {
     local mode_num
     local mode
-    ucfg=$(at $at_port "AT^SETCONFIG?")
+    ucfg=$(at $at_port "AT+SETCONFIG?")
     config_type=$(echo "$ucfg" | grep -o '+SETCONFIG: *[0-9]' | grep -o '[0-9]' | xargs)
     if [ "$config_type" = "0" ]; then
         mode_num="0"
@@ -101,7 +101,7 @@ set_mode()
         ;;
     esac
     #set modem
-    at_command="AT^SETCONFIG=${mode_num}"
+    at_command="AT+SETCONFIG=${mode_num}"
     res=$(at "${at_port}" "${at_command}")
     json_select "result"
     json_add_string "set_mode" "$res"

@@ -550,7 +550,7 @@
     "thales": {
         "qualcomm": [
             {
-                "Switch USB Data Mode (MBIM/RMNET) > AT^SETCONFIG=0/1": "AT^SETCONFIG?"
+                "Switch USB Data Mode (MBIM/RMNET) > AT+SETCONFIG=0/1": "AT+SETCONFIG?"
             },
             {
                 "Switch USB/PCIe Mode > AT+MODESWITCH?": "AT+MODESWITCH?"

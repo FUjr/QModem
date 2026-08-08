@@ -606,7 +606,7 @@
 	"thales": {
 		"qualcomm": [
 			{
-				"切换USB数据模式(MBIM/RMNET) > AT^SETCONFIG=0/1": "AT^SETCONFIG?"
+				"切换USB数据模式(MBIM/RMNET) > AT+SETCONFIG=0/1": "AT+SETCONFIG?"
 			},
 			{
 				"切换USB/PCIe模式 > AT+MODESWITCH?": "AT+MODESWITCH?"
