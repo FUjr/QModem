@@ -39,14 +39,39 @@ testcases/
 uci set qmodem.main.testcase_collect=1 && uci commit qmodem
 # 通过 LuCI / ubus / CLI 触发各功能（base_info、cell_info、锁频、锁小区……）
 qmodem_collect status        # 查看已采集数量
-qmodem_collect pack          # 打包并脱敏到 /tmp/qmodem_testcases_<时间戳>.tar.gz
+qmodem_collect pack          # 默认脱敏并加密到 /tmp/qmodem_feedback_<时间戳>.tar
+qmodem_collect pack --unencrypted # 明确要求生成未加密 tar.gz
 qmodem_collect clear         # 清空采集目录（下一轮采集前）
 ```
+
+默认编译选项会安装 `qmodem-seal`。加密打包结束后会显示一个仅属于本次
+反馈的“审阅密码/密钥”（`review key`），提交者可用输出中的命令解密并检查
+内容。它是随机生成的高强度密钥，而不是要求用户记忆的密码。上传反馈包时
+不要同时公开该密钥。维护者使用未公开的 identity token 解密同一文件。
+
+反馈者应在提交前使用 review key 解密反馈包，确认其中只包含愿意公开的指令
+响应，并确认默认脱敏结果符合预期。加密用于保护公开传输和存储过程，不能
+代替反馈者自己的内容检查。反馈包中的数据可能被维护者选入仓库 testcase；
+正式合入前还会再次人工审阅和脱敏，但这也不能替代提交前检查。
+
+其他维护者需要处理反馈时，可只解压并把 `manifest.json` 发给 identity token
+持有者。token 持有者无需下载较大的 `payload.enc`，执行下列命令即可恢复该包
+的 review key，再通过私密渠道交给维护者：
+
+```sh
+qmodem-seal review-key --manifest manifest.json
+```
+
+如果固件编译时取消了 `qmodem-seal`，`pack` 会明确警告并回退到未加密
+tar.gz；请在上传前自行检查。`--unencrypted` 可在已安装加密组件时主动要求
+明文包。正式发布 recipient 尚未配置时，加密打包会拒绝执行，不会静默生成
+明文。
 
 开发机：
 
 ```sh
-scp root@<device>:/tmp/qmodem_testcases_*.tar.gz .
+scp root@<device>:/tmp/qmodem_feedback_*.tar .
+# 维护者先执行 qmodem-seal decrypt，得到 qmodem_testcases_*.tar.gz
 scripts/import_testcases.sh qmodem_testcases_*.tar.gz
 git add testcases && git commit
 ```

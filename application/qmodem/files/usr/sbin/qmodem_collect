@@ -4,15 +4,28 @@
 # workflow:
 #   uci set qmodem.main.testcase_collect=1 && uci commit qmodem
 #   (exercise modem features via LuCI/ubus/CLI)
-#   qmodem_collect pack          # sanitized tarball in /tmp
-#   qmodem_collect pack --raw    # keep raw responses (may contain IMEI/IMSI/...)
+#   qmodem_collect pack                 # encrypted when qmodem-seal is available
+#   qmodem_collect pack --unencrypted   # explicitly create a plaintext tarball
+#   qmodem_collect pack --raw           # keep identifiers (still encrypted by default)
 # then scp the tarball off the device and run scripts/import_testcases.sh in the repo.
 
 COLLECT_DIR="${QMODEM_COLLECT_DIR:-/tmp/qmodem/testcases}"
+SEAL_CONFIG="${QMODEM_SEAL_CONFIG:-/usr/share/qmodem/feedback-recipient.conf}"
+PACK_PLAINTEXT=
+PACK_WORK=
+
+cleanup_pack()
+{
+    [ -z "$PACK_PLAINTEXT" ] || rm -f "$PACK_PLAINTEXT"
+    [ -z "$PACK_WORK" ] || rm -rf "$PACK_WORK"
+}
+
+trap cleanup_pack EXIT
+trap 'exit 1' HUP INT TERM
 
 usage()
 {
-    echo "usage: qmodem_collect <status|pack [--raw]|clear>" >&2
+    echo "usage: qmodem_collect <status|pack [--raw] [--unencrypted]|clear>" >&2
     exit 1
 }
 
@@ -40,6 +53,7 @@ mask_digits()
 
 cmd_status()
 {
+    local seal_bin recipient_id
     if collect_enabled; then
         echo "testcase_collect: on"
     else
@@ -49,6 +63,17 @@ cmd_status()
         echo "collect dir: $COLLECT_DIR ($(find "$COLLECT_DIR" -name '*.json' 2>/dev/null | wc -l) fixture files)"
     else
         echo "collect dir: $COLLECT_DIR (empty)"
+    fi
+    seal_bin="${QMODEM_SEAL_BIN:-qmodem-seal}"
+    if command -v "$seal_bin" >/dev/null 2>&1; then
+        recipient_id="${QMODEM_SEAL_RECIPIENT_ID:-$(sed -n 's/^recipient_id=//p' "$SEAL_CONFIG" 2>/dev/null | head -n 1)}"
+        if [ -n "$recipient_id" ]; then
+            echo "feedback encryption: ready ($recipient_id)"
+        else
+            echo "feedback encryption: qmodem-seal installed, recipient not configured"
+        fi
+    else
+        echo "feedback encryption: unavailable (pack falls back to plaintext)"
     fi
 }
 
@@ -60,14 +85,23 @@ cmd_clear()
 
 cmd_pack()
 {
-    local raw=0
-    [ "$1" = "--raw" ] && raw=1
+    local raw=0 unencrypted=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --raw) raw=1 ;;
+            --unencrypted) unencrypted=1 ;;
+            *) usage ;;
+        esac
+        shift
+    done
     [ -d "$COLLECT_DIR" ] || {
         echo "nothing collected in $COLLECT_DIR" >&2
         exit 1
     }
-    local work out_file file count
+    local work out_file file count timestamp inner_file seal_work seal_bin
+    local recipient recipient_id seal_output review_key wrapped_key_hex
     work=$(mktemp -d) || exit 1
+    PACK_WORK="$work"
     count=0
     #copy fixtures, sanitizing unless --raw
     for file in $(find "$COLLECT_DIR" -name '*.json' | sort); do
@@ -113,21 +147,97 @@ cmd_pack()
         fi
         count=$((count + 1))
     done
-    out_file="/tmp/qmodem_testcases_$(date +%Y%m%d_%H%M%S).tar.gz"
-    tar -czf "$out_file" -C "$work" . || {
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    inner_file="/tmp/qmodem_testcases_${timestamp}.tar.gz"
+    PACK_PLAINTEXT="$inner_file"
+    tar -czf "$inner_file" -C "$work" . || {
         rm -rf "$work"
         echo "failed to create tarball" >&2
         exit 1
     }
     rm -rf "$work"
+    PACK_WORK=
     [ "$raw" = "1" ] || echo "sanitized: long digit sequences (including expected snapshots) are masked"
+
+    seal_bin="${QMODEM_SEAL_BIN:-qmodem-seal}"
+    if [ "$unencrypted" = "0" ] && ! command -v "$seal_bin" >/dev/null 2>&1; then
+        echo "WARNING: qmodem-seal is not installed; creating an UNENCRYPTED feedback archive" >&2
+        echo "WARNING: review the archive before uploading it" >&2
+        unencrypted=1
+    fi
+
+    if [ "$unencrypted" = "1" ]; then
+        out_file="$inner_file"
+        PACK_PLAINTEXT=
+        echo "encryption: OFF"
+        echo "packed $count fixture files -> $out_file"
+        echo "next: inspect the archive, then upload it to the testcase feedback issue"
+        return
+    fi
+
+    recipient="${QMODEM_SEAL_RECIPIENT:-$(sed -n 's/^recipient=//p' "$SEAL_CONFIG" 2>/dev/null | head -n 1)}"
+    recipient_id="${QMODEM_SEAL_RECIPIENT_ID:-$(sed -n 's/^recipient_id=//p' "$SEAL_CONFIG" 2>/dev/null | head -n 1)}"
+    [ -n "$recipient" ] || {
+        rm -f "$inner_file"
+        echo "qmodem-seal is installed but no feedback recipient is configured" >&2
+        echo "use --unencrypted only after reviewing the privacy warning" >&2
+        exit 1
+    }
+
+    seal_work=$(mktemp -d) || { rm -f "$inner_file"; exit 1; }
+    PACK_WORK="$seal_work"
+    seal_output=$("$seal_bin" seal --recipient "$recipient" --input "$inner_file" \
+        --payload "$seal_work/payload.enc" --key "$seal_work/key.enc") || {
+        rm -rf "$seal_work"
+        rm -f "$inner_file"
+        echo "failed to encrypt feedback archive" >&2
+        exit 1
+    }
+    review_key=$(printf '%s\n' "$seal_output" | sed -n 's/^review_key=//p')
+    [ -n "$review_key" ] || {
+        rm -rf "$seal_work"
+        rm -f "$inner_file"
+        echo "qmodem-seal did not return a review key" >&2
+        exit 1
+    }
+    wrapped_key_hex=$(xxd -p "$seal_work/key.enc" | tr -d '\n') || {
+        rm -rf "$seal_work"
+        rm -f "$inner_file"
+        echo "failed to encode wrapped feedback key" >&2
+        exit 1
+    }
+    jq -n --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg recipient_id "$recipient_id" --arg wrapped_key_hex "$wrapped_key_hex" \
+        --argjson sanitized "$([ "$raw" = 1 ] && echo false || echo true)" \
+        '{format:"qmodem-feedback-v1", encrypted:true, recipient_id:$recipient_id,
+          created_at:$created, sanitized:$sanitized, payload:"payload.enc",
+          wrapped_key_hex:$wrapped_key_hex}' \
+        > "$seal_work/manifest.json" || {
+        rm -rf "$seal_work"
+        rm -f "$inner_file"
+        exit 1
+    }
+    out_file="/tmp/qmodem_feedback_${timestamp}.tar"
+    tar -cf "$out_file" -C "$seal_work" manifest.json payload.enc || {
+        rm -rf "$seal_work"
+        rm -f "$inner_file"
+        echo "failed to create encrypted feedback package" >&2
+        exit 1
+    }
+    rm -rf "$seal_work"
+    PACK_WORK=
+    rm -f "$inner_file"
+    PACK_PLAINTEXT=
+    echo "encryption: ON ($recipient_id)"
     echo "packed $count fixture files -> $out_file"
-    echo "next: scp root@<device>:$out_file . && scripts/import_testcases.sh $out_file"
+    echo "review password/key (keep private): $review_key"
+    echo "verify: qmodem-seal decrypt --review-key --input $out_file --output /tmp/qmodem_review.tar.gz"
+    echo "upload only $out_file; do not post the review key"
 }
 
 case "$1" in
     status) cmd_status ;;
-    pack) cmd_pack "$2" ;;
+    pack) shift; cmd_pack "$@" ;;
     clear) cmd_clear ;;
     *) usage ;;
 esac
