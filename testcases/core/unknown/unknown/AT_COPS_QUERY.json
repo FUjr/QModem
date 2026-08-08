@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "vendor": "core",
+  "platform": "unknown",
+  "model": "unknown",
+  "command": "AT+COPS?",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "registered-numeric",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b434f50533f0d0d0a2b434f50533a20302c322c223436303031222c370d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "core.cops.numeric",
+          "context": {},
+          "expected": {"plmn": "46001"}
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "vendor": "simcom",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT+CNWSEARCH",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "mixed-neighbors",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b434e575345415243480d0a2b4c54455f43454c4c3a20302c30312c302c302c382c333734302c3230332c2d39352c2d31320d0a2b4e525f4e47485f43454c4c3a203632373236342c39352c2d3130302c2d31340d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "simcom.cnwsearch",
+          "context": {},
+          "expected": {"cells":[{"rat":"LTE","mnc":"01","band":"8","arfcn":"3740","pci":"203","rsrp":"-95","rsrq":"-12"},{"rat":"NR","arfcn":"627264","pci":"95","rsrp":"-100","rsrq":"-14"}]}
+        }
+      ]
+    }
+  ]
+}

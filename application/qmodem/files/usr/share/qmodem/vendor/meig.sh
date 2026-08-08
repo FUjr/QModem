@@ -7,6 +7,14 @@ _Maintainer="sfwtw <unkown>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
 debug_subject="meig_ctrl"
 
+_meig_parse()
+{
+    local parser_id="$1" raw="$2" context="$3"
+    [ -n "$context" ] || context='{}'
+    printf '%s' "$raw" | "${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh" \
+        "$parser_id" --platform "${platform:-unknown}" --model "${model:-unknown}" --context-json "$context"
+}
+
 vendor_get_disabled_features(){
     json_add_string "" "NeighborCell"
     json_add_string "" "LockBand"
@@ -14,13 +22,17 @@ vendor_get_disabled_features(){
 
 # Return raw data   
 get_imei(){
-    imei=$(cmd_cgsn "$at_port" | grep -o "[0-9]\{15\}")
+    local raw parsed
+    raw=$(cmd_cgsn "$at_port"); parsed=$(_meig_parse meig.cgsn "$raw")
+    imei=$(printf '%s' "$parsed"|jq -r '.imei // empty')
     json_add_string "imei" "$imei"
 }
 
 set_imei(){
     local imei="$1"
-    res=$(cmd_lctsn_set_imei "$at_port" "$imei")
+    local raw parsed
+    raw=$(cmd_lctsn_set_imei "$at_port" "$imei"); parsed=$(_meig_parse meig.lctsn.set "$raw")
+    res=$(printf '%s' "$parsed"|jq -r '.result // empty')
     json_select "result"
     json_add_string "set_imei" "$res"
     json_close_object
@@ -30,7 +42,9 @@ set_imei(){
 # Get dial mode
 get_mode()
 {
-    local mode_num=$(cmd_ser_query "$at_port" | grep "+SER:" | sed 's/+SER: //g' | sed 's/\r//g')
+    local raw parsed
+    raw=$(cmd_ser_query "$at_port"); parsed=$(_meig_parse meig.ser "$raw")
+    local mode_num=$(printf '%s' "$parsed"|jq -r '.mode_num // empty')
     local mode
     case "$platform" in
         "qualcomm")
@@ -98,7 +112,9 @@ set_mode()
             mode_num="1"
         ;;
     esac
-    res=$(cmd_ser_set "$at_port" "$mode_num")
+    local raw parsed
+    raw=$(cmd_ser_set "$at_port" "$mode_num"); parsed=$(_meig_parse meig.ser.set "$raw")
+    res=$(printf '%s' "$parsed"|jq -r '.result // empty')
     json_select "result"
     json_add_string "set_mode" "$res"
     json_close_object
@@ -107,8 +123,9 @@ set_mode()
 # Get network preference
 get_network_prefer()
 {
-    local response=$(cmd_syscfgex_query "$at_port" | grep "\^SYSCFGEX:" | sed 's/\^SYSCFGEX://g')
-    local network_type_num=$(echo "$response" | awk -F'"' '{print $2}')
+    local raw parsed
+    raw=$(cmd_syscfgex_query "$at_port"); parsed=$(_meig_parse meig.syscfgex "$raw")
+    local network_type_num=$(printf '%s' "$parsed"|jq -r '.rat_codes // empty')
     
     network_prefer_2g="0"
     network_prefer_3g="0"
@@ -167,7 +184,9 @@ set_network_prefer()
     if [ -z "$network_prefer_config" ]; then
         network_prefer_config="00"
     fi
-    res=$(cmd_syscfgex_set "$at_port" "$network_prefer_config")
+    local raw parsed
+    raw=$(cmd_syscfgex_set "$at_port" "$network_prefer_config"); parsed=$(_meig_parse meig.syscfgex.set "$raw")
+    res=$(printf '%s' "$parsed"|jq -r '.result // empty')
     json_select "result"
     json_add_string "set_network_prefer" "$res"
     json_close_object
@@ -190,11 +209,9 @@ get_temperature()
     local degree_symbol=$(printf "\xc2\xb0")C 
 
 # 根据平台选择不同的AT命令并提取温度值
-if [ "$platform" = "unisoc" ]; then
-    response=$(cmd_temp "$at_port" | grep 'TEMP: "soc-thmzone"' | awk -F'"' '{print $4}')
-else
-    response=$(cmd_temp "$at_port" | grep 'TEMP: "cpu0-0-usr"' | awk -F'"' '{print $4}')
- fi
+local raw parsed
+raw=$(cmd_temp "$at_port"); parsed=$(_meig_parse meig.temp "$raw")
+response=$(printf '%s' "$parsed"|jq -r '.temperature // empty')
 
 # 处理响应值
 if [ -n "$response" ]; then
@@ -218,9 +235,10 @@ base_info()
 {
     m_debug  "Meig base info"
 
-    name=$(cmd_cgmm "$at_port" | sed -n '2p' | sed 's/\r//g')
-    manufacturer=$(cmd_cgmi "$at_port" | sed -n '2p' | sed 's/+CGMI: //g' | sed 's/\r//g')
-    revision=$(cmd_cgmr "$at_port" | grep "+CGMR: " | awk -F': ' '{print $2}' | sed 's/\r//g')
+    local raw parsed
+    raw=$(cmd_cgmm "$at_port"); parsed=$(_meig_parse meig.cgmm "$raw"); name=$(printf '%s' "$parsed"|jq -r '.name // empty')
+    raw=$(cmd_cgmi "$at_port"); parsed=$(_meig_parse meig.cgmi "$raw"); manufacturer=$(printf '%s' "$parsed"|jq -r '.manufacturer // empty')
+    raw=$(cmd_cgmr "$at_port"); parsed=$(_meig_parse meig.cgmr "$raw"); revision=$(printf '%s' "$parsed"|jq -r '.revision // empty')
     class="Base Information"
     add_plain_info_entry "name" "$name" "Name"
     add_plain_info_entry "manufacturer" "$manufacturer" "Manufacturer"
@@ -236,29 +254,30 @@ sim_info()
 {
     m_debug  "Meig sim info"
     
-    response=$(cmd_sims_slot_query "$at_port" | grep "\^SIMSLOT:" | awk -F': ' '{print $2}' | awk -F',' '{print $2}')
+    local raw parsed
+    raw=$(cmd_sims_slot_query "$at_port"); parsed=$(_meig_parse meig.simslot "$raw"); response=$(printf '%s' "$parsed"|jq -r '.slot_flag // empty')
     if [ "$response" != "0" ]; then
         sim_slot="1"
     else
         sim_slot="2"
     fi
 
-    imei=$(cmd_cgsn "$at_port" | sed -n '2p' | sed 's/\r//g')
+    raw=$(cmd_cgsn "$at_port"); parsed=$(_meig_parse meig.cgsn "$raw"); imei=$(printf '%s' "$parsed"|jq -r '.imei // empty')
 
-    sim_status_flag=$(cmd_cpin_query "$at_port" | sed -n '2p')
+    raw=$(cmd_cpin_query "$at_port"); parsed=$(_meig_parse meig.cpin "$raw"); sim_status_flag=$(printf '%s' "$parsed"|jq -r '.status_line // empty')
     sim_status=$(get_sim_status "$sim_status_flag")
 
     if [ "$sim_status" != "ready" ]; then
         return
     fi
 
-    isp=$(cmd_cops_query "$at_port" | sed -n '2p' | awk -F'"' '{print $2}')
+    raw=$(cmd_cops_query "$at_port"); parsed=$(_meig_parse meig.cops "$raw"); isp=$(printf '%s' "$parsed"|jq -r '.operator // empty')
 
-    sim_number=$(cmd_cnum "$at_port" | sed -n '2p' | awk -F'"' '{print $4}')
+    raw=$(cmd_cnum "$at_port"); parsed=$(_meig_parse meig.cnum "$raw"); sim_number=$(printf '%s' "$parsed"|jq -r '.number // empty')
 
-    imsi=$(cmd_cimi "$at_port" | sed -n '2p' | sed 's/\r//g')
+    raw=$(cmd_cimi "$at_port"); parsed=$(_meig_parse meig.cimi "$raw"); imsi=$(printf '%s' "$parsed"|jq -r '.imsi // empty')
 
-    iccid=$(cmd_iccid "$at_port" | grep -o "+ICCID:[ ]*[-0-9]\+" | grep -o "[-0-9]\{1,4\}")
+    raw=$(cmd_iccid "$at_port"); parsed=$(_meig_parse meig.iccid "$raw"); iccid=$(printf '%s' "$parsed"|jq -r '.iccid // empty')
     class="SIM Information"
     case "$sim_status" in
         "ready")
@@ -292,36 +311,24 @@ network_info()
 {
     m_debug  "Meig network info"
 
-    network_type=$(cmd_sysinfoex "$at_port" | grep "\^SYSINFOEX:" | awk -F'"' '{print $4}')
+    local raw parsed response_path
+    raw=$(cmd_sysinfoex "$at_port"); parsed=$(_meig_parse meig.sysinfoex "$raw"); network_type=$(printf '%s' "$parsed"|jq -r '.network_type // empty')
 
     [ -z "$network_type" ] && {
-        local rat_num=$(cmd_cops_query "$at_port" | grep "+COPS:" | awk -F',' '{print $4}' | sed 's/\r//g')
+        raw=$(cmd_cops_query "$at_port"); parsed=$(_meig_parse meig.cops "$raw")
+        local rat_num=$(printf '%s' "$parsed"|jq -r '.rat_code // empty')
         network_type=$(get_rat ${rat_num})
     }
 
-    response=$(cmd_csq "$at_port" | grep "+CSQ:" | sed 's/+CSQ: //g' | sed 's/\r//g')
+    raw=$(cmd_csq "$at_port"); parsed=$(_meig_parse meig.csq "$raw"); response=$(printf '%s' "$parsed"|jq -r '.value // empty')
 
-    response=$(cmd_dsambr "$at_port" "${pdp_index:-1}" | grep "\^DSAMBR:" | awk -F': ' '{print $2}')
-    
-    ambr_ul_tmp="0"
-    ambr_dl_tmp="0"
-    
-    if [ -n "$response" ]; then
-        case "$network_type" in
-            "LTE")
-                ambr_ul_tmp=$(echo "$response" | awk -F',' '{for(i=1;i<=NF-2;i+=2){if($i!="0")tmp=$i};if(tmp=="")tmp=0;print tmp}')
-                ambr_dl_tmp=$(echo "$response" | awk -F',' '{for(i=2;i<=NF-2;i+=2){if($i!="0")tmp=$i};if(tmp=="")tmp=0;print tmp}')
-            ;;
-            "NR")
-                ambr_ul_tmp=$(echo "$response" | awk -F',' '{print (NF>=9)?$9:"0"}')
-                ambr_dl_tmp=$(echo "$response" | awk -F',' '{print (NF>=10)?$10:"0"}' | sed 's/\r//g')
-            ;;
-            *)
-                ambr_ul_tmp=$(echo "$response" | awk -F',' '{for(i=1;i<=NF-2;i+=2){if($i!="0")tmp=$i};if(tmp=="")tmp=0;print tmp}')
-                ambr_dl_tmp=$(echo "$response" | awk -F',' '{for(i=2;i<=NF-2;i+=2){if($i!="0")tmp=$i};if(tmp=="")tmp=0;print tmp}')
-            ;;
-        esac
-    fi
+    raw=$(cmd_dsambr "$at_port" "${pdp_index:-1}"); parsed=$(_meig_parse meig.dsambr "$raw")
+    case "$network_type" in
+        "NR") response_path='.nr' ;;
+        *) response_path='.lte' ;;
+    esac
+    ambr_ul_tmp=$(printf '%s' "$parsed"|jq -r "$response_path.uplink_kbps // \"0\"")
+    ambr_dl_tmp=$(printf '%s' "$parsed"|jq -r "$response_path.downlink_kbps // \"0\"")
 
     [ -z "$ambr_ul_tmp" ] || [ "$ambr_ul_tmp" = "0" ] || ! echo "$ambr_ul_tmp" | grep -q '^[0-9.]*$' && ambr_ul_tmp="0"
     [ -z "$ambr_dl_tmp" ] || [ "$ambr_dl_tmp" = "0" ] || ! echo "$ambr_dl_tmp" | grep -q '^[0-9.]*$' && ambr_dl_tmp="0"
@@ -342,15 +349,9 @@ network_info()
         [ -z "$ambr_dl" ] && ambr_dl="0"
     fi
 
-    response=$(cmd_dsflowqry "$at_port" | grep "\^DSFLOWRPT:" | sed 's/\^DSFLOWRPT: //g' | sed 's/\r//g')
-    
-    tx_rate="0"
-    rx_rate="0"
-    
-    if [ -n "$response" ]; then
-        tx_rate=$(echo $response | awk -F',' '{print (NF>=1)?$1:"0"}')
-        rx_rate=$(echo $response | awk -F',' '{print (NF>=2)?$2:"0"}')
-    fi
+    raw=$(cmd_dsflowqry "$at_port"); parsed=$(_meig_parse meig.dsflowqry "$raw")
+    tx_rate=$(printf '%s' "$parsed"|jq -r '.tx_rate // "0"')
+    rx_rate=$(printf '%s' "$parsed"|jq -r '.rx_rate // "0"')
     
     [ -z "$tx_rate" ] || ! echo "$tx_rate" | grep -q '^[0-9]*$' && tx_rate="0"
     [ -z "$rx_rate" ] || ! echo "$rx_rate" | grep -q '^[0-9]*$' && rx_rate="0"
@@ -368,32 +369,29 @@ cell_info()
 {
     m_debug  "Meig cell info"
 
-    response=$(cmd_cellinfo "$at_port" "${pdp_index:-1}" | grep "\^CELLINFO:" | sed 's/\^CELLINFO://')
-    
-    local rat=""
+    local raw parsed
+    raw=$(cmd_cellinfo "$at_port" "${pdp_index:-1}"); parsed=$(_meig_parse meig.cellinfo "$raw")
+    local rat
     network_mode="Unknown Mode"
-
-    [ -n "$response" ] && {
-        rat=$(echo "$response" | awk -F',' '{print $1}' | tr -d ' ')
-    }
+    rat=$(printf '%s' "$parsed"|jq -r '.rat // empty')
     
     case $rat in
         "5G")
             network_mode="NR5G-SA Mode"
-            nr_duplex_mode=$(echo "$response" | awk -F',' '{print $2}' | tr -d ' ')
-            nr_mcc=$(echo "$response" | awk -F',' '{print $3}' | tr -d ' ')
-            nr_mnc=$(echo "$response" | awk -F',' '{print $4}' | tr -d ' ')
-            nr_cell_id=$(echo "$response" | awk -F',' '{print $5}' | tr -d ' ')
-            nr_physical_cell_id=$(echo "$response" | awk -F',' '{print $6}' | tr -d ' ')
-            nr_tac=$(echo "$response" | awk -F',' '{print $7}' | tr -d ' ')
-            nr_band_num=$(echo "$response" | awk -F',' '{print $8}' | tr -d ' ')
+            nr_duplex_mode=$(printf '%s' "$parsed"|jq -r '.nr.duplex_mode')
+            nr_mcc=$(printf '%s' "$parsed"|jq -r '.nr.mcc')
+            nr_mnc=$(printf '%s' "$parsed"|jq -r '.nr.mnc')
+            nr_cell_id=$(printf '%s' "$parsed"|jq -r '.nr.cell_id')
+            nr_physical_cell_id=$(printf '%s' "$parsed"|jq -r '.nr.physical_cell_id')
+            nr_tac=$(printf '%s' "$parsed"|jq -r '.nr.tac')
+            nr_band_num=$(printf '%s' "$parsed"|jq -r '.nr.band_num')
             nr_band=$(get_band "NR" "$nr_band_num")
-            nr_dl_bandwidth_num=$(echo "$response" | awk -F',' '{print $9}' | tr -d ' ')
+            nr_dl_bandwidth_num=$(printf '%s' "$parsed"|jq -r '.nr.dl_bandwidth_num')
             nr_dl_bandwidth=$(get_bandwidth "NR" "$nr_dl_bandwidth_num")
-            nr_scs=$(echo "$response" | awk -F',' '{print $10}' | tr -d ' ')
-            nr_rsrp=$(echo "$response" | awk -F',' '{print $15}' | tr -d ' ')
-            nr_rsrq=$(echo "$response" | awk -F',' '{print $16}' | tr -d ' ')
-            nr_sinr_num=$(echo "$response" | awk -F',' '{print $17}' | tr -d ' ')
+            nr_scs=$(printf '%s' "$parsed"|jq -r '.nr.scs')
+            nr_rsrp=$(printf '%s' "$parsed"|jq -r '.nr.rsrp')
+            nr_rsrq=$(printf '%s' "$parsed"|jq -r '.nr.rsrq')
+            nr_sinr_num=$(printf '%s' "$parsed"|jq -r '.nr.sinr_tenths')
             
             if [ -n "$nr_sinr_num" ] && echo "$nr_sinr_num" | grep -q '^[0-9.-]*$'; then
                 nr_sinr=$(awk "BEGIN{ print $nr_sinr_num / 10 }" 2>/dev/null || echo "0")
@@ -403,20 +401,20 @@ cell_info()
         ;;
         "LTE-NR")
             network_mode="EN-DC Mode"
-            endc_lte_duplex_mode=$(echo "$response" | awk -F',' '{print $2}' | tr -d ' ')
-            endc_lte_mcc=$(echo "$response" | awk -F',' '{print $3}' | tr -d ' ')
-            endc_lte_mnc=$(echo "$response" | awk -F',' '{print $4}' | tr -d ' ')
-            endc_lte_physical_cell_id=$(echo "$response" | awk -F',' '{print $6}' | tr -d ' ')
-            endc_lte_cell_id=$(echo "$response" | awk -F',' '{print $8}' | tr -d ' ')
-            endc_lte_tac=$(echo "$response" | awk -F',' '{print $9}' | tr -d ' ')
-            endc_lte_band_num=$(echo "$response" | awk -F',' '{print $10}' | tr -d ' ')
+            endc_lte_duplex_mode=$(printf '%s' "$parsed"|jq -r '.endc.lte.duplex_mode')
+            endc_lte_mcc=$(printf '%s' "$parsed"|jq -r '.endc.lte.mcc')
+            endc_lte_mnc=$(printf '%s' "$parsed"|jq -r '.endc.lte.mnc')
+            endc_lte_physical_cell_id=$(printf '%s' "$parsed"|jq -r '.endc.lte.physical_cell_id')
+            endc_lte_cell_id=$(printf '%s' "$parsed"|jq -r '.endc.lte.cell_id')
+            endc_lte_tac=$(printf '%s' "$parsed"|jq -r '.endc.lte.tac')
+            endc_lte_band_num=$(printf '%s' "$parsed"|jq -r '.endc.lte.band_num')
             endc_lte_band=$(get_band "LTE" "$endc_lte_band_num")
-            ul_bandwidth_num=$(echo "$response" | awk -F',' '{print $11}' | tr -d ' ')
+            ul_bandwidth_num=$(printf '%s' "$parsed"|jq -r '.endc.lte.ul_bandwidth_num')
             endc_lte_ul_bandwidth=$(get_bandwidth "LTE" "$ul_bandwidth_num")
             endc_lte_dl_bandwidth="$endc_lte_ul_bandwidth"
-            endc_lte_rsrp=$(echo "$response" | awk -F',' '{print $15}' | tr -d ' ')
-            endc_lte_rsrq=$(echo "$response" | awk -F',' '{print $16}' | tr -d ' ')
-            endc_lte_sinr_num=$(echo "$response" | awk -F',' '{print $17}' | tr -d ' ')
+            endc_lte_rsrp=$(printf '%s' "$parsed"|jq -r '.endc.lte.rsrp')
+            endc_lte_rsrq=$(printf '%s' "$parsed"|jq -r '.endc.lte.rsrq')
+            endc_lte_sinr_num=$(printf '%s' "$parsed"|jq -r '.endc.lte.sinr_tenths')
             
             if [ -n "$endc_lte_sinr_num" ] && echo "$endc_lte_sinr_num" | grep -q '^[0-9.-]*$'; then
                 endc_lte_sinr=$(awk "BEGIN{ print $endc_lte_sinr_num / 10 }" 2>/dev/null || echo "0")
@@ -424,31 +422,14 @@ cell_info()
                 endc_lte_sinr="0"
             fi
             
-            endc_lte_tx_power=$(echo "$response" | awk -F',' '{print $22}' | tr -d ' ')
+            endc_lte_tx_power=$(printf '%s' "$parsed"|jq -r '.endc.lte.tx_power')
             endc_nr_mcc="$endc_lte_mcc"
             endc_nr_mnc="$endc_lte_mnc"
-            field_count=$(echo "$response" | awk -F',' '{print NF}')
-            
-            if [ "$field_count" -ge 30 ]; then
-                endc_nr_physical_cell_id=$(echo "$response" | awk -F',' '{print $30}' | tr -d ' ')
-            else
-                endc_nr_physical_cell_id=""
-            fi
-            
-            if [ "$field_count" -ge 31 ]; then
-                endc_nr_rsrp=$(echo "$response" | awk -F',' '{print $30}' | tr -d ' ')
-            else
-                endc_nr_rsrp=""
-            fi
-            
-            if [ "$field_count" -ge 32 ]; then
-                endc_nr_rsrq=$(echo "$response" | awk -F',' '{print $31}' | tr -d ' ')
-            else
-                endc_nr_rsrq=""
-            fi
-            
-            if [ "$field_count" -ge 33 ]; then
-                endc_nr_sinr_num=$(echo "$response" | awk -F',' '{print $32}' | tr -d ' ')
+            endc_nr_physical_cell_id=$(printf '%s' "$parsed"|jq -r '.endc.nr.physical_cell_id')
+            endc_nr_rsrp=$(printf '%s' "$parsed"|jq -r '.endc.nr.rsrp')
+            endc_nr_rsrq=$(printf '%s' "$parsed"|jq -r '.endc.nr.rsrq')
+            endc_nr_sinr_num=$(printf '%s' "$parsed"|jq -r '.endc.nr.sinr_tenths')
+            if [ -n "$endc_nr_sinr_num" ]; then
                 if [ -n "$endc_nr_sinr_num" ] && echo "$endc_nr_sinr_num" | grep -q '^[0-9.-]*$'; then
                     endc_nr_sinr=$(awk "BEGIN{ print $endc_nr_sinr_num / 10 }" 2>/dev/null || echo "0")
                 else
@@ -458,42 +439,38 @@ cell_info()
                 endc_nr_sinr="0"
             fi
             
-            if [ "$field_count" -ge 34 ]; then
-                endc_nr_band_num=$(echo "$response" | awk -F',' '{print $33}' | tr -d ' ')
+            endc_nr_band_num=$(printf '%s' "$parsed"|jq -r '.endc.nr.band_num')
+            if [ -n "$endc_nr_band_num" ]; then
                 endc_nr_band=$(get_band "NR" "$endc_nr_band_num")
             else
                 endc_nr_band=""
             fi
             
-            if [ "$field_count" -ge 36 ]; then
-                nr_dl_bandwidth_num=$(echo "$response" | awk -F',' '{print $35}' | tr -d ' ')
+            nr_dl_bandwidth_num=$(printf '%s' "$parsed"|jq -r '.endc.nr.dl_bandwidth_num')
+            if [ -n "$nr_dl_bandwidth_num" ]; then
                 endc_nr_dl_bandwidth=$(get_bandwidth "NR" "$nr_dl_bandwidth_num")
             else
                 endc_nr_dl_bandwidth=""
             fi
             
-            if [ "$field_count" -ge 38 ]; then
-                endc_nr_scs=$(echo "$response" | awk -F',' '{print $37}' | tr -d ' \r')
-            else
-                endc_nr_scs=""
-            fi
+            endc_nr_scs=$(printf '%s' "$parsed"|jq -r '.endc.nr.scs')
         ;;
         "LTE"|"eMTC"|"NB-IoT")
             network_mode="LTE Mode"
-            lte_duplex_mode=$(echo "$response" | awk -F',' '{print $2}' | tr -d ' ')
-            lte_mcc=$(echo "$response" | awk -F',' '{print $3}' | tr -d ' ')
-            lte_mnc=$(echo "$response" | awk -F',' '{print $4}' | tr -d ' ')
-            lte_physical_cell_id=$(echo "$response" | awk -F',' '{print $6}' | tr -d ' ')
-            lte_cell_id=$(echo "$response" | awk -F',' '{print $8}' | tr -d ' ')
-            lte_tac=$(echo "$response" | awk -F',' '{print $9}' | tr -d ' ')
-            lte_band_num=$(echo "$response" | awk -F',' '{print $10}' | tr -d ' ')
+            lte_duplex_mode=$(printf '%s' "$parsed"|jq -r '.lte.duplex_mode')
+            lte_mcc=$(printf '%s' "$parsed"|jq -r '.lte.mcc')
+            lte_mnc=$(printf '%s' "$parsed"|jq -r '.lte.mnc')
+            lte_physical_cell_id=$(printf '%s' "$parsed"|jq -r '.lte.physical_cell_id')
+            lte_cell_id=$(printf '%s' "$parsed"|jq -r '.lte.cell_id')
+            lte_tac=$(printf '%s' "$parsed"|jq -r '.lte.tac')
+            lte_band_num=$(printf '%s' "$parsed"|jq -r '.lte.band_num')
             lte_band=$(get_band "LTE" "$lte_band_num")
-            ul_bandwidth_num=$(echo "$response" | awk -F',' '{print $11}' | tr -d ' ')
+            ul_bandwidth_num=$(printf '%s' "$parsed"|jq -r '.lte.ul_bandwidth_num')
             lte_ul_bandwidth=$(get_bandwidth "LTE" "$ul_bandwidth_num")
             lte_dl_bandwidth="$lte_ul_bandwidth"
-            lte_rsrp=$(echo "$response" | awk -F',' '{print $15}' | tr -d ' ')
-            lte_rsrq=$(echo "$response" | awk -F',' '{print $16}' | tr -d ' ')
-            lte_sinr_num=$(echo "$response" | awk -F',' '{print $17}' | tr -d ' ')
+            lte_rsrp=$(printf '%s' "$parsed"|jq -r '.lte.rsrp')
+            lte_rsrq=$(printf '%s' "$parsed"|jq -r '.lte.rsrq')
+            lte_sinr_num=$(printf '%s' "$parsed"|jq -r '.lte.sinr_tenths')
             
             if [ -n "$lte_sinr_num" ] && echo "$lte_sinr_num" | grep -q '^[0-9.-]*$'; then
                 lte_sinr=$(awk "BEGIN{ print $lte_sinr_num / 10 }" 2>/dev/null || echo "0")
@@ -501,35 +478,20 @@ cell_info()
                 lte_sinr="0"
             fi
             
-            field_count=$(echo "$response" | awk -F',' '{print NF}')
-            if [ "$field_count" -ge 23 ]; then
-                lte_tx_power=$(echo "$response" | awk -F',' '{print $22}' | tr -d ' ')
-            else
-                lte_tx_power=""
-            fi
+            lte_tx_power=$(printf '%s' "$parsed"|jq -r '.lte.tx_power')
         ;;
         "WCDMA"|"UMTS")
             network_mode="WCDMA Mode"
-            wcdma_mcc=$(echo "$response" | awk -F',' '{print $2}' | tr -d ' ')
-            wcdma_mnc=$(echo "$response" | awk -F',' '{print $3}' | tr -d ' ')
-            wcdma_psc=$(echo "$response" | awk -F',' '{print $5}' | tr -d ' ')
-            wcdma_cell_id=$(echo "$response" | awk -F',' '{print $7}' | tr -d ' ')
-            wcdma_lac=$(echo "$response" | awk -F',' '{print $8}' | tr -d ' ')
-            wcdma_band_num=$(echo "$response" | awk -F',' '{print $9}' | tr -d ' ')
+            wcdma_mcc=$(printf '%s' "$parsed"|jq -r '.wcdma.mcc')
+            wcdma_mnc=$(printf '%s' "$parsed"|jq -r '.wcdma.mnc')
+            wcdma_psc=$(printf '%s' "$parsed"|jq -r '.wcdma.psc')
+            wcdma_cell_id=$(printf '%s' "$parsed"|jq -r '.wcdma.cell_id')
+            wcdma_lac=$(printf '%s' "$parsed"|jq -r '.wcdma.lac')
+            wcdma_band_num=$(printf '%s' "$parsed"|jq -r '.wcdma.band_num')
             wcdma_band=$(get_band "WCDMA" "$wcdma_band_num")
             
-            field_count=$(echo "$response" | awk -F',' '{print NF}')
-            if [ "$field_count" -ge 14 ]; then
-                wcdma_ecio=$(echo "$response" | awk -F',' '{print $13}' | tr -d ' ')
-            else
-                wcdma_ecio=""
-            fi
-            
-            if [ "$field_count" -ge 16 ]; then
-                wcdma_rscp=$(echo "$response" | awk -F',' '{print $15}' | tr -d ' \r')
-            else
-                wcdma_rscp=""
-            fi
+            wcdma_ecio=$(printf '%s' "$parsed"|jq -r '.wcdma.ecio')
+            wcdma_rscp=$(printf '%s' "$parsed"|jq -r '.wcdma.rscp')
         ;;
     esac
     

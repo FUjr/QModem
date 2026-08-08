@@ -2,6 +2,16 @@
 SCRIPT_DIR="${QMODEM_HOME:-/usr/share/qmodem}"
 source "${QMODEM_JSHN:-/usr/share/libubox/jshn.sh}"
 source "${SCRIPT_DIR}/modem_util.sh"
+
+qmodem_parse_response()
+{
+    local parser_id="$1" context_json="${2:-}"
+    [ -n "$context_json" ] || context_json='{}'
+    "${QMODEM_PARSER:-${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh}" \
+        "$parser_id" --platform "${platform:-unknown}" \
+        --model "${model:-${QMODEM_TESTCASE_MODEL:-unknown}}" \
+        --context-json "$context_json"
+}
 add_plain_info_entry()
 {
     key=$1
@@ -410,24 +420,26 @@ get_dns()
     local public_dns2_ipv6="2402:4e00::"
 
     #获取DNS地址
-    local response=$(cmd_gtdns "$at_port" "$pdp_index" | grep "+GTDNS: ")
+    local response parsed
+    response=$(cmd_gtdns "$at_port" "$pdp_index")
+    parsed=$(printf '%s' "$response" | qmodem_parse_response core.gtdns '{}')
 
-    local ipv4_dns1=$(echo "${response}" | awk -F'"' '{print $2}' | awk -F',' '{print $1}')
+    local ipv4_dns1=$(printf '%s' "$parsed" | jq -r '.ipv4_dns1 // empty')
     [ -z "$ipv4_dns1" ] && {
         ipv4_dns1="${public_dns1_ipv4}"
     }
 
-    local ipv4_dns2=$(echo "${response}" | awk -F'"' '{print $4}' | awk -F',' '{print $1}')
+    local ipv4_dns2=$(printf '%s' "$parsed" | jq -r '.ipv4_dns2 // empty')
     [ -z "$ipv4_dns2" ] && {
         ipv4_dns2="${public_dns2_ipv4}"
     }
 
-    local ipv6_dns1=$(echo "${response}" | awk -F'"' '{print $2}' | awk -F',' '{print $2}')
+    local ipv6_dns1=$(printf '%s' "$parsed" | jq -r '.ipv6_dns1 // empty')
     [ -z "$ipv6_dns1" ] && {
         ipv6_dns1="${public_dns1_ipv6}"
     }
 
-    local ipv6_dns2=$(echo "${response}" | awk -F'"' '{print $4}' | awk -F',' '{print $2}')
+    local ipv6_dns2=$(printf '%s' "$parsed" | jq -r '.ipv6_dns2 // empty')
     [ -z "$ipv6_dns2" ] && {
         ipv6_dns2="${public_dns2_ipv6}"
     }
@@ -568,33 +580,29 @@ get_connect_status()
             connect_status="Yes"
         fi
     else
-        expect="+CGACT:"
-        result=`cmd_cgact_query "$at_port" | grep $expect|tr '\r' '\n'`
+        local cgact_response cgact_json active_cids
+        cgact_response=$(cmd_cgact_query "$at_port")
+        cgact_json=$(printf '%s' "$cgact_response" | qmodem_parse_response core.cgact.active_contexts '{}')
+        active_cids=$(printf '%s' "$cgact_json" | jq -r '.active_cids[]?')
         # for fm350 pdp_index 0, GGACT will return empty,so we need to add it manually
-        if [ -z "$result" ]; then
+        if [ -z "$active_cids" ]; then
             case $vendor in
                 "fibocom")
                     case $platform in
                         "mediatek")
-                            result="+CGACT: 0,1"
+                            active_cids="0"
                             ;;
                     esac
                     ;;
                 esac
         fi
         
-        for pdp_index in `echo  "$result" | tr -d "\r" | awk -F'[,:]' '$3 == 1 {print $2}'`; do
-            expect="+CGPADDR:"
-            result=$(cmd_cgpaddr "$at_port" "$pdp_index" | grep $expect)
-            if [ -n "$result" ];then
-                ipv6=$(echo $result | grep -oE "\b([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\b")
-                ipv4=$(echo $result | grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b")
-                disallow_ipv4="0.0.0.0"
-                #remove the disallow ip
-                if [ "$ipv4" == "$disallow_ipv4" ];then
-                    ipv4=""
-                fi
-            fi
+        for pdp_index in $active_cids; do
+            local address_response address_json
+            address_response=$(cmd_cgpaddr "$at_port" "$pdp_index")
+            address_json=$(printf '%s' "$address_response" | qmodem_parse_response core.cgpaddr.addresses '{}')
+            ipv4=$(printf '%s' "$address_json" | jq -r '.ipv4 // empty')
+            ipv6=$(printf '%s' "$address_json" | jq -r '.ipv6 // empty')
             if [ -n "$ipv4" ] || [ -n "$ipv6" ];then
                 connect_status="Yes"
                 break
@@ -753,15 +761,18 @@ vendor_get_disabled_features()
 }
 
 get_sms_capabilities() {
-    local res sms_cap
-    res=$(cmd_cpms_query "$at_port" | grep "CPMS:" | xargs)
-    [ -z "$res" ] && return
-
-    sms_cap=${res##*+CPMS:}
-    set -- $(echo "$sms_cap" | tr ',' ' ')
-    local mem1=$1 used1=$2 total1=$3
-    local mem2=$4 used2=$5 total2=$6
-    local mem3=$7 used3=$8 total3=$9
+    local res parsed mem1 used1 total1 mem2 used2 total2 mem3 used3 total3
+    res=$(cmd_cpms_query "$at_port")
+    parsed=$(printf '%s' "$res" | qmodem_parse_response core.cpms '{}') || return
+    mem1=$(printf '%s' "$parsed" | jq -r '.storages[0].memory')
+    used1=$(printf '%s' "$parsed" | jq -r '.storages[0].used')
+    total1=$(printf '%s' "$parsed" | jq -r '.storages[0].total')
+    mem2=$(printf '%s' "$parsed" | jq -r '.storages[1].memory')
+    used2=$(printf '%s' "$parsed" | jq -r '.storages[1].used')
+    total2=$(printf '%s' "$parsed" | jq -r '.storages[1].total')
+    mem3=$(printf '%s' "$parsed" | jq -r '.storages[2].memory')
+    used3=$(printf '%s' "$parsed" | jq -r '.storages[2].used')
+    total3=$(printf '%s' "$parsed" | jq -r '.storages[2].total')
 
     json_add_object "sms_capabilities"
     json_add_string "mem1" "$mem1"
@@ -809,7 +820,9 @@ set_sms_storage()
     else
         res=$(cmd_cpms_set "$at_port" "$mem1" "$mem2" "$mem3")
     fi
-    
+    parsed=$(printf '%s' "$res" | qmodem_parse_response core.command.completion '{}')
+    [ $? -ne 0 ] || res=$(printf '%s' "$parsed" | jq -r '.result')
+
     json_select "result"
     json_add_string "result" "$res"
 }

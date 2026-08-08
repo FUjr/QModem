@@ -2,12 +2,59 @@
   "vendor": "quectel",
   "platform": "qualcomm",
   "model": "example",
-  "capabilities": { "modes": ["qmi", "ecm", "mbim", "rndis", "ncm"] },
+  "capabilities": {
+    "modes": [
+      "qmi",
+      "ecm",
+      "mbim",
+      "rndis",
+      "ncm"
+    ]
+  },
   "command": "AT+CGSN",
-  "response_hex": "41542b4347534e0d0d0a3836303030303030303030303031320d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-07T00:00:00Z",
   "sanitized": true,
-  "source": "example"
+  "responses": [
+    {
+      "response_hex": "41542b4347534e0d0d0a3836303030303030303030303031320d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-07T00:00:00Z",
+      "scenario": "default",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "source": "example",
+      "assertions": [
+        {
+          "parser": "quectel.cgsn",
+          "context": {},
+          "expected": {
+            "imei": "860000000000012"
+          },
+          "expected_rc": 0
+        }
+      ]
+    },
+    {
+      "scenario": "malformed",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "4552524f520d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "quectel.cgsn",
+          "context": {},
+          "expected": {
+            "error": {
+              "code": "parse_failed",
+              "parser": "quectel.cgsn"
+            }
+          },
+          "expected_rc": 1
+        }
+      ]
+    }
+  ],
+  "schema_version": 2
 }

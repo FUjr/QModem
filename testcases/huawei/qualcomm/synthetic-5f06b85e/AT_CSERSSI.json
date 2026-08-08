@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "vendor": "huawei",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT^CSERSSI?",
+  "tool": "at",
+  "responses": [{
+    "scenario": "nr-secondary-cell",
+    "sequence": 0,
+    "capture_sequence": 0,
+    "response_hex": "41545e435345525353493f0d0a5e435345525353493a20302c302c302c302c302c302c302c302c302c302c302c2d38382c2d392c32350d0a4f4b0d0a",
+    "rc": 0,
+    "source": "synthetic",
+    "assertions": [{
+      "parser": "huawei.cserssi",
+      "context": {},
+      "expected": {"nr":{"rsrp":"-88","rsrq":"-9","sinr":"25"}}
+    }]
+  }]
+}

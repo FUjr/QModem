@@ -66,7 +66,7 @@ owner_review=$(printf '%s\n' "$token" | "$seal_bin" review-key --token-stdin \
 printf '%s\n' "$review_key" | "$seal_bin" decrypt --review-key --token-stdin \
     --input "$encrypted_file" --output "$test_dir/review.tar.gz"
 tar -xOzf "$test_dir/review.tar.gz" "./$profile/cgsn.json" \
-    | jq -r '.response_hex' | xxd -r -p \
+    | jq -r '.responses[0].response_hex' | xxd -r -p \
     | cmp - <(printf 'AT+CGSN\r\n860000000000023\r\nOK\r\n\r\n')
 
 forced_output=$(QMODEM_COLLECT_DIR="$test_dir/fixtures" QMODEM_SEAL_BIN="$seal_bin" \

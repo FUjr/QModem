@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "vendor": "meig",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT^CELLINFO",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "lte",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41545e43454c4c494e464f0d0a5e43454c4c494e464f3a204c54452c4644442c3436302c30312c302c31322c302c4142432c31412c332c352c302c302c302c2d39352c2d31302c3132300d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [{
+        "parser": "meig.cellinfo",
+        "context": {},
+        "expected": {"rat":"LTE","lte":{"duplex_mode":"FDD","mcc":"460","mnc":"01","physical_cell_id":"12","cell_id":"ABC","tac":"1A","band_num":"3","ul_bandwidth_num":"5","rsrp":"-95","rsrq":"-10","sinr_tenths":"120","tx_power":""}}
+      }]
+    },
+    {
+      "scenario": "nr-sa",
+      "sequence": 0,
+      "capture_sequence": 1,
+      "response_hex": "41545e43454c4c494e464f0d0a5e43454c4c494e464f3a204e522c5444442c3436302c30312c4142432c31322c303041412c37382c342c33302c302c302c302c302c2d38382c2d392c3135300d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [{
+        "parser": "meig.cellinfo",
+        "context": {},
+        "expected": {"rat":"NR"}
+      }]
+    }
+  ]
+}

@@ -5,9 +5,29 @@ _Author="sfwtw,fujr"
 _Maintainer="sfwtw <sfwtw@qq.com>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
 debug_subject="quectel_ctrl"
+
+simcom_parse_field()
+{
+    local parser_id="$1" field="$2" raw="$3" parsed
+    parsed=$(printf '%s' "$raw" | "${QMODEM_PARSER:-${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh}" \
+        "$parser_id" --platform "${platform:-unknown}" --model "${model:-${QMODEM_TESTCASE_MODEL:-unknown}}" --context-json '{}') || return
+    printf '%s' "$parsed" | jq -r --arg field "$field" '.[$field] // empty'
+}
+
+simcom_parse_response()
+{
+    local parser_id="$1" raw="$2"
+    printf '%s' "$raw" | "${QMODEM_PARSER:-${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh}" \
+        "$parser_id" --platform "${platform:-unknown}" --model "${model:-unknown}" --context-json '{}'
+}
+
+simcom_json_field()
+{
+    printf '%s' "$1" | jq -r --arg field "$2" '.[$field] // empty'
+}
 #return raw data
 get_imei(){
-    imei=$(cmd_cgsn "$at_port" | grep -o "[0-9]\{15\}")
+    response=$(cmd_cgsn "$at_port"); imei=$(simcom_parse_field simcom.cgsn imei "$response")
     json_add_string "imei" "$imei"
 }
 
@@ -15,6 +35,7 @@ get_imei(){
 set_imei(){
     local imei="$1"
     res=$(cmd_simei_set "$at_port" "$imei")
+    res=$(simcom_parse_field simcom.command.completion result "$res")
     json_select "result"
     json_add_string "set_imei" "$res"
     json_close_object
@@ -28,10 +49,11 @@ get_mode()
 {
     case "$platform" in
         "qualcomm")
-            local mode_num=$(cmd_cusbcfg_query "$at_port" | grep "USBID: " | sed 's/USBID: 0X1E0E,0X//g' | sed 's/\r//g')
+            local response mode_num
+            response=$(cmd_cusbcfg_query "$at_port"); mode_num=$(simcom_parse_field simcom.cusbcfg.usbid mode_num "$response")
             local mode
             pcie_cfg=$(cmd_cpciemode_query "$at_port")
-            pcie_mode=$(echo "$pcie_cfg"|grep +CPCIEMODE: |cut -d':' -f2|xargs)
+            pcie_mode=$(simcom_parse_field simcom.cpciemode pcie_mode "$pcie_cfg")
             if [ "$pcie_mode" = "EP" ] && [ "$mode_num" = "902B" ]; then
                 mode_num="9001"
             json_add_int disable_mode_btn 1
@@ -43,9 +65,10 @@ get_mode()
             esac
         ;;
         "lte")
-            config=$(cmd_myconfig_query "$at_port" | grep "MYCONFIG: " | sed 's/\r//g')
-            param1=$(echo "$config" | cut -d',' -f2 | xargs)
-            param2=$(echo "$config" | cut -d',' -f3 | xargs)
+            config=$(cmd_myconfig_query "$at_port")
+            config=$(simcom_parse_response simcom.myconfig "$config")
+            param1=$(simcom_json_field "$config" usbnet_mode)
+            param2=$(simcom_json_field "$config" auxiliary)
             case $param1 in
                 "0") mode="rndis" ;;
                 "1") mode="ecm" ;;
@@ -83,6 +106,7 @@ set_mode()
             esac
             #设置模组
             res=$(cmd_cusbcfg_set_usbid "$at_port" "$mode_num")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
             json_select "result"
             json_add_string "set_mode" "$res"
             json_close_object
@@ -95,6 +119,7 @@ set_mode()
                 *) param1="0" ;;
             esac
             res=$(cmd_myconfig_set_usbnetmode "$at_port" "$param1")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
             json_select "result"
             json_add_string "set_mode" "$res"
             json_close_object
@@ -132,7 +157,9 @@ get_network_prefer()
 
 get_network_prefer_nr()
 {
-    local response=$(cmd_cnmp_query "$at_port" | grep "+CNMP:" | awk -F': ' '{print $2}' | sed 's/\r//g')
+    local raw response
+    raw=$(cmd_cnmp_query "$at_port")
+    response=$(simcom_parse_field simcom.cnmp mode "$raw")
     
     network_prefer_3g="0";
     network_prefer_4g="0";
@@ -213,7 +240,9 @@ set_network_prefer_nr()
 # $1:AT串口
 get_voltage()
 {
-    local voltage=$(cmd_cbc "$at_port" | grep "+CBC:" | sed 's/+CBC: //g' | sed 's/V//g' | sed 's/\r//g')
+    local raw voltage
+    raw=$(cmd_cbc "$at_port")
+    voltage=$(simcom_parse_field simcom.cbc.voltage voltage "$raw" | sed 's/V//g')
     [ -n "$voltage" ] && {
         add_plain_info_entry "voltage" "$voltage V" "Voltage" 
     }
@@ -226,8 +255,8 @@ get_temperature()
     #Temperature（温度）
     local temp
     local line=1
-    QTEMP=$(cmd_cpmutemp "$at_port" | grep "+CPMUTEMP:")
-    temp=$(echo $QTEMP | awk -F': ' '{print $2}' | sed 's/\r//g')
+    QTEMP=$(cmd_cpmutemp "$at_port")
+    temp=$(simcom_parse_field simcom.cpmutemp temperature "$QTEMP")
     if [ -n "$temp" ]; then
         temp="${temp}$(printf "\xc2\xb0")C"
     fi
@@ -242,11 +271,11 @@ base_info()
     m_debug  "Quectel base info"
 
     #Name（名称）
-    name=$(cmd_cgmm "$at_port" | sed -n '2p' | sed 's/\r//g')
+    response=$(cmd_cgmm "$at_port"); name=$(simcom_parse_field simcom.cgmm name "$response")
     #Manufacturer（制造商）
-    manufacturer=$(cmd_cgmi "$at_port" | sed -n '2p' | sed 's/\r//g')
+    response=$(cmd_cgmi "$at_port"); manufacturer=$(simcom_parse_field simcom.cgmi manufacturer "$response")
     #Revision（固件版本）
-    revision=$(cmd_simcomati "$at_port" | grep "Revision:" | sed 's/Revision: //g' | sed 's/\r//g')
+    response=$(cmd_simcomati "$at_port"); revision=$(simcom_parse_field simcom.ati.revision revision "$response")
     # at_command="AT+CGMR"
     # revision=$(at $at_port $at_command | sed -n '2p' | sed 's/\r//g')
     class="Base Information"
@@ -266,13 +295,13 @@ sim_info()
     m_debug  "Quectel sim info"
     
     #SIM Slot（SIM卡卡槽）
-    sim_slot=$(cmd_smsimcfg_query "$at_port" | grep "+SMSIMCFG:" | awk -F',' '{print $2}' | sed 's/\r//g')
+    response=$(cmd_smsimcfg_query "$at_port"); sim_slot=$(simcom_parse_field simcom.smsimcfg.slot sim_slot "$response")
 
     #IMEI（国际移动设备识别码）
-    imei=$(cmd_cgsn "$at_port" | sed -n '2p' | sed 's/\r//g')
+    response=$(cmd_cgsn "$at_port"); imei=$(simcom_parse_field simcom.cgsn imei "$response")
 
     #SIM Status（SIM状态）
-    sim_status_flag=$(cmd_cpin_query "$at_port" | sed -n '2p')
+    response=$(cmd_cpin_query "$at_port"); sim_status_flag=$(simcom_parse_field simcom.cpin.status status_text "$response")
     sim_status=$(get_sim_status "$sim_status_flag")
 
     if [ "$sim_status" != "ready" ]; then
@@ -280,7 +309,7 @@ sim_info()
     fi
 
     #ISP（互联网服务提供商）
-    isp=$(cmd_cops_query "$at_port" | sed -n '2p' | awk -F'"' '{print $2}')
+    response=$(cmd_cops_query "$at_port"); isp=$(simcom_parse_field simcom.cops.operator operator "$response")
     # if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ]|| [ "$isp" = "46000" ]; then
     #     isp="中国移动"
     # # elif [ "$isp" = "CHN-UNICOM" ] || [ "$isp" = "UNICOM" ] || [ "$isp" = "46001" ]; then
@@ -292,13 +321,13 @@ sim_info()
     # fi
 
     #SIM Number（SIM卡号码，手机号）
-    sim_number=$(cmd_cnum "$at_port" | sed -n '2p' | awk -F'"' '{print $4}')
+    response=$(cmd_cnum "$at_port"); sim_number=$(simcom_parse_field simcom.cnum number "$response")
 
     #IMSI（国际移动用户识别码）
-    imsi=$(cmd_cimi "$at_port" | sed -n '2p' | sed 's/\r//g')
+    response=$(cmd_cimi "$at_port"); imsi=$(simcom_parse_field simcom.cimi imsi "$response")
 
     #ICCID（集成电路卡识别码）
-    iccid=$(cmd_iccid "$at_port" | grep -o "+ICCID:[ ]*[-0-9]\+" | grep -o "[-0-9]\{1,4\}")
+    response=$(cmd_iccid "$at_port"); iccid=$(simcom_parse_field simcom.iccid iccid "$response")
     class="SIM Information"
     case "$sim_status" in
         "ready")
@@ -332,10 +361,10 @@ network_info()
 {
     m_debug  "Simcom network info"
 
-    network_type=$(cmd_cpsi_query "$at_port" | grep "+CPSI:" | awk -F',' '{print $1}' | sed 's/+CPSI: //g')
+    response=$(cmd_cpsi_query "$at_port"); network_type=$(simcom_parse_field simcom.cpsi.type network_type "$response")
 
     [ -z "$network_type" ] && {
-        local rat_num=$(cmd_cops_query "$at_port" | grep "+COPS:" | awk -F',' '{print $4}' | sed 's/\r//g')
+        response=$(cmd_cops_query "$at_port"); local rat_num=$(simcom_parse_field simcom.cops.rat rat_code "$response")
         network_type=$(get_rat ${rat_num})
     }
 
@@ -390,10 +419,10 @@ get_lockband_nr()
     [ -n $(uci -q get qmodem.$config_section.nsa_band) ] && nsa_nr_avalible_band=$(uci -q get qmodem.$config_section.nsa_band | tr '/' ',')
     [ -n $(uci -q get qmodem.$config_section.lte_band) ] && lte_avalible_band=$(uci -q get qmodem.$config_section.lte_band | tr '/' ',')
     [ -n $(uci -q get qmodem.$config_section.wcdma_band) ] && wcdma_avalible_band=$(uci -q get qmodem.$config_section.wcdma_band | tr '/' ',')
-    gw_band=$(cmd_csyssel_query "$at_port" w_band |grep -e "+CSYSSEL: " )
-    lte_band=$(cmd_csyssel_query "$at_port" lte_band|grep -e "+CSYSSEL: ")
-    nsa_nr_band=$(cmd_csyssel_query "$at_port" nsa_nr5g_band|grep -e "+CSYSSEL: ")
-    sa_nr_band=$(cmd_csyssel_query "$at_port" nr5g_band|grep -e "+CSYSSEL: ")
+    gw_band=$(cmd_csyssel_query "$at_port" w_band); gw_band=$(simcom_parse_response simcom.csyssel "$gw_band")
+    lte_band=$(cmd_csyssel_query "$at_port" lte_band); lte_band=$(simcom_parse_response simcom.csyssel "$lte_band")
+    nsa_nr_band=$(cmd_csyssel_query "$at_port" nsa_nr5g_band); nsa_nr_band=$(simcom_parse_response simcom.csyssel "$nsa_nr_band")
+    sa_nr_band=$(cmd_csyssel_query "$at_port" nr5g_band); sa_nr_band=$(simcom_parse_response simcom.csyssel "$sa_nr_band")
     json_add_object "UMTS"
     json_add_array "available_band"
     json_close_array
@@ -448,7 +477,7 @@ get_lockband_nr()
         json_select ..
     done
     #+QNWPREFCFG: "nr5g_band",1:3:7:20:28:40:41:71:77:78:79
-    for i in $(echo "$gw_band" | cut -d, -f2 |tr -d '\r' | awk -F":" '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$gw_band" | jq -r '.bands[]'); do
         if [ -n "$i" ]; then
             json_select "UMTS"
             json_select "lock_band"
@@ -457,7 +486,7 @@ get_lockband_nr()
             json_select ..
         fi
     done
-    for i in $(echo "$lte_band" | cut -d, -f2|tr -d '\r' | awk -F":" '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$lte_band" | jq -r '.bands[]'); do
         if [ -n "$i" ]; then
             json_select "LTE"
             json_select "lock_band"
@@ -466,7 +495,7 @@ get_lockband_nr()
             json_select ..
         fi
     done
-    for i in $(echo "$nsa_nr_band" | cut -d, -f2|tr -d '\r' | awk -F":" '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$nsa_nr_band" | jq -r '.bands[]'); do
         if [ -n "$i" ]; then
             json_select "NR_NSA"
             json_select "lock_band"
@@ -475,7 +504,7 @@ get_lockband_nr()
             json_select ..
         fi
     done
-    for i in $(echo "$sa_nr_band" | cut -d, -f2|tr -d '\r' | awk -F":" '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$sa_nr_band" | jq -r '.bands[]'); do
         if [ -n "$i" ]; then
             json_select "NR"
             json_select "lock_band"
@@ -593,9 +622,9 @@ get_lockband_lte(){
     local response=$(cmd_cnbp_query "$at_port")
     
     # Parse response: +CNBP:<mode>[,<lte_mode>][,<lte_modeExt>][,<saveMode>]
-    local mode=$(echo "$response" | grep "+CNBP:" | sed 's/+CNBP://g' | sed 's/\r//g' | cut -d',' -f1 | xargs)
-    local lte_mode=$(echo "$response" | grep "+CNBP:" | sed 's/+CNBP://g' | sed 's/\r//g' | cut -d',' -f2 | xargs)
-    local lte_modeext=$(echo "$response" | grep "+CNBP:" | sed 's/+CNBP://g' | sed 's/\r//g' | cut -d',' -f3 | xargs)
+    local mode=$(simcom_parse_field simcom.cnbp mode "$response")
+    local lte_mode=$(simcom_parse_field simcom.cnbp lte_mode "$response")
+    local lte_modeext=$(simcom_parse_field simcom.cnbp lte_modeext "$response")
     
     # Parse WCDMA locked bands from mode
     local wcdma_locked_bands=""
@@ -669,15 +698,19 @@ set_lockband_nr(){
     case "$band_class" in
         "UMTS") 
             res=$(cmd_csyssel_set "$at_port" w_band "$lock_band")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
             ;;
         "LTE") 
             res=$(cmd_csyssel_set "$at_port" lte_band "$lock_band")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
             ;;
         "NR_NSA")
             res=$(cmd_csyssel_set "$at_port" nsa_nr5g_band "$lock_band")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
             ;;
         "NR")
             res=$(cmd_csyssel_set "$at_port" nr5g_band "$lock_band")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
             ;;
     esac
 }
@@ -690,6 +723,7 @@ set_lockband_lte(){
             local wcdma_hex=$(convert2hex_lte "$lock_band")
             wcdma_hex=$(normalize_hex_width "$wcdma_hex" 16)
             res=$(cmd_cnbp_set "$at_port" "$wcdma_hex")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
             ;;
         "LTE")
             # Convert LTE band list to hex format using bitmap
@@ -705,11 +739,12 @@ set_lockband_lte(){
             # Set bands: mode format is 0x<wcdma_hex>
             # Get current WCDMA bands first by reading
             local response=$(cmd_cnbp_query "$at_port")
-            local current_mode=$(echo "$response" | grep "+CNBP:" | sed 's/+CNBP://g' | sed 's/\r//g' | cut -d',' -f1 | xargs)
+            local current_mode=$(simcom_parse_field simcom.cnbp mode "$response")
             [ -z "$current_mode" ] && current_mode="0x0"
                 current_mode=$(normalize_hex_width "$current_mode" 16)
             
             res=$(cmd_cnbp_set "$at_port" "$current_mode,$lte_hex,$lte_ext_hex,0")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
             ;;
     esac
 }
@@ -739,34 +774,34 @@ set_lockband()
 }
 
 get_neighborcell_qualcomm(){
-    lte_status=$(cmd_ccellcfg_query "$at_port" | grep "+CCELLCFG:")
-    if [ ! -z "$lte_status" ]; then
+    lte_status=$(cmd_ccellcfg_query "$at_port"); lte_status=$(simcom_parse_response simcom.ccellcfg "$lte_status")
+    if [ "$(simcom_json_field "$lte_status" locked)" = "true" ]; then
         lte_lock_status="locked"
     else
         lte_lock_status=""
     fi
-    lte_lock_freq=$(echo $lte_status | awk -F',' '{print $2}' | sed 's/\r//g')
-    lte_lock_pci=$(echo $lte_status | awk -F',' '{print $1}' | sed 's/+CCELLCFG: //g' | sed 's/\r//g')
-    nr_status=$(cmd_c5gcellcfg_query "$at_port" | grep "+C5GCELLCFG:")
-    nr_lock_status=$(echo "$nr_status" | awk -F': ' '{print $2}' | xargs)
-    nr_lock_pci=$(echo "$nr_status" | awk -F',' '{print $2}' | xargs)
-    nr_lock_freq=$(echo "$nr_status" | awk -F',' '{print $3}' | xargs)
-    nr_lock_scs=$(echo "$nr_status" | awk -F',' '{print $4}' | xargs)
-    nr_lock_band=$(echo "$nr_status" | awk -F',' '{print $5}' | xargs)
-    if [ "$nr_lock_status" != "0" ]; then
+    lte_lock_freq=$(simcom_json_field "$lte_status" arfcn)
+    lte_lock_pci=$(simcom_json_field "$lte_status" pci)
+    nr_status=$(cmd_c5gcellcfg_query "$at_port"); nr_status=$(simcom_parse_response simcom.c5gcellcfg "$nr_status")
+    nr_lock_pci=$(simcom_json_field "$nr_status" pci)
+    nr_lock_freq=$(simcom_json_field "$nr_status" arfcn)
+    nr_lock_scs=$(simcom_json_field "$nr_status" scs)
+    nr_lock_band=$(simcom_json_field "$nr_status" band)
+    if [ "$(simcom_json_field "$nr_status" locked)" = "true" ]; then
         nr_lock_status="locked"
     else
         nr_lock_status=""
     fi
 
     modem_status=$(cmd_cpsi_query "$at_port")
-    modem_status_net=$(echo "$modem_status"|grep "+CPSI:"|awk -F',' '{print $1}'|awk -F':' '{print $2}'|xargs)
-    modem_status_band=$(echo "$modem_status"|grep "+CPSI:"|awk -F',' '{print $7}'|awk -F'_' '{print $2}'|sed 's/BAND//g'|xargs)
-    if [ $modem_status_net == "NR5G_SA" ];then
+    modem_status=$(simcom_parse_response simcom.cpsi "$modem_status")
+    modem_status_net=$(printf '%s' "$modem_status" | jq -r '.records[0].rat // empty')
+    modem_status_band=$(printf '%s' "$modem_status" | jq -r '.records[0].band_code // empty' | sed 's/.*BAND//')
+    if [ "$modem_status_net" = "NR5G_SA" ];then
         scans=$(cmd_cnwsearch_query "$at_port" "nr5g")
         sleep 10
         cmd_cnwsearch_scan "$at_port" "nr5g" 3 > /tmp/neighborcell
-    elif [ $modem_status_net == "LTE" ];then
+    elif [ "$modem_status_net" = "LTE" ];then
         cmd_cnwsearch_scan "$at_port" "lte" 1 > /tmp/neighborcell
         sleep 5
     fi
@@ -798,37 +833,9 @@ get_neighborcell_qualcomm(){
         json_add_string "NR" "unlock"
     fi
     json_close_object
-    while read line; do
-        if [ -n "$(echo $line | grep "+NR_NGH_CELL:")" ] || [ -n "$(echo $line | grep "+LTE_CELL:")" ]; then
-            # CPSI: NR5G_SA,Online,460-01,0x6F4700,29869309958,95,NR5G_BAND78,627264,-800,-110,14
-        
-            case $line in
-                *WCDMA*)
-                    type="WCDMA"
-                    
-                    arfcn=$(echo $line | awk -F',' '{print $4}')
-                    pci=$(echo $line | awk -F',' '{print $7}')
-                    rscp=$(echo $line | awk -F',' '{print $11}')
-                    ecno=$(echo $line | awk -F',' '{print $10}')
-                    ;;
-                *LTE_CELL*)
-                    type="LTE"
-                    arfcn=$(echo $line | awk -F',' '{print $6}')
-                    pci=$(echo $line | awk -F',' '{print $7}')
-                    rsrp=$(echo $line | awk -F',' '{print $8}')
-                    rsrq=$(echo $line | awk -F',' '{print $9}')
-            band=$(echo $line | awk -F',' '{print $5}')
-            mnc=$(echo $line | awk -F',' '{print $2}')
-                    ;;
-                *NR_NGH_CELL*)
-                    type="NR"
-                    arfcn=$(echo $line | awk -F',' '{print $1}'| awk -F':' '{print $2}'| xargs)
-                    pci=$(echo $line | awk -F',' '{print $2}')
-                    rsrp=$(echo $line | awk -F',' '{print $3}')
-                    rsrq=$(echo $line | awk -F',' '{print $4}')
-            band=$modem_status_band
-                    ;;
-            esac
+    simcom_parse_response simcom.cnwsearch "$(cat /tmp/neighborcell)" | jq -r '.cells[] | [.rat,.mnc,.arfcn,.pci,.rscp,.ecno,.rsrp,.rsrq,.band] | @tsv' > /tmp/neighborcell.semantic
+    while IFS="$(printf '\t')" read -r type mnc arfcn pci rscp ecno rsrp rsrq band; do
+            [ "$type" = "NR" ] && band=$modem_status_band
             json_select $type
             json_add_object ""
         json_add_string "mnc" "$mnc"
@@ -841,8 +848,8 @@ get_neighborcell_qualcomm(){
             json_add_string "band" "$band"
             json_close_object
             json_select ".."
-        fi
-    done < /tmp/neighborcell
+    done < /tmp/neighborcell.semantic
+    rm -f /tmp/neighborcell.semantic
 }
 
 get_neighborcell(){
@@ -895,6 +902,8 @@ lockcell_qualcomm(){
     if [ -z "$pci" ] && [ -z "$arfcn" ]; then
         res1=$(cmd_c5gcellcfg_unlock "$at_port")
         res2=$(cmd_ccellcfg_unlock "$at_port")
+        res1=$(simcom_parse_field simcom.command.completion result "$res1")
+        res2=$(simcom_parse_field simcom.command.completion result "$res2")
         res=$res1,$res2
         qmodem_lockcell_boot_hook_clear "$config_section"
     else
@@ -903,9 +912,11 @@ lockcell_qualcomm(){
         if [ $rat = "1" ]; then
             lockcell_boot_cmd="$locknr"
             res=$(cmd_c5gcellcfg_lock "$at_port" "$pci" "$arfcn" "$scs" "$band")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
         else
             lockcell_boot_cmd="$lock4g"
             res=$(cmd_ccellcfg_lock "$at_port" "$pci" "$arfcn")
+            res=$(simcom_parse_field simcom.command.completion result "$res")
         fi
         qmodem_lockcell_boot_hook_sync "$config_section" "$en_boot_hook" "$lockcell_boot_cmd"
     fi
@@ -915,6 +926,8 @@ lockcell_qualcomm(){
 unlockcell(){
     res2=$(cmd_c5gcellcfg_unlock "$1")
     res3=$(cmd_ccellcfg_unlock "$1")
+    res2=$(simcom_parse_field simcom.command.completion result "$res2")
+    res3=$(simcom_parse_field simcom.command.completion result "$res3")
 }
 #UL_bandwidth
 # $1:上行带宽数字
@@ -1007,10 +1020,12 @@ cell_info()
 
     response1=$(cmd_cpsi_query "$at_port")
     response2=$(cmd_cnwinfo_query "$at_port")
+    response1=$(simcom_parse_response simcom.cpsi "$response1")
+    response2=$(simcom_parse_response simcom.cnwinfo "$response2")
 
-    local lte=$(echo "$response1" | grep "LTE")
-    local nr5g_nsa=$(echo "$response1" | grep "NR5G_NSA")
-    local CNWINFO=$(echo "$response2" | grep "+CNWINFO:")
+    local lte=$(printf '%s' "$response1" | jq -c '.records[] | select(.rat == "LTE")' | head -n1)
+    local nr5g_nsa=$(printf '%s' "$response1" | jq -c '.records[] | select(.rat == "NR5G_NSA")' | head -n1)
+    local CNWINFO="$response2"
     if [ -n "$lte" ] && [ -n "$nr5g_nsa" ] ; then
         #EN-DC模式
         network_mode="EN-DC Mode"
@@ -1018,121 +1033,121 @@ cell_info()
         # +CPSI: LTE,Online,460-01,0x7496,251941991,203,EUTRAN-BAND8,3740,3,3,-92,-672,-418,14
         # +CPSI: LTE,<OperationMode>[,<MCC>-<MNC>,<TAC>,<SCellID>,<PCellID>,<FrequencyBand>,<earfcn>,<dlbw>,<ulbw>,<RSRQ>,<RSRP>,<RSSI>,<RSSNR>]
         endc_lte_duplex_mode=""
-        endc_lte_mcc=$(echo "$lte" | awk -F',' '{print $3}' | awk -F'-' '{print $1}')
-        endc_lte_mnc=$(echo "$lte" | awk -F',' '{print $3}' | awk -F'-' '{print $2}')
-        endc_lte_cell_id=$(echo "$lte" | awk -F',' '{print $5}')
-        endc_lte_physical_cell_id=$(echo "$lte" | awk -F',' '{print $6}')
-        endc_lte_earfcn=$(echo "$lte" | awk -F',' '{print $8}')
-        endc_lte_freq_band_ind_num=$(echo "$lte" | awk -F',' '{print $7}')
+        endc_lte_mcc=$(simcom_json_field "$lte" plmn | cut -d- -f1)
+        endc_lte_mnc=$(simcom_json_field "$lte" plmn | cut -d- -f2)
+        endc_lte_cell_id=$(simcom_json_field "$lte" cell_id)
+        endc_lte_physical_cell_id=$(simcom_json_field "$lte" pci)
+        endc_lte_earfcn=$(simcom_json_field "$lte" arfcn)
+        endc_lte_freq_band_ind_num=$(simcom_json_field "$lte" band_code)
         endc_lte_freq_band_ind=$(get_band $endc_lte_freq_band_ind_num)
-        ul_bandwidth_num=$(echo "$lte" | awk -F',' '{print $10}')
+        ul_bandwidth_num=$(simcom_json_field "$lte" ul_bandwidth_code)
         endc_lte_ul_bandwidth=$(get_bandwidth "LTE" $ul_bandwidth_num)
-        dl_bandwidth_num=$(echo "$lte" | awk -F',' '{print $9}')
+        dl_bandwidth_num=$(simcom_json_field "$lte" dl_bandwidth_code)
         endc_lte_dl_bandwidth=$(get_bandwidth "LTE" $dl_bandwidth_num)
-        endc_lte_tac=$(echo "$lte" | awk -F',' '{print $4}')
-        endc_lte_rsrp=$(echo "$lte" | awk -F',' '{print $12}')
+        endc_lte_tac=$(simcom_json_field "$lte" tac)
+        endc_lte_rsrp=$(simcom_json_field "$lte" rsrp_tenth)
         endc_lte_rsrp=$(process_signal_value $endc_lte_rsrp)
-        endc_lte_rsrq=$(echo "$lte" | awk -F',' '{print $11}')
+        endc_lte_rsrq=$(simcom_json_field "$lte" rsrq_tenth)
         endc_lte_rsrq=$(process_signal_value $endc_lte_rsrq)
-        endc_lte_rssi=$(echo "$lte" | awk -F',' '{print $13}')
+        endc_lte_rssi=$(simcom_json_field "$lte" rssi_tenth)
         endc_lte_rssi=$(process_signal_value $endc_lte_rssi)
-        endc_lte_sinr=$(echo "$lte" | awk -F',' '{print $14}')
-        endc_lte_cql=$(echo "$CNWINFO" | awk -F',' '{print $8}')
+        endc_lte_sinr=$(simcom_json_field "$lte" sinr)
+        endc_lte_cql=$(simcom_json_field "$CNWINFO" cqi_or_dlmod)
         endc_lte_tx_power=""
         endc_lte_srxlev=""
         #NR5G-NSA
         # +CPSI: NR5G_NSA,[<PCellID>,<FrequencyBand>,<earfcn/ssb>,<RSRP>,<RSRQ>,<SNR>,<scs>,<NR_dl_bw>]
         endc_nr_mcc=""
         endc_nr_mnc=""
-        endc_nr_physical_cell_id=$(echo "$nr5g_nsa" | awk -F',' '{print $2}')
-        endc_nr_rsrp=$(echo "$nr5g_nsa" | awk -F',' '{print $5}')
+        endc_nr_physical_cell_id=$(simcom_json_field "$nr5g_nsa" pci)
+        endc_nr_rsrp=$(simcom_json_field "$nr5g_nsa" rsrp_tenth)
         endc_nr_rsrp=$(process_signal_value $endc_nr_rsrp)
-        endc_nr_sinr=$(echo "$nr5g_nsa" | awk -F',' '{print $7}')
+        endc_nr_sinr=$(simcom_json_field "$nr5g_nsa" sinr_tenth)
         endc_nr_sinr=$(process_signal_value $endc_nr_sinr)
-        endc_nr_rsrq=$(echo "$nr5g_nsa" | awk -F',' '{print $6}')
+        endc_nr_rsrq=$(simcom_json_field "$nr5g_nsa" rsrq_tenth)
         endc_nr_rsrq=$(process_signal_value $endc_nr_rsrq)
-        endc_nr_arfcn=$(echo "$nr5g_nsa" | awk -F',' '{print $4}')
-        endc_nr_band_num=$(echo "$nr5g_nsa" | awk -F',' '{print $3}')
+        endc_nr_arfcn=$(simcom_json_field "$nr5g_nsa" arfcn)
+        endc_nr_band_num=$(simcom_json_field "$nr5g_nsa" band_code)
         endc_nr_band=$(get_band $endc_nr_band_num)
-        nr_dl_bandwidth_num=$(echo "$nr5g_nsa" | awk -F',' '{print $9}')
+        nr_dl_bandwidth_num=$(simcom_json_field "$nr5g_nsa" dl_bandwidth_code)
         endc_nr_dl_bandwidth=$(get_bandwidth "NR" $nr_dl_bandwidth_num)
-        scs_num=$(echo "$nr5g_nsa" | awk -F',' '{print $8}' | sed 's/\r//g')
+        scs_num=$(simcom_json_field "$nr5g_nsa" scs_code)
         endc_nr_scs=$(get_scs $scs_num)
     else
         #SA，LTE，WCDMA模式
         #+CPSI: NR5G_SA,<OperationMode>[,<MCC>-<MNC>,<TAC>,<SCellID>,<PCellID>,<FrequencyBand>,<earfcn>,<RSRP>,<RSRQ>,<SNR>]
-        response=$(echo "$response1" | grep "+CPSI:")
-        local rat=$(echo "$response" | awk -F',' '{print $1}' | sed 's/+CPSI: //g')
+        response=$(printf '%s' "$response1" | jq -c '.records[0]')
+        local rat=$(simcom_json_field "$response" rat)
         case $rat in
             "NR5G_SA")
                 network_mode="NR5G-SA Mode"
-                nr_duplex_mode=$(echo "$response" | awk -F',' '{print $2}')
-                nr_mcc=$(echo "$response" | awk -F',' '{print $3}' | awk -F'-' '{print $1}')
-                nr_mnc=$(echo "$response" | awk -F',' '{print $3}' | awk -F'-' '{print $2}')
-                nr_cell_id=$(echo "$response" | awk -F',' '{print $5}')
-                nr_physical_cell_id=$(echo "$response" | awk -F',' '{print $6}')
-                nr_tac=$(echo "$response" | awk -F',' '{print $4}')
-                nr_arfcn=$(echo "$response" | awk -F',' '{print $8}')
-                nr_band_num=$(echo "$response" | awk -F',' '{print $7}')
+                nr_duplex_mode=$(simcom_json_field "$response" operation_mode)
+                nr_mcc=$(simcom_json_field "$response" plmn | cut -d- -f1)
+                nr_mnc=$(simcom_json_field "$response" plmn | cut -d- -f2)
+                nr_cell_id=$(simcom_json_field "$response" cell_id)
+                nr_physical_cell_id=$(simcom_json_field "$response" pci)
+                nr_tac=$(simcom_json_field "$response" tac)
+                nr_arfcn=$(simcom_json_field "$response" arfcn)
+                nr_band_num=$(simcom_json_field "$response" band_code)
                 nr_band=$(get_band $nr_band_num)
-                nr_dl_bandwidth=$(echo $CNWINFO | awk -F',' '{print $11}')
-                nr_rsrp=$(echo "$response" | awk -F',' '{print $9}')
+                nr_dl_bandwidth=$(simcom_json_field "$CNWINFO" dl_bandwidth)
+                nr_rsrp=$(simcom_json_field "$response" rsrp_tenth)
                 nr_rsrp=$(process_signal_value $nr_rsrp)
-                nr_rsrq=$(echo "$response" | awk -F',' '{print $10}')
+                nr_rsrq=$(simcom_json_field "$response" rsrq_tenth)
                 nr_rsrq=$(process_signal_value $nr_rsrq)
-                nr_sinr=$(echo "$response" | awk -F',' '{print $11}')
+                nr_sinr=$(simcom_json_field "$response" sinr)
                 nr_scs_num=""
                 nr_scs=$(get_scs $nr_scs_num)
-                nr_rxlev=$(echo "$CNWINFO" | awk -F',' '{print $5}')
-                nr_cql=$(echo "$CNWINFO" | awk -F',' '{print $14}')
-                nr_dlmod=$(echo "$CNWINFO" | awk -F',' '{print $8}')
-                nr_ulmod=$(echo "$CNWINFO" | awk -F',' '{print $9}')
-                nr_tx_power=$(echo "$CNWINFO" | awk -F',' '{print $12}')
-                nr_rssi=$(echo "$CNWINFO" | awk -F',' '{print $13}')
+                nr_rxlev=$(simcom_json_field "$CNWINFO" rxlev)
+                nr_cql=$(simcom_json_field "$CNWINFO" cqi)
+                nr_dlmod=$(simcom_json_field "$CNWINFO" cqi_or_dlmod)
+                nr_ulmod=$(simcom_json_field "$CNWINFO" tx_power_or_ulmod)
+                nr_tx_power=$(simcom_json_field "$CNWINFO" tx_power)
+                nr_rssi=$(simcom_json_field "$CNWINFO" rssi_tenth)
                 nr_rssi=$(process_signal_value $nr_rssi)
             ;;
             "LTE")
                 # +CPSI: LTE,Online,460-01,0x7496,251941991,203,EUTRAN-BAND8,3740,3,3,-92,-672,-418,14
                 # +CPSI: LTE,<OperationMode>[,<MCC>-<MNC>,<TAC>,<SCellID>,<PCellID>,<FrequencyBand>,<earfcn>,<dlbw>,<ulbw>,<RSRQ>,<RSRP>,<RSSI>,<RSSNR>]
                 network_mode="LTE Mode"
-                lte_mcc=$(echo "$response" | awk -F',' '{print $3}' | awk -F'-' '{print $1}')
-                lte_mnc=$(echo "$response" | awk -F',' '{print $3}' | awk -F'-' '{print $2}')
-                lte_cell_id=$(echo "$response" | awk -F',' '{print $5}')
-                lte_physical_cell_id=$(echo "$response" | awk -F',' '{print $6}')
-                lte_earfcn=$(echo "$response" | awk -F',' '{print $8}')
-                lte_freq_band_ind_num=$(echo "$response" | awk -F',' '{print $7}')
+                lte_mcc=$(simcom_json_field "$response" plmn | cut -d- -f1)
+                lte_mnc=$(simcom_json_field "$response" plmn | cut -d- -f2)
+                lte_cell_id=$(simcom_json_field "$response" cell_id)
+                lte_physical_cell_id=$(simcom_json_field "$response" pci)
+                lte_earfcn=$(simcom_json_field "$response" arfcn)
+                lte_freq_band_ind_num=$(simcom_json_field "$response" band_code)
                 lte_freq_band_ind=$(get_band $lte_freq_band_ind_num)
-                ul_bandwidth_num=$(echo "$response" | awk -F',' '{print $10}')
+                ul_bandwidth_num=$(simcom_json_field "$response" ul_bandwidth_code)
                 lte_ul_bandwidth=$(get_bandwidth "LTE" $ul_bandwidth_num)
-                dl_bandwidth_num=$(echo "$response" | awk -F',' '{print $9}')
+                dl_bandwidth_num=$(simcom_json_field "$response" dl_bandwidth_code)
                 lte_dl_bandwidth=$(get_bandwidth "LTE" $dl_bandwidth_num)
-                lte_tac=$(echo "$response" | awk -F',' '{print $4}')
-                lte_rsrp=$(echo "$response" | awk -F',' '{print $12}')
+                lte_tac=$(simcom_json_field "$response" tac)
+                lte_rsrp=$(simcom_json_field "$response" rsrp_tenth)
                 lte_rsrp=$(process_signal_value $lte_rsrp)
-                lte_rsrq=$(echo "$response" | awk -F',' '{print $11}')
+                lte_rsrq=$(simcom_json_field "$response" rsrq_tenth)
                 lte_rsrq=$(process_signal_value $lte_rsrq)
-                lte_rssi=$(echo "$response" | awk -F',' '{print $13}')
+                lte_rssi=$(simcom_json_field "$response" rssi_tenth)
                 lte_rssi=$(process_signal_value $lte_rssi)
-                lte_sinr=$(echo "$response" | awk -F',' '{print $14}')
-                lte_cql=$(echo "$CNWINFO" | awk -F',' '{print $8}')
-                lte_tx_power=$(echo "$CNWINFO" | awk -F',' '{print $9}')
-                lte_srxlev=$(echo "$CNWINFO" | awk -F',' '{print $4}')
+                lte_sinr=$(simcom_json_field "$response" sinr)
+                lte_cql=$(simcom_json_field "$CNWINFO" cqi_or_dlmod)
+                lte_tx_power=$(simcom_json_field "$CNWINFO" tx_power_or_ulmod)
+                lte_srxlev=$(simcom_json_field "$CNWINFO" srxlev)
             ;;
             "WCDMA")
                 # +CPSI: <SystemMode>,<OperationMode>,<MCC>-<MNC>,<LAC>,<Cell ID>,<FrequencyBand>,<PSC>,<Freq>,<SSC>,<EC/IO>,<RSCP>,<Qual>,<RxLev>,<TXPWR>
                 # +CPSI: WCDMA,Online,460-01,0xA809,11122855,WCDMAIMT2000,279,10663,0,1.5,62,33,52,500
                 network_mode="WCDMA Mode"
-                wcdma_mcc=$(echo "$response" | awk -F',' '{print $3}' | awk -F'-' '{print $1}')
-                wcdma_mnc=$(echo "$response" | awk -F',' '{print $3}' | awk -F'-' '{print $2}')
-                wcdma_lac=$(echo "$response" | awk -F',' '{print $4}')
-                wcdma_cell_id=$(echo "$response" | awk -F',' '{print $5}')
-                wcdma_uarfcn=$(echo "$response" | awk -F',' '{print $8}')
-                wcdma_psc=$(echo "$response" | awk -F',' '{print $7}')
-                wcdma_rscp=$(echo "$response" | awk -F',' '{print $11}')
+                wcdma_mcc=$(simcom_json_field "$response" plmn | cut -d- -f1)
+                wcdma_mnc=$(simcom_json_field "$response" plmn | cut -d- -f2)
+                wcdma_lac=$(simcom_json_field "$response" lac)
+                wcdma_cell_id=$(simcom_json_field "$response" cell_id)
+                wcdma_uarfcn=$(simcom_json_field "$response" uarfcn)
+                wcdma_psc=$(simcom_json_field "$response" psc)
+                wcdma_rscp=$(simcom_json_field "$response" rscp_tenth)
                 wcdma_rscp=$(process_signal_value $wcdma_rscp)
-                wcdma_ecio=$(echo "$response" | awk -F',' '{print $10}')
-                wcdma_tx_power=$(echo "$response" | awk -F',' '{print $14}')
-                wcdma_rxlev=$(echo "$CNWINFO" | awk -F',' '{print $13}')
+                wcdma_ecio=$(simcom_json_field "$response" ecio)
+                wcdma_tx_power=$(simcom_json_field "$response" tx_power)
+                wcdma_rxlev=$(simcom_json_field "$CNWINFO" rssi_tenth)
             ;;
         esac
     fi

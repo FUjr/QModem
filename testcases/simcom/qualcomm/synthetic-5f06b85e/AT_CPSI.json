@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "vendor": "simcom",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT+CPSI?",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "endc",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b435053493f0d0a2b435053493a204c54452c4f6e6c696e652c3436302d30312c3078373439362c3235313934313939312c3230332c45555452414e2d42414e44382c333734302c332c332c2d39322c2d3637322c2d3431382c31340d0a2b435053493a204e5235475f4e53412c39352c4e5235475f42414e4437382c3632373236342c2d3830302c2d3131302c3134302c312c370d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "simcom.cpsi",
+          "context": {},
+          "expected": {"records":[{"rat":"LTE","operation_mode":"Online","plmn":"460-01","tac":"0x7496","cell_id":"251941991","pci":"203","band_code":"EUTRAN-BAND8","arfcn":"3740","dl_bandwidth_code":"3","ul_bandwidth_code":"3","rsrq_tenth":"-92","rsrp_tenth":"-672","rssi_tenth":"-418","sinr":"14"},{"rat":"NR5G_NSA","pci":"95","band_code":"NR5G_BAND78","arfcn":"627264","rsrp_tenth":"-800","rsrq_tenth":"-110","sinr_tenth":"140","scs_code":"1","dl_bandwidth_code":"7"}]}
+        },
+        {
+          "parser": "simcom.cpsi.type",
+          "context": {},
+          "expected": {"network_type":"LTE"}
+        }
+      ]
+    },
+    {
+      "scenario": "sa",
+      "sequence": 0,
+      "capture_sequence": 1,
+      "response_hex": "41542b435053493f0d0a2b435053493a204e5235475f53412c4f6e6c696e652c3436302d30312c307831302c31323334352c31302c4e5235475f42414e4437382c3632373236342c2d3930302c2d3132302c31380d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "simcom.cpsi",
+          "context": {},
+          "expected": {"records":[{"rat":"NR5G_SA","operation_mode":"Online","plmn":"460-01","tac":"0x10","cell_id":"12345","pci":"10","band_code":"NR5G_BAND78","arfcn":"627264","rsrp_tenth":"-900","rsrq_tenth":"-120","sinr":"18"}]}
+        }
+      ]
+    }
+  ]
+}

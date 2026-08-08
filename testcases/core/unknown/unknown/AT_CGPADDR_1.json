@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "vendor": "core",
+  "platform": "unknown",
+  "model": "unknown",
+  "command": "AT+CGPADDR=1",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "ipv4-only",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b434750414444523d310d0d0a2b434750414444523a20312c2231302e302e302e32220d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "core.cgpaddr.addresses",
+          "context": {},
+          "expected": {
+            "ipv4": "10.0.0.2",
+            "ipv6": ""
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "dual-stack",
+      "sequence": 0,
+      "capture_sequence": 1,
+      "response_hex": "41542b434750414444523d310d0d0a2b434750414444523a20312c2231302e302e302e32222c22323030313a6462383a3a32220d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "core.cgpaddr.addresses",
+          "context": {},
+          "expected": {
+            "ipv4": "10.0.0.2",
+            "ipv6": "2001:db8::2"
+          }
+        }
+      ]
+    }
+  ]
+}

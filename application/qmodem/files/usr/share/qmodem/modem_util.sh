@@ -3,6 +3,16 @@
 . "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
 . "${QMODEM_HOME:-/usr/share/qmodem}/cmds/modem_util.sh"
 
+qmodem_util_parse()
+{
+  local parser_id="$1" context_json="${2:-}"
+  [ -n "$context_json" ] || context_json='{}'
+  "${QMODEM_PARSER:-${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh}" \
+    "$parser_id" --platform "${platform:-unknown}" \
+    --model "${model:-${QMODEM_TESTCASE_MODEL:-unknown}}" \
+    --context-json "$context_json"
+}
+
 #testcase collection (fixture) support
 #switch: uci set qmodem.main.testcase_collect=1 (cached per process)
 #env overrides (used by tests): QMODEM_COLLECT_TESTCASE / QMODEM_COLLECT_DIR
@@ -29,6 +39,13 @@ qmodem_testcase_path_segment()
   slug=$(printf '%s' "$value" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9._-' '_' | cut -c1-40)
   [ -n "$slug" ] || slug="$fallback"
   printf '%s' "$slug"
+}
+
+qmodem_testcase_scenario()
+{
+  local scenario="${QMODEM_TESTCASE_SCENARIO:-}"
+  [ -n "$scenario" ] || scenario=$(uci -q get qmodem.main.testcase_scenario 2>/dev/null)
+  qmodem_testcase_path_segment "${scenario:-default}" default
 }
 
 qmodem_testcase_profile_dir()
@@ -61,7 +78,7 @@ qmodem_record_testcase_file()
   local vendor_name="${vendor:-${manufacturer:-core}}"
   local platform_name="${platform:-unknown}"
   local model_name="${QMODEM_TESTCASE_MODEL:-}" dir phase=vendor
-  local slug hash file
+  local slug hash file update_file timestamp scenario lock_dir attempts
   [ -n "$model_name" ] || model_name=$(uci -q get "qmodem.${config_section:-}.name" 2>/dev/null)
   [ -n "$model_name" ] || model_name="unknown"
   if [ "$vendor_name" = "core" ] || [ "$vendor_name" = "unknown" ] || [ "$model_name" = "unknown" ]; then
@@ -73,7 +90,46 @@ qmodem_record_testcase_file()
   hash=$(printf '%s' "$atcmd" | md5sum | cut -c1-8)
   file="${dir}/${slug}-${hash}.json"
   response_hex=$(xxd -p "$response_file" | tr -d '\n') || return 0
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  scenario=$(qmodem_testcase_scenario)
+  lock_dir="${file}.lock"
+  attempts=0
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    attempts=$((attempts + 1))
+    [ "$attempts" -lt 100 ] || return 0
+    sleep 0.05
+  done
+  update_file=$(mktemp "${dir}/.fixture.XXXXXX") || {
+    rmdir "$lock_dir" 2>/dev/null
+    return 0
+  }
+  if [ -f "$file" ]; then
+    jq --arg response_hex "$response_hex" --argjson rc "$rc" \
+      --arg timestamp "$timestamp" --arg scenario "$scenario" '
+      if has("responses") then .
+      else .responses=[{response_hex:(.response_hex // ""), response:.response,
+                        rc:(.rc // 0), timestamp:(.timestamp // ""),
+                        scenario:"default", sequence:0, capture_sequence:0,
+                        source:(.source // "device"), assertions:[]}]
+        | .responses |= map(if .response == null then del(.response) else . end)
+        | del(.response_hex, .response, .rc, .timestamp, .source)
+      end
+      | .schema_version=2
+      | ([.responses[] | select(.scenario == $scenario) | .sequence] | max // -1) as $last
+      | .responses += [{response_hex:$response_hex, rc:$rc, timestamp:$timestamp,
+                        scenario:$scenario, sequence:($last + 1),
+                        capture_sequence:($last + 1), source:"device", assertions:[]}]' \
+      "$file" > "$update_file" 2>/dev/null || {
+        rm -f "$update_file"
+        rmdir "$lock_dir" 2>/dev/null
+        return 0
+      }
+    mv "$update_file" "$file" 2>/dev/null || rm -f "$update_file"
+    rmdir "$lock_dir" 2>/dev/null
+    return 0
+  fi
   jq -n \
+    --argjson schema_version 2 \
     --arg vendor "$vendor_name" \
     --arg platform "$platform_name" \
     --arg model "$model_name" \
@@ -81,13 +137,18 @@ qmodem_record_testcase_file()
     --arg response_hex "$response_hex" \
     --arg tool "$tool" \
     --arg phase "$phase" \
+    --arg scenario "$scenario" \
     --arg config_section "${config_section:-unknown}" \
     --argjson rc "$rc" \
-    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{vendor:$vendor, platform:$platform, model:$model, phase:$phase,
-      config_section:$config_section, command:$command,
-      response_hex:$response_hex, tool:$tool, rc:$rc, timestamp:$timestamp}' \
-    > "$file" 2>/dev/null || rm -f "$file"
+    --arg timestamp "$timestamp" \
+    '{schema_version:$schema_version, vendor:$vendor, platform:$platform,
+      model:$model, phase:$phase, config_section:$config_section,
+      command:$command, tool:$tool,
+      responses:[{response_hex:$response_hex, rc:$rc, timestamp:$timestamp,
+                  scenario:$scenario, sequence:0, capture_sequence:0,
+                  source:"device", assertions:[]}]}' \
+    > "$update_file" 2>/dev/null && mv "$update_file" "$file" 2>/dev/null || rm -f "$update_file"
+  rmdir "$lock_dir" 2>/dev/null
 }
 
 at()
@@ -307,14 +368,12 @@ update_sim_slot()
 
 at_get_slot()
 {
+	local response parsed
 	case $vendor in
 		"quectel")
-			at_res=$(cmd_util_quimslot_query "$at_port" | awk -F':' '/\+(QUIMSLOT|QUSIMSLOT):/ {
-				value=$2
-				gsub(/[^0-9]/, "", value)
-				print value
-				exit
-			}')
+			response=$(cmd_util_quimslot_query "$at_port")
+			parsed=$(printf '%s' "$response" | qmodem_util_parse core.simslot '{"vendor":"quectel"}')
+			at_res=$(printf '%s' "$parsed" | jq -r '.slot_code // empty')
 			case "$at_res" in
 				"1")
 					sim_slot="1"
@@ -328,7 +387,9 @@ at_get_slot()
 			esac
 			;;
 		"fibocom")
-			at_res=$(cmd_util_gtdualsim_query "$at_port" |grep +GTDUALSIM: |awk -F: '{print $2}')
+			response=$(cmd_util_gtdualsim_query "$at_port")
+			parsed=$(printf '%s' "$response" | qmodem_util_parse core.simslot '{"vendor":"fibocom"}')
+			at_res=$(printf '%s' "$parsed" | jq -r '.slot_code // empty')
 			case $at_res in
 				"0")
 					sim_slot="1"
@@ -345,7 +406,9 @@ at_get_slot()
 			esac
 			;;
 		"simcom")
-			at_res=$(cmd_util_smsimcfg_query "$at_port" | grep "+SMSIMCFG:" | awk -F',' '{print $2}' | sed 's/\r//g')
+			response=$(cmd_util_smsimcfg_query "$at_port")
+			parsed=$(printf '%s' "$response" | qmodem_util_parse core.simslot '{"vendor":"simcom"}')
+			at_res=$(printf '%s' "$parsed" | jq -r '.slot_code // empty')
 			case $at_res in
 				"1")
 					sim_slot="1"
@@ -362,7 +425,9 @@ at_get_slot()
 			esac
 			;;
 		"meig")
-			at_res=$(cmd_util_simslot_query "$at_port" | grep "\^SIMSLOT:" | awk -F': ' '{print $2}' | awk -F',' '{print $2}')
+			response=$(cmd_util_simslot_query "$at_port")
+			parsed=$(printf '%s' "$response" | qmodem_util_parse core.simslot '{"vendor":"meig"}')
+			at_res=$(printf '%s' "$parsed" | jq -r '.slot_code // empty')
 			case $at_res in
 				"1")
 					sim_slot="1"
@@ -379,7 +444,9 @@ at_get_slot()
 			esac
 			;;
 		"neoway")
-			at_res=$(cmd_util_simcross_query "$at_port" | grep "+SIMCROSS:" | awk -F'[ ,]' '{print $2}' | sed 's/\r//g')
+			response=$(cmd_util_simcross_query "$at_port")
+			parsed=$(printf '%s' "$response" | qmodem_util_parse core.simslot '{"vendor":"neoway"}')
+			at_res=$(printf '%s' "$parsed" | jq -r '.slot_code // empty')
 			case $at_res in
 				"1")
 					sim_slot="1"
@@ -396,7 +463,9 @@ at_get_slot()
 			esac
 			;;
 		"telit")
-			at_res=$(cmd_util_qss_query "$at_port" | grep "#QSS:" | awk -F',' '{print $3}' | sed 's/\r//g')
+			response=$(cmd_util_qss_query "$at_port")
+			parsed=$(printf '%s' "$response" | qmodem_util_parse core.simslot '{"vendor":"telit"}')
+			at_res=$(printf '%s' "$parsed" | jq -r '.slot_code // empty')
 			case $at_res in
 				"0")
 					sim_slot="1"
@@ -413,8 +482,12 @@ at_get_slot()
 			esac
 			;;
 		*)
-			at_q_res=$(cmd_util_qsimdet_query "$at_port" |grep +QSIMDET: |awk -F: '{print $2}')
-			at_f_res=$(cmd_util_gtdualsim_query "$at_port" |grep +GTDUALSIM: |awk -F: '{print $2}')
+			response=$(cmd_util_qsimdet_query "$at_port")
+			parsed=$(printf '%s' "$response" | qmodem_util_parse core.simslot '{"vendor":"qsimdet"}')
+			at_q_res=$(printf '%s' "$parsed" | jq -r '.slot_code // empty')
+			response=$(cmd_util_gtdualsim_query "$at_port")
+			parsed=$(printf '%s' "$response" | qmodem_util_parse core.simslot '{"vendor":"gtdualsim"}')
+			at_f_res=$(printf '%s' "$parsed" | jq -r '.slot_code // empty')
 			[ "$at_q_res" == "1" ] && sim_slot="1" && return
 			[ "$at_q_res" == "2" ] && sim_slot="2" && return
 			[ "$at_f_res" == "0" ] && sim_slot="1" && return

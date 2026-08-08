@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "vendor": "telit",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT+WS46?",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "automatic",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b575334363f0d0a2b575334363a2033380d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [{"parser":"telit.ws46","context":{},"expected":{"mode_code":"38","enabled":{"3G":true,"4G":true,"5G":true}}}]
+    },
+    {
+      "scenario": "lte-only",
+      "sequence": 0,
+      "capture_sequence": 1,
+      "response_hex": "41542b575334363f0d0a2b575334363a2032380d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [{"parser":"telit.ws46","context":{},"expected":{"mode_code":"28","enabled":{"3G":false,"4G":true,"5G":false}}}]
+    }
+  ]
+}

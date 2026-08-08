@@ -5,6 +5,7 @@ _Author="x-shark"
 _Maintainer="x-shark <unknown>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
 debug_subject="foxconn_ctrl"
+_foxconn_parse(){ local id="$1" raw="$2" context="$3"; [ -n "$context" ]||context='{}'; printf '%s' "$raw"|"${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh" "$id" --platform "${platform:-unknown}" --model "${model:-unknown}" --context-json "$context"; }
 
 name=$(uci -q get qmodem.$config_section.name)
 case "$name" in
@@ -17,7 +18,7 @@ case "$name" in
 esac
 
 get_imei(){
-    imei=$(cmd_ati "$at_port" | awk -F': ' '/^IMEI:/ {print $2}' | xargs)
+    local raw parsed; raw=$(cmd_ati "$at_port"); parsed=$(_foxconn_parse foxconn.ati "$raw"); imei=$(printf '%s' "$parsed"|jq -r '.imei//empty')
     json_add_string imei $imei
 }
 
@@ -41,8 +42,9 @@ set_imei(){
     # 两位分组加逗号，并转小写
     formatted=$(echo "$swapped" | sed 's/../&,/g' | sed 's/,$//' | tr 'A-Z' 'a-z')
 
-    cmd_nv_550_clear "$at_port" "$at_pre"
-    res=$(cmd_nv_550_set "$at_port" "$at_pre" "$formatted")
+    local raw parsed
+    raw=$(cmd_nv_550_clear "$at_port" "$at_pre"); _foxconn_parse foxconn.nv.clear "$raw" >/dev/null
+    raw=$(cmd_nv_550_set "$at_port" "$at_pre" "$formatted"); parsed=$(_foxconn_parse foxconn.nv.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
     json_select "result"
     json_add_string "set_imei" "$res"
     json_close_object
@@ -52,15 +54,13 @@ set_imei(){
 get_mode(){
     local mode_num
     local mode
-    cfg=$(cmd_pciemode_query "$at_port" "$at_pre")
-    config_type=`echo -e "$cfg" | grep -o '[0-9]'`
+    local raw parsed; raw=$(cmd_pciemode_query "$at_port" "$at_pre"); parsed=$(_foxconn_parse foxconn.pciemode "$raw"); config_type=$(printf '%s' "$parsed"|jq -r '.config_type//empty')
     if [ "$config_type" = "1" ]; then
         mode_num="0"
     json_add_int disable_mode_btn 1
 
     else
-          ucfg=$(cmd_usbswitch_query "$at_port" "$at_pre")
-          config_type=$(echo "$ucfg" | grep USBSWITCH: |cut -d':' -f2|xargs)
+          raw=$(cmd_usbswitch_query "$at_port" "$at_pre"); parsed=$(_foxconn_parse foxconn.usbswitch "$raw"); config_type=$(printf '%s' "$parsed"|jq -r '.config_type//empty')
           if [ "$config_type" = "9025" ]; then
              mode_num="1"
           elif [ "$config_type" = "90D5" ]; then
@@ -107,14 +107,14 @@ set_mode(){
         ;;
     esac
     #设置模组
-    res=$(cmd_usbswitch_set "$at_port" "$at_pre" "$mode_num")
+    local raw parsed; raw=$(cmd_usbswitch_set "$at_port" "$at_pre" "$mode_num"); parsed=$(_foxconn_parse foxconn.usbswitch.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
     json_select "result"
     json_add_string "set_mode" "$res"
     json_close_object
 }
 
 get_network_prefer(){
-    res=$(cmd_slmode_query "$at_port" "$at_pre"| grep -o '[0-9]\+' | tr -d '\n' | tr -d ' ')
+    local raw parsed; raw=$(cmd_slmode_query "$at_port" "$at_pre"); parsed=$(_foxconn_parse foxconn.slmode "$raw"); res=$(printf '%s' "$parsed"|jq -r '.code//empty')
 # (RAT index): 
 # 0 Automatically 
 # 1 WCDMA Only
@@ -203,7 +203,7 @@ set_network_prefer(){
             code="10"
             ;;
     esac
-    res=$(cmd_slmode_set "$at_port" "$at_pre" "$(echo "$code" | awk '{print substr($0,1,1) "," substr($0,2,1)}')")
+    local raw parsed; raw=$(cmd_slmode_set "$at_port" "$at_pre" "${code%?},${code#?}"); parsed=$(_foxconn_parse foxconn.slmode.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
     json_add_string "code" "$code"
     json_add_string "result" "$res"
 }
@@ -225,21 +225,18 @@ sim_info()
     class="SIM Information"
 
     #IMEI（国际移动设备识别码）
-    imei=$(cmd_ati "$at_port" | awk -F': ' '/^IMEI:/ {print $2}' | xargs)
+    local raw parsed; raw=$(cmd_ati "$at_port"); parsed=$(_foxconn_parse foxconn.ati "$raw"); imei=$(printf '%s' "$parsed"|jq -r '.imei//empty')
     
-    sim_slot=$(cmd_switch_slot_query "$at_port" "$at_pre" | grep ENABLE|grep -o 'SIM[0-9]*')
+    raw=$(cmd_switch_slot_query "$at_port" "$at_pre"); parsed=$(_foxconn_parse foxconn.switch_slot "$raw"); sim_slot=$(printf '%s' "$parsed"|jq -r '.slot//empty')
 
     #SIM Status（SIM状态）
-    sim_status=$(cmd_cpin_query "$at_port" | grep "+CPIN:")
-    sim_status=${sim_status:7:-1}
-    #lowercase
-    sim_status=$(echo $sim_status | tr  A-Z a-z)
+    raw=$(cmd_cpin_query "$at_port"); parsed=$(_foxconn_parse foxconn.cpin "$raw"); sim_status=$(printf '%s' "$parsed"|jq -r '.status//empty')
 
     if [ "$sim_status" != "ready" ]; then
         return
     fi
     
-    isp=$(cmd_cops_query "$at_port" | sed -n '2p' | awk -F'"' '{print $2}')
+    raw=$(cmd_cops_query "$at_port"); parsed=$(_foxconn_parse foxconn.cops "$raw"); isp=$(printf '%s' "$parsed"|jq -r '.operator//empty')
     if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ]|| [ "$isp" = "46000" ]; then
          isp="中国移动"
     # # elif [ "$isp" = "CHN-UNICOM" ] || [ "$isp" = "UNICOM" ] || [ "$isp" = "46001" ]; then
@@ -250,13 +247,13 @@ sim_info()
          isp="中国电信"
     fi
 
-    sim_number=$(cmd_cnum "$at_port" | awk -F'"' '{print $2}'|xargs)
+    raw=$(cmd_cnum "$at_port"); parsed=$(_foxconn_parse foxconn.cnum "$raw"); sim_number=$(printf '%s' "$parsed"|jq -r '.number//empty')
 
     #IMSI（国际移动用户识别码）
-    imsi=$(cmd_cimi "$at_port" | sed -n '2p' | sed 's/\r//g')
+    raw=$(cmd_cimi "$at_port"); parsed=$(_foxconn_parse foxconn.cimi "$raw"); imsi=$(printf '%s' "$parsed"|jq -r '.imsi//empty')
 
     #ICCID（集成电路卡识别码）
-    iccid=$(cmd_iccid "$at_port" | sed -n '2p' | sed 's/\r//g'|sed 's/[^0-9]*//g')
+    raw=$(cmd_iccid "$at_port"); parsed=$(_foxconn_parse foxconn.iccid "$raw"); iccid=$(printf '%s' "$parsed"|jq -r '.iccid//empty')
     case "$sim_status" in
         "ready")
             add_plain_info_entry "SIM Status" "$sim_status" "SIM Status" 
@@ -286,12 +283,11 @@ sim_info()
 
 base_info(){
         #Name（名称）
-    baseinfos=$(cmd_ati "$at_port")
-    name=$(echo "$baseinfos"| awk -F': ' '/^Manufacturer:/ {print $2}' |xargs)
+    local raw parsed; raw=$(cmd_ati "$at_port"); parsed=$(_foxconn_parse foxconn.ati "$raw"); name=$(printf '%s' "$parsed"|jq -r '.name//empty')
     #Manufacturer（制造商）
-    manufacturer=$(echo "$baseinfos"|awk -F': ' '/^Manufacturer:/ {print $2}' |xargs)
+    manufacturer=$(printf '%s' "$parsed"|jq -r '.manufacturer//empty')
     #Revision（固件版本）
-    revision=$(echo "$baseinfos"|awk -F': ' '/^Revision:/ {print $2}' | xargs)
+    revision=$(printf '%s' "$parsed"|jq -r '.revision//empty')
     class="Base Information"
     add_plain_info_entry "manufacturer" "$manufacturer" "Manufacturer"
     add_plain_info_entry "revision" "$revision" "Revision"
@@ -304,12 +300,11 @@ base_info(){
 network_info() {
     class="Network Information"
     [ -z "$network_type" ] && {
-        local rat_num=$(cmd_cops_query "$at_port" | grep "+COPS:" | awk -F',' '{print $4}' | sed 's/\r//g')
+        local raw parsed; raw=$(cmd_cops_query "$at_port"); parsed=$(_foxconn_parse foxconn.cops "$raw"); local rat_num=$(printf '%s' "$parsed"|jq -r '.rat_code//empty')
         network_type=$(get_rat ${rat_num})
     }
     #at_command='AT+debug?'
     #response=$(at $at_port $at_command)
-    #lte_sinr=$(echo "$response"|awk -F'lte_snr:' '{print $2}'|awk '{print $1}|xargs)
     add_plain_info_entry "Network Type" "$network_type" "Network Type"
 }
 
@@ -320,34 +315,27 @@ vendor_get_disabled_features(){
 get_lockband_nr()
 {
     m_debug  "Quectel sdx55 get lockband info"
-    get_lockbans=$(cmd_band_pref_query "$at_port" "$at_pre")
+    local raw parsed
+    raw=$(cmd_band_pref_query "$at_port" "$at_pre"); parsed=$(_foxconn_parse foxconn.band_pref "$raw")
 
     # WCDMA
-    wcdma_enable=$(echo "$get_lockbans" | grep "WCDMA,Enable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
-    wcdma_disable=$(echo "$get_lockbans" | grep "WCDMA,Disable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
-    wcdma_enable=$(echo "$wcdma_enable" | tr ' ' '\n' | grep -v '^$')
-    wcdma_disable=$(echo "$wcdma_disable" | tr ' ' '\n' | grep -v '^$')
+    wcdma_enable=$(printf '%s' "$parsed"|jq -r '.wcdma.enabled[]')
+    wcdma_disable=$(printf '%s' "$parsed"|jq -r '.wcdma.disabled[]')
     wcdma_all=$(echo "$wcdma_enable $wcdma_disable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
 
     # LTE
-    lte_enable=$(echo "$get_lockbans" | grep "LTE,Enable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
-    lte_disable=$(echo "$get_lockbans" | grep "LTE,Disable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
-    lte_enable=$(echo "$lte_enable" | tr ' ' '\n' | grep -v '^$')
-    lte_disable=$(echo "$lte_disable" | tr ' ' '\n' | grep -v '^$')
+    lte_enable=$(printf '%s' "$parsed"|jq -r '.lte.enabled[]')
+    lte_disable=$(printf '%s' "$parsed"|jq -r '.lte.disabled[]')
     lte_all=$(echo "$lte_enable $lte_disable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
 
     # NR5G_NSA
-    nr_nsa_enable=$(echo "$get_lockbans" | grep "NR5G_NSA,Enable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
-    nr_nsa_disable=$(echo "$get_lockbans" | grep "NR5G_NSA,Disable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
-    nr_nsa_enable=$(echo "$nr_nsa_enable" | tr ' ' '\n' | grep -v '^$')
-    nr_nsa_disable=$(echo "$nr_nsa_disable" | tr ' ' '\n' | grep -v '^$')
+    nr_nsa_enable=$(printf '%s' "$parsed"|jq -r '.nr_nsa.enabled[]')
+    nr_nsa_disable=$(printf '%s' "$parsed"|jq -r '.nr_nsa.disabled[]')
     nr_nsa_all=$(echo "$nr_nsa_enable $nr_nsa_disable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
 
     # NR5G_SA
-    nr_sa_enable=$(echo "$get_lockbans" | grep "NR5G_SA,Enable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
-    nr_sa_disable=$(echo "$get_lockbans" | grep "NR5G_SA,Disable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
-    nr_sa_enable=$(echo "$nr_sa_enable" | tr ' ' '\n' | grep -v '^$')
-    nr_sa_disable=$(echo "$nr_sa_disable" | tr ' ' '\n' | grep -v '^$')
+    nr_sa_enable=$(printf '%s' "$parsed"|jq -r '.nr_sa.enabled[]')
+    nr_sa_disable=$(printf '%s' "$parsed"|jq -r '.nr_sa.disabled[]')
     nr_sa_all=$(echo "$nr_sa_enable $nr_sa_disable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
 
     # UMTS
@@ -412,13 +400,13 @@ set_lockband_nr(){
     case "$band_class" in
         "UMTS") 
         lock_band=$(echo $lock_band)
-            res=$(cmd_band_pref_lock "$at_port" "$at_pre" WCDMA "$lock_band")
+            local raw parsed; raw=$(cmd_band_pref_lock "$at_port" "$at_pre" WCDMA "$lock_band"); parsed=$(_foxconn_parse foxconn.band_pref.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
             ;;
         "LTE") 
-            res=$(cmd_band_pref_lock "$at_port" "$at_pre" LTE "$lock_band")
+            local raw parsed; raw=$(cmd_band_pref_lock "$at_port" "$at_pre" LTE "$lock_band"); parsed=$(_foxconn_parse foxconn.band_pref.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
             ;;
         "NR")
-            res=$(cmd_band_pref_lock "$at_port" "$at_pre" NR5G "$lock_band")
+            local raw parsed; raw=$(cmd_band_pref_lock "$at_port" "$at_pre" NR5G "$lock_band"); parsed=$(_foxconn_parse foxconn.band_pref.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
             ;;
     esac
 }
@@ -444,14 +432,14 @@ set_lockband()
 }
 
 _get_voltage(){
-    voltage=$(cmd_pcvolt_query "$at_port" | grep -o 'Power supply voltage: [0-9]* mV'|grep -o '[0-9]*' )
+    local raw parsed; raw=$(cmd_pcvolt_query "$at_port"); parsed=$(_foxconn_parse foxconn.pcvolt "$raw"); voltage=$(printf '%s' "$parsed"|jq -r '.millivolts//empty')
     [ -n "$voltage" ] && {
         add_plain_info_entry "voltage" "$voltage mV" "Voltage" 
     }
 }
 
 _get_temperature(){
-    temperature=$(cmd_temp_query "$at_port" "$at_pre" | sed -n 's/.*TSENS: \([0-9]*\)C.*/\1/p' )
+    local raw parsed; raw=$(cmd_temp_query "$at_port" "$at_pre"); parsed=$(_foxconn_parse foxconn.temp "$raw"); temperature=$(printf '%s' "$parsed"|jq -r '.celsius//empty')
     [ -n "$temperature" ] && {
         add_plain_info_entry "temperature" "$temperature C" "Temperature" 
     }
@@ -535,27 +523,19 @@ process_signal_value() {
 
 cell_info(){
     class="Cell Information"
-    response=$(cmd_debug_query "$at_port" "$at_pre")
-    network_mode=$(echo "$response"|awk -F'RAT:' '{print $2}'|xargs)
+    local raw parsed
+    raw=$(cmd_debug_query "$at_port" "$at_pre"); parsed=$(_foxconn_parse foxconn.debug "$raw")
+    network_mode=$(printf '%s' "$parsed"|jq -r '.network_mode//empty')
     #add_plain_info_entry "network_mode" "$network_mode" "Network Mode"
 
     case $network_mode in
     "LTE")
-        lte_mcc=$(echo "$response"|awk -F'mcc:' '{print $2}'|awk -F',' '{print $1}'|xargs)
-        lte_mnc=$(echo "$response"|awk -F'mnc:' '{print $2}'|xargs)
-        lte_earfcn=$(echo "$response"|awk -F'channel:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        lte_physical_cell_id=$(echo "$response"|awk -F'pci:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        lte_cell_id=$(echo "$response"|awk -F'lte_cell_id:' '{print $2}'|xargs)
-        lte_band=$(echo "$response"|awk -F'lte_band:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        lte_freq_band_ind=$(echo "$response"|awk -F'lte_band_width:' '{print $2}'|xargs)
-        lte_sinr=$(echo "$response"|awk -F'lte_snr:' '{print $2}'|awk '{print $1}'|xargs)
-        lte_sinr=$(process_signal_value "$lte_sinr")
-        lte_rsrq=$(echo "$response"|awk -F'rsrq:' '{print $2}'|xargs)
-        lte_rsrq=$(process_signal_value "$lte_rsrq")
-        lte_rssi=$(echo "$response"|awk -F'lte_rssi:' '{print $2}'|awk -F',' '{print $1}'|xargs)
-        lte_rssi=$(process_signal_value "$lte_rssi")
-        lte_tac=$(echo "$response"|awk -F'lte_tac:' '{print $2}'|xargs)
-        lte_tx_power=$(echo "$response"|awk -F'lte_tx_pwr:' '{print $2}'|xargs)
+        lte_mcc=$(printf '%s' "$parsed"|jq -r '.mcc//empty'); lte_mnc=$(printf '%s' "$parsed"|jq -r '.mnc//empty')
+        lte_earfcn=$(printf '%s' "$parsed"|jq -r '.earfcn//empty'); lte_physical_cell_id=$(printf '%s' "$parsed"|jq -r '.pci//empty')
+        lte_cell_id=$(printf '%s' "$parsed"|jq -r '.cell_id//empty'); lte_band=$(printf '%s' "$parsed"|jq -r '.band//empty')
+        lte_freq_band_ind=$(printf '%s' "$parsed"|jq -r '.band_width//empty'); lte_sinr=$(printf '%s' "$parsed"|jq -r '.sinr//empty')
+        lte_rsrq=$(printf '%s' "$parsed"|jq -r '.rsrq//empty'); lte_rssi=$(printf '%s' "$parsed"|jq -r '.rssi//empty')
+        lte_tac=$(printf '%s' "$parsed"|jq -r '.tac//empty'); lte_tx_power=$(printf '%s' "$parsed"|jq -r '.tx_power//empty')
 
         add_plain_info_entry "MCC" "$lte_mcc" "Mobile Country Code"
         add_plain_info_entry "MNC" "$lte_mnc" "Mobile Network Code"
@@ -578,33 +558,22 @@ cell_info(){
         #add_plain_info_entry "Srxlev" "$lte_srxlev" "Serving Cell Receive Level"
         ;;
     "NR5G_SA")
-        has_ca=$(echo "$response" | grep -c "nr_scc1:")
+        has_ca=$(printf '%s' "$parsed"|jq -r 'if .has_ca then 1 else 0 end')
         nr_display_mode="$network_mode"
         
-        nr_mcc=$(echo "$response"|awk -F'mcc:' '{print $2}'|awk -F',' '{print $1}'|xargs)
-        nr_mnc=$(echo "$response"|awk -F'mnc:' '{print $2}'|xargs)
-        nr_earfcn=$(echo "$response"|awk -F'channel:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        nr_physical_cell_id=$(echo "$response"|awk -F'pci:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        nr_cell_id=$(echo "$response"|awk -F'nr_cell_id:' '{print $2}'|xargs)
-        nr_band=$(echo "$response"|awk -F'nr_band:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        nr_band_width=$(echo "$response"|awk -F'nr_band_width:' '{print $2}'|awk -F' ' '{print $1}'|xargs)
-        nr_freq_band_ind=$(echo "$response"|awk -F'lte_band_width:' '{print $2}'|xargs)
-        nr_sinr=$(echo "$response"|awk -F'nr_snr:' '{print $2}'|awk '{print $1}'|xargs)
-        nr_sinr=$(process_signal_value "$nr_sinr")
-        nr_rsrq=$(echo "$response"|awk -F'rsrq:' '{print $2}'|xargs)
-        nr_rsrq=$(process_signal_value "$nr_rsrq")
-        nr_rsrp=$(echo "$response"|awk -F'rsrp:' '{print $2}'|awk '{print $1}'|xargs)
-        nr_rsrp=$(process_signal_value "$nr_rsrp")
-        nr_rssi=$(echo "$response"|awk -F'nr_rssi:' '{print $2}'|awk -F',' '{print $1}'|xargs)
-        nr_rssi=$(process_signal_value "$nr_rssi")
-        nr_tac=$(echo "$response"|awk -F'nr_tac:' '{print $2}'|xargs)
-        nr_tx_power=$(echo "$response"|awk -F'nr_tx_pwr:' '{print $2}'|xargs)
+        nr_mcc=$(printf '%s' "$parsed"|jq -r '.mcc//empty'); nr_mnc=$(printf '%s' "$parsed"|jq -r '.mnc//empty')
+        nr_earfcn=$(printf '%s' "$parsed"|jq -r '.earfcn//empty'); nr_physical_cell_id=$(printf '%s' "$parsed"|jq -r '.pci//empty')
+        nr_cell_id=$(printf '%s' "$parsed"|jq -r '.cell_id//empty'); nr_band=$(printf '%s' "$parsed"|jq -r '.band//empty')
+        nr_band_width=$(printf '%s' "$parsed"|jq -r '.band_width//empty'); nr_freq_band_ind=$(printf '%s' "$parsed"|jq -r '.freq_band_ind//empty')
+        nr_sinr=$(printf '%s' "$parsed"|jq -r '.sinr//empty'); nr_rsrq=$(printf '%s' "$parsed"|jq -r '.rsrq//empty')
+        nr_rsrp=$(printf '%s' "$parsed"|jq -r '.rsrp//empty'); nr_rssi=$(printf '%s' "$parsed"|jq -r '.rssi//empty')
+        nr_tac=$(printf '%s' "$parsed"|jq -r '.tac//empty'); nr_tx_power=$(printf '%s' "$parsed"|jq -r '.tx_power//empty')
 
         if [ "$has_ca" -gt 0 ]; then
             nr_display_mode="NR5G_SA-CA"
 
-            scc1_band=$(echo "$response" | awk -F'nr_scc1:' '{print $2}' | awk -F'nr_band:' '{print $2}' | awk -F' ' '{print $1}' | xargs)
-            scc1_band_width=$(echo "$response" | awk -F'nr_scc1:' '{print $2}' | awk -F'nr_band_width:' '{print $2}' | awk -F' ' '{print $1}' | xargs)
+            scc1_band=$(printf '%s' "$parsed"|jq -r '.scc1_band//empty')
+            scc1_band_width=$(printf '%s' "$parsed"|jq -r '.scc1_band_width//empty')
 
             nr_band="$nr_band $scc1_band"
             nr_band_width="$nr_band_width $scc1_band_width"

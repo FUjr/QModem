@@ -3,9 +3,19 @@
   "platform": "unisoc",
   "model": "air724ug",
   "command": "AT+CTEC?",
-  "response_hex": "41542b435445433f0d0a0d0a2b435445433a20302c300d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-08T10:56:11Z",
-  "sanitized": true
+  "sanitized": true,
+  "responses": [
+    {
+      "response_hex": "41542b435445433f0d0a0d0a2b435445433a20302c300d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-08T10:56:11Z",
+      "scenario": "default",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "source": "device",
+      "assertions": [{"parser":"openluat.ctec","context":{},"expected":{"mode":0}}]
+    }
+  ],
+  "schema_version": 2
 }

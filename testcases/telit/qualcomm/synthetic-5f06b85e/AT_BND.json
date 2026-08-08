@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "vendor": "telit",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT#BND?",
+  "tool": "at",
+  "responses": [{
+    "scenario": "mixed-bands", "sequence": 0, "capture_sequence": 0,
+    "response_hex": "415423424e443f0d0a23424e443a20302c302c352c302c312c312c322c320d0a4f4b0d0a", "rc": 0, "source": "synthetic",
+    "assertions": [
+      {"parser":"telit.bnd.config","context":{},"expected":{"kind":"config","masks":{"lte":"5","lte_ext":"0","nsa_1_64":"1","nsa_65_128":"1","sa_1_64":"2","sa_65_128":"2"},"bands":{"lte":["B1","B3"],"nsa":["N1","N65"],"sa":["N2","N66"]}}},
+      {"parser":"telit.bnd.available","context":{},"expected":{"kind":"available","masks":{"lte":"5","lte_ext":"0","nsa_1_64":"1","nsa_65_128":"1","sa_1_64":"2","sa_65_128":"2"},"bands":{"lte":["B1","B3"],"nsa":["N1","N65"],"sa":["N2","N66"]}}}
+    ]
+  }]
+}

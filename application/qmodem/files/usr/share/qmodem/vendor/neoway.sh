@@ -5,6 +5,7 @@ _Author="sfwtw"
 _Maintainer="sfwtw <unknown>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
 debug_subject="neoway_ctrl"
+_neoway_parse(){ local id="$1" raw="$2" context="$3"; [ -n "$context" ]||context='{}'; printf '%s' "$raw"|"${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh" "$id" --platform "${platform:-unknown}" --model "${model:-unknown}" --context-json "$context"; }
 
 vendor_get_disabled_features(){
     json_add_string "" "NeighborCell"
@@ -12,13 +13,13 @@ vendor_get_disabled_features(){
 }
 
 get_imei(){
-    imei=$(cmd_cgsn "$at_port" | grep -o "[0-9]\{15\}")
+    local raw parsed; raw=$(cmd_cgsn "$at_port"); parsed=$(_neoway_parse neoway.cgsn "$raw"); imei=$(printf '%s' "$parsed"|jq -r '.imei//empty')
     json_add_string "imei" "$imei"
 }
 
 set_imei(){
     local imei="$1"
-    res=$(cmd_spimei_set "$at_port" "$imei")
+    local raw parsed; raw=$(cmd_spimei_set "$at_port" "$imei"); parsed=$(_neoway_parse neoway.spimei.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
     json_select "result"
     json_add_string "set_imei" "$res"
     json_close_object
@@ -29,7 +30,7 @@ set_imei(){
 # $1:AT串口
 get_network_prefer()
 {
-    local response=$(cmd_mysysinfo_query "$at_port" | grep '$MYSYSINFO:' | awk -F',' '{print $1}' | awk '{print $2}' | sed 's/\r//g')
+    local raw parsed; raw=$(cmd_mysysinfo_query "$at_port"); parsed=$(_neoway_parse neoway.mysysinfo "$raw"); local response=$(printf '%s' "$parsed"|jq -r '.mode//empty')
 
     network_prefer_3g="0";
     network_prefer_4g="0";
@@ -127,7 +128,7 @@ set_network_prefer()
         ;;
     esac
 
-    res=$(cmd_mysysinfo_set "$at_port" "$config_mode")
+    local raw parsed; raw=$(cmd_mysysinfo_set "$at_port" "$config_mode"); parsed=$(_neoway_parse neoway.mysysinfo.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
 
     json_select "result"
     json_add_string "set_network_prefer" "$res"
@@ -140,11 +141,11 @@ base_info()
     m_debug  "Neoway base info"
 
     #Name（名称）
-    name=$(cmd_cgmm "$at_port" | sed -n '2p' | sed 's/\r//g')
+    local raw parsed; raw=$(cmd_cgmm "$at_port"); parsed=$(_neoway_parse neoway.cgmm "$raw"); name=$(printf '%s' "$parsed"|jq -r '.name//empty')
     #Manufacturer（制造商）
-    manufacturer=$(cmd_cgmi "$at_port" | grep "+CGMI:" | sed 's/+CGMI: //g' | sed 's/\r//g')
+    raw=$(cmd_cgmi "$at_port"); parsed=$(_neoway_parse neoway.cgmi "$raw"); manufacturer=$(printf '%s' "$parsed"|jq -r '.manufacturer//empty')
     #Revision（固件版本）
-    revision=$(cmd_ati "$at_port" | sed -n '5p' | sed 's/\r//g')
+    raw=$(cmd_ati "$at_port"); parsed=$(_neoway_parse neoway.ati "$raw"); revision=$(printf '%s' "$parsed"|jq -r '.revision//empty')
     # at_command="AT+CGMR"
     # revision=$(at $at_port $at_command | sed -n '2p' | sed 's/\r//g')
     class="Base Information"
@@ -161,19 +162,19 @@ sim_info()
     m_debug  "Neoway sim info"
     
     #SIM Slot（SIM卡卡槽）
-    sim_slot=$(cmd_simcross_query "$at_port" | grep "+SIMCROSS:" | awk -F'[ ,]' '{print $2}' | sed 's/\r//g')
+    local raw parsed; raw=$(cmd_simcross_query "$at_port"); parsed=$(_neoway_parse neoway.simcross "$raw"); sim_slot=$(printf '%s' "$parsed"|jq -r '.slot//empty')
     # m_debug "SIM Slot: $sim_slot"
     #IMEI（国际移动设备识别码）
-	imei=$(cmd_cgsn "$at_port" | sed -n '3p' | awk -F'"' '{print $2}')
+	raw=$(cmd_cgsn "$at_port"); parsed=$(_neoway_parse neoway.cgsn "$raw"); imei=$(printf '%s' "$parsed"|jq -r '.imei//empty')
 
     #SIM Status（SIM状态）
-	sim_status_flag=$(cmd_cpin_query "$at_port" | sed -n '3p')
+	raw=$(cmd_cpin_query "$at_port"); parsed=$(_neoway_parse neoway.cpin "$raw"); sim_status_flag=$(printf '%s' "$parsed"|jq -r '.status_line//empty')
     sim_status=$(get_sim_status "$sim_status_flag")
 
     [ "$sim_status" != "ready" ] && return
 
     #ISP（互联网服务提供商）
-    isp=$(cmd_cops_query "$at_port" | sed -n '2p' | awk -F'"' '{print $2}')
+    raw=$(cmd_cops_query "$at_port"); parsed=$(_neoway_parse neoway.cops "$raw"); isp=$(printf '%s' "$parsed"|jq -r '.operator//empty')
     # if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ]|| [ "$isp" = "46000" ]; then
     #     isp="中国移动"
     # # elif [ "$isp" = "CHN-UNICOM" ] || [ "$isp" = "UNICOM" ] || [ "$isp" = "46001" ]; then
@@ -185,13 +186,13 @@ sim_info()
     # fi
 
     #SIM Number（SIM卡号码，手机号）
-	sim_number=$(cmd_cnum "$at_port" | sed -n '3p' | awk -F'"' '{print $4}')
+	raw=$(cmd_cnum "$at_port"); parsed=$(_neoway_parse neoway.cnum "$raw"); sim_number=$(printf '%s' "$parsed"|jq -r '.number//empty')
 
     #IMSI（国际移动用户识别码）
-	imsi=$(cmd_cimi "$at_port" | sed -n '3p' | sed 's/\r//g')
+	raw=$(cmd_cimi "$at_port"); parsed=$(_neoway_parse neoway.cimi "$raw"); imsi=$(printf '%s' "$parsed"|jq -r '.imsi//empty')
 
     #ICCID（集成电路卡识别码）
-    iccid=$(cmd_myccid "$at_port" | grep '$MYCCID:' | awk -F' "' '{print $2}' | sed 's/"//g')
+    raw=$(cmd_myccid "$at_port"); parsed=$(_neoway_parse neoway.myccid "$raw"); iccid=$(printf '%s' "$parsed"|jq -r '.iccid//empty')
     [ -n "$iccid" ] || return
     class="SIM Information"
     case "$sim_status" in
@@ -251,10 +252,10 @@ network_info()
     m_debug  "Neoway network info"
 
     #CSQ（信号强度）
-    response=$(cmd_csq "$at_port" | grep "+CSQ:" | sed 's/+CSQ: //g' | sed 's/\r//g')
+    local raw parsed; raw=$(cmd_csq "$at_port"); parsed=$(_neoway_parse neoway.csq "$raw"); response=$(printf '%s' "$parsed"|jq -r '.value//empty')
 
     #最大比特率，信道质量指示
-    response=$(cmd_c5gqosrdp "$at_port" | grep "+C5GQOSRDP:")
+    raw=$(cmd_c5gqosrdp "$at_port"); parsed=$(_neoway_parse neoway.c5gqosrdp "$raw"); response=$(printf '%s' "$parsed"|jq -r '.line//empty')
 
     if [ -n "$response" ]; then
         # Parse 5G QoS parameters
@@ -313,9 +314,8 @@ convert_readable_band_to_neoway() {
 get_lockband() {
     json_add_object "lockband"
     
-    response=$(cmd_nwsetband_query "$at_port")
-    
-    local band_num=$(echo "$response" | grep "+NWSETBAND:" | awk '{print $2}' | sed 's/\r//g')
+    local raw parsed; raw=$(cmd_nwsetband_query "$at_port"); parsed=$(_neoway_parse neoway.nwsetband "$raw")
+    local band_num=$(printf '%s' "$parsed" | jq -r '.band_number // empty')
     m_debug "Band number: $band_num"
 
     json_add_object "UMTS"
@@ -339,7 +339,7 @@ get_lockband() {
     json_close_array
     json_close_object
 
-    available_bands=$(cmd_nwsetband_list_query "$at_port" | grep "+" | awk -F',' '{for(i=2;i<=NF;i++) print $i}' | sed 's/\r//g')
+    raw=$(cmd_nwsetband_list_query "$at_port"); parsed=$(_neoway_parse neoway.nwsetband.list "$raw"); available_bands=$(printf '%s' "$parsed" | jq -r '.available_bands[]?')
     m_debug "Available bands: $available_bands"
     for band in $available_bands; do
         if [[ "$band" == WB* ]]; then
@@ -427,7 +427,7 @@ set_lockband() {
     lock_band=$(echo $config | jq -r '.lock_band')
 
     if [ -z "$lock_band" ] || [ "$lock_band" = "null" ]; then
-        res=$(cmd_nwsetband_reset "$at_port")
+        raw=$(cmd_nwsetband_reset "$at_port"); parsed=$(_neoway_parse neoway.nwsetband.reset "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
         json_select "result"
         json_add_string "set_lockband" "$res"
         json_close_object
@@ -450,7 +450,7 @@ set_lockband() {
     done
     unset IFS
 
-    res=$(cmd_nwsetband_set "$at_port" "$act" "$band_num" "$band_suffix")
+    raw=$(cmd_nwsetband_set "$at_port" "$act" "$band_num" "$band_suffix"); parsed=$(_neoway_parse neoway.nwsetband.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
     
     json_select "result"
     json_add_string "set_lockband" "$res"
@@ -545,29 +545,23 @@ cell_info()
 {
     m_debug "Neoway cell info"
 
-    response=$(cmd_netdmsgex "$at_port")
-    
-    if [ -n "$(echo "$response" | grep "+NETDMSGEX:")" ]; then
-
-        net_mode=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $1}' | sed 's/+NETDMSGEX: "//g' | sed 's/"//g')
+    local raw parsed; raw=$(cmd_netdmsgex "$at_port"); parsed=$(_neoway_parse neoway.netdmsgex "$raw")
+    if [ -n "$parsed" ]; then
+        net_mode=$(printf '%s' "$parsed" | jq -r '.net_mode // empty')
         network_mode=$(get_network_mode "$net_mode")
-
-        mcc_mnc=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $2}' | sed 's/"//g')
-        mcc=$(echo "$mcc_mnc" | cut -d'+' -f1)
-        mnc=$(echo "$mcc_mnc" | cut -d'+' -f2)
-
-        band=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $3}' | sed 's/"//g')
-
-        arfcn=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $4}' | sed 's/\r//g')
+        mcc=$(printf '%s' "$parsed" | jq -r '.mcc // empty')
+        mnc=$(printf '%s' "$parsed" | jq -r '.mnc // empty')
+        band=$(printf '%s' "$parsed" | jq -r '.band // empty')
+        arfcn=$(printf '%s' "$parsed" | jq -r '.arfcn // empty')
         
         case "$net_mode" in
             "NR to 5GCN"|"NR to EPS"|"NR-LTE ENDC"|"NR-LTE NEDC")
 
-                gnbid=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $5}' | sed 's/\r//g')
-                pci=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $6}' | sed 's/\r//g')
-                ss_rsrp=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $7}' | sed 's/\r//g')
-                ss_rsrq=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $8}' | sed 's/\r//g')
-                ss_sinr=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $9}' | sed 's/\r//g')
+                gnbid=$(printf '%s' "$parsed" | jq -r '.nr.gnbid // empty')
+                pci=$(printf '%s' "$parsed" | jq -r '.nr.pci // empty')
+                ss_rsrp=$(printf '%s' "$parsed" | jq -r '.nr.ss_rsrp_tenth // empty')
+                ss_rsrq=$(printf '%s' "$parsed" | jq -r '.nr.ss_rsrq_tenth // empty')
+                ss_sinr=$(printf '%s' "$parsed" | jq -r '.nr.ss_sinr_tenth // empty')
 
                 [ -n "$ss_rsrp" ] && ss_rsrp_actual=$(printf "%.1f" $(echo "$ss_rsrp / 10" | bc -l 2>/dev/null))
                 
@@ -589,19 +583,11 @@ cell_info()
                 
             "TDD LTE"|"FDD LTE")
 
-                tac=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $5}')
-                cell_id=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $6}')
-                pci=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $7}')
-                rx_dbm=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $8}')
-                tx_dbm=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $9}')
-                rsrp=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $10}')
-                rsrq=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $11}')
-                sinr=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $12}')
-                rssi=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $13}')
-
-                if [ "$(echo "$response" | grep -o ',' | wc -l)" -ge 17 ]; then
-                    dl_bw_num=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $17}')
-                    ul_bw_num=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $18}' | sed 's/\r//g')
+                tac=$(printf '%s' "$parsed" | jq -r '.lte.tac // empty'); cell_id=$(printf '%s' "$parsed" | jq -r '.lte.cell_id // empty'); pci=$(printf '%s' "$parsed" | jq -r '.lte.pci // empty')
+                rx_dbm=$(printf '%s' "$parsed" | jq -r '.lte.rx_dbm // empty'); tx_dbm=$(printf '%s' "$parsed" | jq -r '.lte.tx_dbm // empty')
+                rsrp=$(printf '%s' "$parsed" | jq -r '.lte.rsrp_tenth // empty'); rsrq=$(printf '%s' "$parsed" | jq -r '.lte.rsrq_tenth // empty'); sinr=$(printf '%s' "$parsed" | jq -r '.lte.sinr_tenth // empty'); rssi=$(printf '%s' "$parsed" | jq -r '.lte.rssi_tenth // empty')
+                dl_bw_num=$(printf '%s' "$parsed" | jq -r '.lte.dl_bw_code // empty'); ul_bw_num=$(printf '%s' "$parsed" | jq -r '.lte.ul_bw_code // empty')
+                if [ -n "$dl_bw_num$ul_bw_num" ]; then
 
                     dl_bandwidth=$(get_bandwidth "LTE" "$dl_bw_num")
                     ul_bandwidth=$(get_bandwidth "LTE" "$ul_bw_num")
@@ -637,23 +623,10 @@ cell_info()
                 
             "WCDMA"|"HSDPA"|"HSUPA"|"HSDPA and HSUPA"|"HSDPA+"|"HSDPA+ and HSUPA")
 
-                lac=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $5}')
-                cell_id=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $6}')
-                psc=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $7}')
-                rac=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $8}')
-                rx_dbm=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $9}')
-                tx_dbm=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $10}')
-                rscp=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $11}')
-                ecio=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $12}')
-                rssi=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $13}')
-
-                if [ "$(echo "$response" | grep -o ',' | wc -l)" -ge 17 ]; then
-                    srxlev=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $14}')
-                    squal=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $15}')
-                    phych_num=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $16}')
-                    sf_num=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $17}')
-                    slot_num=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $18}')
-                    is_commod=$(echo "$response" | grep "+NETDMSGEX:" | awk -F',' '{print $19}' | sed 's/\r//g')
+                lac=$(printf '%s' "$parsed" | jq -r '.wcdma.lac // empty'); cell_id=$(printf '%s' "$parsed" | jq -r '.wcdma.cell_id // empty'); psc=$(printf '%s' "$parsed" | jq -r '.wcdma.psc // empty'); rac=$(printf '%s' "$parsed" | jq -r '.wcdma.rac // empty')
+                rx_dbm=$(printf '%s' "$parsed" | jq -r '.wcdma.rx_dbm // empty'); tx_dbm=$(printf '%s' "$parsed" | jq -r '.wcdma.tx_dbm // empty'); rscp=$(printf '%s' "$parsed" | jq -r '.wcdma.rscp_tenth // empty'); ecio=$(printf '%s' "$parsed" | jq -r '.wcdma.ecio_tenth // empty'); rssi=$(printf '%s' "$parsed" | jq -r '.wcdma.rssi // empty')
+                srxlev=$(printf '%s' "$parsed" | jq -r '.wcdma.srxlev // empty'); squal=$(printf '%s' "$parsed" | jq -r '.wcdma.squal // empty'); phych_num=$(printf '%s' "$parsed" | jq -r '.wcdma.phych_code // empty'); sf_num=$(printf '%s' "$parsed" | jq -r '.wcdma.sf_code // empty'); slot_num=$(printf '%s' "$parsed" | jq -r '.wcdma.slot_code // empty'); is_commod=$(printf '%s' "$parsed" | jq -r '.wcdma.compression_mode // empty')
+                if [ -n "$phych_num$sf_num$slot_num$is_commod" ]; then
 
                     phych=$(get_phych "$phych_num")
                     sf=$(get_sf "$sf_num")

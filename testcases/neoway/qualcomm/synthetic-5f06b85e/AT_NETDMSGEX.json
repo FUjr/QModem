@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "vendor": "neoway",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT+NETDMSGEX",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "lte",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b4e4554444d534745580d0a2b4e4554444d534745583a20224c5445222c223436302b3031222c224233222c313635302c303046462c4142432c31322c2d37302c32302c2d39352c2d31302c31352c2d36352c302c302c302c352c350d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "neoway.netdmsgex",
+          "context": {},
+          "expected": {"arfcn":"1650","band":"B3","lte":{"cell_id":"ABC","dl_bw_code":"5","pci":"12","rsrp_tenth":"-95","rsrq_tenth":"-10","rssi_tenth":"-65","rx_dbm":"-70","sinr_tenth":"15","tac":"00FF","tx_dbm":"20","ul_bw_code":"5"},"mcc":"460","mnc":"01","net_mode":"LTE","nr":{"gnbid":"00FF","pci":"ABC","ss_rsrp_tenth":"12","ss_rsrq_tenth":"-70","ss_sinr_tenth":"20"},"plmn":"460+01","wcdma":{"cell_id":"ABC","compression_mode":"","ecio_tenth":"15","lac":"00FF","phych_code":"0","psc":"12","rac":"-70","rscp_tenth":"-10","rssi":"-65","rx_dbm":"20","sf_code":"5","slot_code":"5","squal":"0","srxlev":"0","tx_dbm":"-95"}}
+        }
+      ]
+    },
+    {
+      "scenario": "nr-sa",
+      "sequence": 0,
+      "capture_sequence": 1,
+      "response_hex": "41542b4e4554444d534745580d0a2b4e4554444d534745583a20224e5235472d5341222c223436302b3031222c224e3738222c3632373236342c41424344452c31322c2d38382c2d392c32350d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "neoway.netdmsgex",
+          "context": {},
+          "expected": {"arfcn":"627264","band":"N78","lte":{"cell_id":"12","dl_bw_code":"","pci":"-88","rsrp_tenth":"","rsrq_tenth":"","rssi_tenth":"","rx_dbm":"-9","sinr_tenth":"","tac":"ABCDE","tx_dbm":"25","ul_bw_code":""},"mcc":"460","mnc":"01","net_mode":"NR5G-SA","nr":{"gnbid":"ABCDE","pci":"12","ss_rsrp_tenth":"-88","ss_rsrq_tenth":"-9","ss_sinr_tenth":"25"},"plmn":"460+01","wcdma":{"cell_id":"12","compression_mode":"","ecio_tenth":"","lac":"ABCDE","phych_code":"","psc":"-88","rac":"-9","rscp_tenth":"","rssi":"","rx_dbm":"25","sf_code":"","slot_code":"","squal":"","srxlev":"","tx_dbm":""}}
+        }
+      ]
+    }
+  ]
+}

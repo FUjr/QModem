@@ -3,9 +3,50 @@
   "platform": "unisoc",
   "model": "air724ug",
   "command": "AT+CESQ",
-  "response_hex": "41542b434553510d0a0d0a2b434553513a2039392c39392c3235352c3235352c31392c35310d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-08T10:55:17Z",
-  "sanitized": true
+  "sanitized": true,
+  "responses": [
+    {
+      "response_hex": "41542b434553510d0a0d0a2b434553513a2039392c39392c3235352c3235352c31392c35310d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-08T10:55:17Z",
+      "scenario": "default",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "source": "device",
+      "assertions": [
+        {
+          "parser": "openluat.cesq",
+          "context": {},
+          "expected": {
+            "rsrp_dbm": -90,
+            "rsrq_db": -10.5
+          },
+          "expected_rc": 0
+        }
+      ]
+    },
+    {
+      "scenario": "malformed",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "4552524f520d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "openluat.cesq",
+          "context": {},
+          "expected": {
+            "error": {
+              "code": "parse_failed",
+              "parser": "openluat.cesq"
+            }
+          },
+          "expected_rc": 1
+        }
+      ]
+    }
+  ],
+  "schema_version": 2
 }

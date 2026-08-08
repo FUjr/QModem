@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "vendor": "meig",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT^DSAMBR=1",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "lte-and-nr-values",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41545e4453414d42523d310d0a5e4453414d42523a20302c302c313032342c323034382c302c302c39392c39392c343039362c383139320d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [{
+        "parser": "meig.dsambr",
+        "context": {},
+        "expected": {"lte":{"uplink_kbps":"99","downlink_kbps":"99"},"nr":{"uplink_kbps":"4096","downlink_kbps":"8192"}}
+      }]
+    },
+    {
+      "scenario": "zero-values",
+      "sequence": 0,
+      "capture_sequence": 1,
+      "response_hex": "41545e4453414d42523d310d0a5e4453414d42523a20302c302c302c302c302c300d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [{
+        "parser": "meig.dsambr",
+        "context": {},
+        "expected": {"lte":{"uplink_kbps":"0","downlink_kbps":"0"},"nr":{"uplink_kbps":"0","downlink_kbps":"0"}}
+      }]
+    }
+  ]
+}

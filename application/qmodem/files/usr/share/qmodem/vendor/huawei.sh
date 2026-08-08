@@ -6,6 +6,14 @@ _Maintainer="Lean <coolsnowwolf@gmail.com>"
 . "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
 debug_subject="huawei_ctrl"
 
+_huawei_parse()
+{
+    local parser_id="$1" raw="$2" context="$3"
+    [ -n "$context" ] || context='{}'
+    printf '%s' "$raw" | "${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh" \
+        "$parser_id" --platform "${platform:-unknown}" --model "${model:-unknown}" --context-json "$context"
+}
+
 vendor_get_disabled_features(){
     case "$platform" in
         *)
@@ -16,22 +24,28 @@ vendor_get_disabled_features(){
 }
 
 get_imei(){
-    imei=$(cmd_cgsn "$at_port" | grep -o '[0-9]\{15\}')
+    local raw parsed
+    raw=$(cmd_cgsn "$at_port"); parsed=$(_huawei_parse huawei.cgsn "$raw")
+    imei=$(printf '%s' "$parsed" | jq -r '.imei // empty')
     json_add_string imei $imei
 }
 
 set_imei(){
     imei=$1
-    res=$(cmd_phynum_set_imei "$at_port" "$imei")
+    local raw parsed
+    raw=$(cmd_phynum_set_imei "$at_port" "$imei"); parsed=$(_huawei_parse huawei.phynum.set "$raw")
+    res=$(printf '%s' "$parsed" | jq -r '.result // empty')
     json_add_string "result" "$res"
 }
 
 get_mode(){
-    cfg=$(cmd_setmode_query "$at_port")
+    local raw parsed
+    raw=$(cmd_setmode_query "$at_port"); parsed=$(_huawei_parse huawei.setmode "$raw")
+    cfg=$(printf '%s' "$parsed" | jq -r '.mode_num // empty')
     
     case $platform in
         "unisoc")
-            local mode_num=$(echo -e "$cfg" | grep "SETMODE"|grep -o '\d')
+            local mode_num="$cfg"
             case $mode_num in
                 "0") mode="rndis" ;;
                 "1") mode="ecm" ;;
@@ -40,7 +54,7 @@ get_mode(){
             esac
             ;;
         *)
-            local mode_num=$(echo -e "$cfg" | sed -n '2p' | sed 's/\r//g')
+            local mode_num="$cfg"
             case "$mode_num" in
             "0"|"2") mode="ecm" ;;
             "1"|"3"|"4"|"5") mode="ncm" ;;
@@ -97,7 +111,9 @@ set_mode(){
         ;;
     esac
 
-    res=$(cmd_setmode_set "$at_port" "$mode_num")
+    local raw parsed
+    raw=$(cmd_setmode_set "$at_port" "$mode_num"); parsed=$(_huawei_parse huawei.setmode.set "$raw")
+    res=$(printf '%s' "$parsed" | jq -r '.result // empty')
     json_add_string "cmd_result" "$res at $at_port AT^SETMODE=${mode_num}"
 }
 
@@ -116,7 +132,8 @@ get_scs()
 }
 
 get_network_prefer(){
-    res=$(cmd_syscfgex_query "$at_port" | grep "\^SYSCFGEX:" | sed 's/\^SYSCFGEX://g')
+    local raw parsed
+    raw=$(cmd_syscfgex_query "$at_port"); parsed=$(_huawei_parse huawei.syscfgex "$raw")
     # (RAT index): 
     # • 00 – Automatic 
     # • 01 – UMTS 3G only 
@@ -125,7 +142,7 @@ get_network_prefer(){
     # • 0E – UMTS and LTE only 
     # • 0F – LTE and NR5G only 
     # • 10 – WCDMA and NR5G only 
-   local network_type_num=$(echo "$res" | awk -F'"' '{print $2}')
+   local network_type_num=$(printf '%s' "$parsed" | jq -r '.rat_codes // empty')
    
    #获取网络类型
    local network_prefer_3g="0"
@@ -194,7 +211,9 @@ set_network_prefer(){
             ;;
     esac
     
-    res=$(cmd_syscfgex_set "$at_port" "$code")
+    local raw parsed
+    raw=$(cmd_syscfgex_set "$at_port" "$code"); parsed=$(_huawei_parse huawei.syscfgex.set "$raw")
+    res=$(printf '%s' "$parsed" | jq -r '.result // empty')
     json_add_string "code" "$code"
     json_add_string "result" "$res"
 }
@@ -227,7 +246,9 @@ sim_info()
     sim_slot=$(cat /tmp/huawei_sim_slot_$config_section)||sim_slot="0"
 
     #SIM Status（SIM状态）
-    sim_status=$(cmd_cpin_query "$at_port" | grep -E "\+CPIN:|\+CME ERROR: 10")
+    local raw parsed
+    raw=$(cmd_cpin_query "$at_port"); parsed=$(_huawei_parse huawei.cpin "$raw")
+    sim_status=$(printf '%s' "$parsed" | jq -r '.status_line // empty')
     if [[ "$sim_status" == "+CME ERROR:"* ]]; then
         sim_status="not inserted"
     else
@@ -237,16 +258,20 @@ sim_info()
     fi
 
     #SIM Number（SIM卡号码，手机号）
-    sim_number=$(cmd_cnum "$at_port" | grep "+CNUM: " | awk -F'"' '{print $2}')
+    raw=$(cmd_cnum "$at_port"); parsed=$(_huawei_parse huawei.cnum "$raw")
+    sim_number=$(printf '%s' "$parsed" | jq -r '.primary_number // empty')
     [ -z "$sim_number" ] && {
-      sim_number=$(cmd_cnum "$at_port" | grep "+CNUM: " | awk -F'"' '{print $4}')
+      raw=$(cmd_cnum "$at_port"); parsed=$(_huawei_parse huawei.cnum "$raw")
+      sim_number=$(printf '%s' "$parsed" | jq -r '.fallback_number // empty')
     }
     
     #IMSI（国际移动用户识别码）
-    imsi=$(cmd_cimi "$at_port" | sed -n '2p' | sed 's/\r//g')
+    raw=$(cmd_cimi "$at_port"); parsed=$(_huawei_parse huawei.cimi "$raw")
+    imsi=$(printf '%s' "$parsed" | jq -r '.imsi // empty')
     
     #IMEI（国际移动设备识别码）
-    imei=$(cmd_cgsn "$at_port" | sed -n '2p' | sed 's/\r//g')
+    raw=$(cmd_cgsn "$at_port"); parsed=$(_huawei_parse huawei.cgsn "$raw")
+    imei=$(printf '%s' "$parsed" | jq -r '.imei // empty')
     
     add_plain_info_entry "SIM Status" "$sim_status" "SIM Status" 
     add_plain_info_entry "SIM Slot" "$sim_slot" "SIM Slot"
@@ -257,11 +282,12 @@ sim_info()
 
 base_info(){
      #Name（名称）
-    name=$(cmd_cgmm "$at_port" | grep -v "OK" | sed -n '2p' | sed 's/\r//g')
+    local raw parsed
+    raw=$(cmd_cgmm "$at_port"); parsed=$(_huawei_parse huawei.cgmm "$raw"); name=$(printf '%s' "$parsed"|jq -r '.name // empty')
     #Manufacturer（制造商）
-    manufacturer=$(cmd_cgmi "$at_port" | sed -n '2p' | sed 's/\r//g')
+    raw=$(cmd_cgmi "$at_port"); parsed=$(_huawei_parse huawei.cgmi "$raw"); manufacturer=$(printf '%s' "$parsed"|jq -r '.manufacturer // empty')
     #Revision（固件版本）
-    revision=$(cmd_ati "$at_port" | grep "Revision:" | sed 's/Revision: //g' | sed 's/\r//g')
+    raw=$(cmd_ati "$at_port"); parsed=$(_huawei_parse huawei.ati "$raw"); revision=$(printf '%s' "$parsed"|jq -r '.revision // empty')
     # at_command="AT+CGMR"
     # revision=$(at $at_port $at_command | sed -n '2p' | sed 's/\r//g')
     class="Base Information"
@@ -277,84 +303,88 @@ cell_info()
 {
     case "$platform" in
         "unisoc")
-            monsc_response=$(cmd_monsc "$at_port" | grep "\^MONSC:" | sed 's/\^MONSC: //')
-            second_cell_response=$(cmd_cserssi_query "$at_port" | grep "CSERSSI")
-            hfreqinfo_response=$(cmd_hfreqinfo_query "$at_port" | grep "HFREQINFO:")
+            local raw parsed
+            raw=$(cmd_monsc "$at_port"); parsed=$(_huawei_parse huawei.monsc "$raw")
+            monsc_parsed="$parsed"
+            raw=$(cmd_cserssi_query "$at_port"); parsed=$(_huawei_parse huawei.cserssi "$raw")
+            second_cell_parsed="$parsed"
+            raw=$(cmd_hfreqinfo_query "$at_port"); parsed=$(_huawei_parse huawei.hfreqinfo "$raw")
+            hfreqinfo_response=$(printf '%s' "$parsed"|jq -r '.text // empty')
             _parse_hfreqinfo "$hfreqinfo_response"
-            cell_rat=$(echo "$monsc_response" | awk -F',' '{print $1}')
-            [ -n "$second_cell_response" ] && cell_rat="LTE-NR"
+            cell_rat=$(printf '%s' "$monsc_parsed" | jq -r '.rat // empty')
+            [ "$(printf '%s' "$second_cell_parsed" | jq -r '.nr != null' 2>/dev/null)" = true ] && cell_rat="LTE-NR"
             case "$cell_rat" in
                 "NR"|"NR-5GC")
                     # MCC/MNC.ARFCN/SCS/CellID/PhysicalCellID/TAC/RSRP/RSRQ/SINR
                     network_mode="NR5G-SA Mode"
                     nr_mode="NR-SA"
-                    mcc=$(echo "$monsc_response" | awk -F',' '{print $2}')
-                    mnc=$(echo "$monsc_response" | awk -F',' '{print $3}')
-                    arfcn=$(echo "$monsc_response" | awk -F',' '{print $4}')
-                    scs_num=$(echo "$monsc_response" | awk -F',' '{print $5}')
+                    mcc=$(printf '%s' "$monsc_parsed" | jq -r '.mcc // empty')
+                    mnc=$(printf '%s' "$monsc_parsed" | jq -r '.mnc // empty')
+                    arfcn=$(printf '%s' "$monsc_parsed" | jq -r '.channel // empty')
+                    scs_num=$(printf '%s' "$monsc_parsed" | jq -r '.nr.scs_code // empty')
                     scs=$(get_scs ${scs_num})
-                    cid_hex=$(echo "$monsc_response" | awk -F',' '{print $6}')
+                    cid_hex=$(printf '%s' "$monsc_parsed" | jq -r '.nr.cell_id_hex // empty')
                     cid=$(echo "ibase=16; $cid_hex" | bc)
-                    physical_cell_id_hex=$(echo "$monsc_response" | awk -F',' '{print $7}')
+                    physical_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.nr.pci_hex // empty')
                     physical_cell_id=$(echo "ibase=16; $physical_cell_id_hex" | bc)
-                    tac=$(echo "$monsc_response" | awk -F',' '{print $8}')
-                    nr_rsrp=$(echo "$monsc_response" | awk -F',' '{print $9}')
-                    nr_rsrq=$(echo "$monsc_response" | awk -F',' '{print $10}')
-                    nr_sinr=$(echo "$monsc_response" | awk -F',' '{print $11}' | sed 's/\r//g')
+                    tac=$(printf '%s' "$monsc_parsed" | jq -r '.nr.tac // empty')
+                    nr_rsrp=$(printf '%s' "$monsc_parsed" | jq -r '.nr.rsrp // empty')
+                    nr_rsrq=$(printf '%s' "$monsc_parsed" | jq -r '.nr.rsrq // empty')
+                    nr_sinr=$(printf '%s' "$monsc_parsed" | jq -r '.nr.sinr // empty')
                 ;;
                 "LTE-NR")
                     network_mode="EN-DC Mode"
                     nr_mode="NR-NSA"
                     lte_mode="LTE"
                     #LTE monsc_response MCC/MNC/EARFCN/CellID/PhysicalCellID/TAC/RSRP/RSRQ/RxLev
-                    mcc=$(echo "$monsc_response" | awk -F',' '{print $2}')
-                    mnc=$(echo "$monsc_response" | awk -F',' '{print $3}')
-                    earfcn=$(echo "$monsc_response" | awk -F',' '{print $4}')
-                    cell_id_hex=$(echo "$monsc_response" | awk -F',' '{print $5}')
+                    mcc=$(printf '%s' "$monsc_parsed" | jq -r '.mcc // empty')
+                    mnc=$(printf '%s' "$monsc_parsed" | jq -r '.mnc // empty')
+                    earfcn=$(printf '%s' "$monsc_parsed" | jq -r '.channel // empty')
+                    cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.lte.cell_id_hex // empty')
                     cell_id=$(echo "ibase=16; $cell_id_hex" | bc)
-                    physical_cell_id_hex=$(echo "$monsc_response" | awk -F',' '{print $6}')
+                    physical_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.lte.pci_hex // empty')
                     physical_cell_id=$(echo "ibase=16; $physical_cell_id_hex" | bc)
-                    tac=$(echo "$monsc_response" | awk -F',' '{print $7}')
-                    lte_rsrp=$(echo "$monsc_response" | awk -F',' '{print $8}')
-                    lte_rsrq=$(echo "$monsc_response" | awk -F',' '{print $9}')
-                    lte_rxlev=$(echo "$monsc_response" | awk -F',' '{print $10}' | sed 's/\r//g')
+                    tac=$(printf '%s' "$monsc_parsed" | jq -r '.lte.tac // empty')
+                    lte_rsrp=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rsrp // empty')
+                    lte_rsrq=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rsrq // empty')
+                    lte_rxlev=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rxlev // empty')
                     #NR second_cell_response RSRP(12)/RSRQ(13)/SINR(14)
-                    second_nr_rsrp=$(echo "$second_cell_response" | awk -F',' '{print $12}')
-                    second_nr_rsrq=$(echo "$second_cell_response" | awk -F',' '{print $13}')
-                    second_nr_sinr=$(echo "$second_cell_response" | awk -F',' '{print $14}' | sed 's/\r//g')
+                    second_nr_rsrp=$(printf '%s' "$second_cell_parsed" | jq -r '.nr.rsrp // empty')
+                    second_nr_rsrq=$(printf '%s' "$second_cell_parsed" | jq -r '.nr.rsrq // empty')
+                    second_nr_sinr=$(printf '%s' "$second_cell_parsed" | jq -r '.nr.sinr // empty')
                 ;;
                 "LTE"|"eMTC"|"NB-IoT")
                     network_mode="LTE Mode"
                     lte_mode="LTE"
                     #LTE monsc_response MCC/MNC/EARFCN/CellID/PhysicalCellID/TAC/RSRP/RSRQ/RxLev
-                    mcc=$(echo "$monsc_response" | awk -F',' '{print $2}')
-                    mnc=$(echo "$monsc_response" | awk -F',' '{print $3}')
-                    earfcn=$(echo "$monsc_response" | awk -F',' '{print $4}')
-                    cell_id_hex=$(echo "$monsc_response" | awk -F',' '{print $5}')
+                    mcc=$(printf '%s' "$monsc_parsed" | jq -r '.mcc // empty')
+                    mnc=$(printf '%s' "$monsc_parsed" | jq -r '.mnc // empty')
+                    earfcn=$(printf '%s' "$monsc_parsed" | jq -r '.channel // empty')
+                    cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.lte.cell_id_hex // empty')
                     cell_id=$(echo "ibase=16; $cell_id_hex" | bc)
-                    physical_cell_id_hex=$(echo "$monsc_response" | awk -F',' '{print $6}')
+                    physical_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.lte.pci_hex // empty')
                     physical_cell_id=$(echo "ibase=16; $physical_cell_id_hex" | bc)
-                    tac=$(echo "$monsc_response" | awk -F',' '{print $7}')
-                    lte_rsrp=$(echo "$monsc_response" | awk -F',' '{print $8}')
-                    lte_rsrq=$(echo "$monsc_response" | awk -F',' '{print $9}')
-                    lte_rxlev=$(echo "$monsc_response" | awk -F',' '{print $10}' | sed 's/\r//g')
+                    tac=$(printf '%s' "$monsc_parsed" | jq -r '.lte.tac // empty')
+                    lte_rsrp=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rsrp // empty')
+                    lte_rsrq=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rsrq // empty')
+                    lte_rxlev=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rxlev // empty')
                 ;;
                 "WCDMA"|"TD-SCDMA"|"UMTS")
                     network_mode="WCDMA Mode"
                     wcdma_mode="WCDMA"
                     # MCC/MNC/ARFCN/PSC/CellID/LAC/RSCP/RxLev/ECN0/DRX/URA
-                    mcc=$(echo "$monsc_response" | awk -F',' '{print $2}')
-                    mnc=$(echo "$monsc_response" | awk -F',' '{print $3}')
-                    arfcn=$(echo "$monsc_response" | awk -F',' '{print $4}')
-                    psc=$(echo "$monsc_response" | awk -F',' '{print $5}')
-                    cell_id_hex=$(echo "$monsc_response" | awk -F',' '{print $6}')
+                    mcc=$(printf '%s' "$monsc_parsed" | jq -r '.mcc // empty')
+                    mnc=$(printf '%s' "$monsc_parsed" | jq -r '.mnc // empty')
+                    arfcn=$(printf '%s' "$monsc_parsed" | jq -r '.channel // empty')
+                    psc=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.psc // empty')
+                    cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.cell_id_hex // empty')
                     cell_id=$(echo "ibase=16; $cell_id_hex" | bc)
-                    lac=$(echo "$monsc_response" | awk -F',' '{print $7}')
-                    rscp=$(echo "$monsc_response" | awk -F',' '{print $8}')
-                    wcdma_rxlev=$(echo "$monsc_response" | awk -F',' '{print $9}')
-                    ecn0=$(echo "$monsc_response" | awk -F',' '{print $10}')
-                    drx=$(echo "$monsc_response" | awk -F',' '{print $11}')
-                    ura=$(echo "$monsc_response" | awk -F',' '{print $12}' | sed 's/\r//g')
+                    lac=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.lac // empty')
+                    rscp=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.rscp // empty')
+                    wcdma_rxlev=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.rxlev // empty')
+                    ecn0=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.ecn0 // empty')
+                    drx=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.drx // empty')
+                    ura=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.ura // empty')
                 ;;
                 "GSM")
                     network_mode="GSM Mode"
@@ -406,88 +436,91 @@ cell_info()
             unset extra_info
             ;;
         *)
-            response=$(cmd_monsc "$at_port" | grep "\^MONSC:" | sed 's/\^MONSC: //')
-            cell_rat=$(echo "$response" | awk -F',' '{print $1}')
+            local raw parsed
+            raw=$(cmd_monsc "$at_port"); parsed=$(_huawei_parse huawei.monsc "$raw")
+            monsc_parsed="$parsed"
+            cell_rat=$(printf '%s' "$monsc_parsed" | jq -r '.rat // empty')
             case $cell_rat in
                 "NR"|"NR-5GC")
                     network_mode="NR5G-SA Mode"
-                    nr_mcc=$(echo "$response" | awk -F',' '{print $2}')
-                    nr_mnc=$(echo "$response" | awk -F',' '{print $3}')
-                    nr_arfcn=$(echo "$response" | awk -F',' '{print $4}')
-                    nr_scs_num=$(echo "$response" | awk -F',' '{print $5}')
+                    nr_mcc=$(printf '%s' "$monsc_parsed" | jq -r '.mcc // empty')
+                    nr_mnc=$(printf '%s' "$monsc_parsed" | jq -r '.mnc // empty')
+                    nr_arfcn=$(printf '%s' "$monsc_parsed" | jq -r '.channel // empty')
+                    nr_scs_num=$(printf '%s' "$monsc_parsed" | jq -r '.nr.scs_code // empty')
                     nr_scs=$(get_scs ${nr_scs_num})
-                    nr_cell_id_hex=$(echo "$response" | awk -F',' '{print $6}')
+                    nr_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.nr.cell_id_hex // empty')
                     nr_cell_id=$(echo "ibase=16; $nr_cell_id_hex" | bc)
-                    nr_physical_cell_id_hex=$(echo "$response" | awk -F',' '{print $7}')
+                    nr_physical_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.nr.pci_hex // empty')
                     nr_physical_cell_id=$(echo "ibase=16; $nr_physical_cell_id_hex" | bc)
-                    nr_tac=$(echo "$response" | awk -F',' '{print $8}')
-                    nr_rsrp=$(echo "$response" | awk -F',' '{print $9}')
-                    nr_rsrq=$(echo "$response" | awk -F',' '{print $10}')
-                    nr_sinr=$(echo "$response" | awk -F',' '{print $11}' | sed 's/\r//g')
+                    nr_tac=$(printf '%s' "$monsc_parsed" | jq -r '.nr.tac // empty')
+                    nr_rsrp=$(printf '%s' "$monsc_parsed" | jq -r '.nr.rsrp // empty')
+                    nr_rsrq=$(printf '%s' "$monsc_parsed" | jq -r '.nr.rsrq // empty')
+                    nr_sinr=$(printf '%s' "$monsc_parsed" | jq -r '.nr.sinr // empty')
                 ;;
                 "LTE-NR")
-                    nr_response=$(cmd_cserssi_query "$at_port")
+                    raw=$(cmd_cserssi_query "$at_port"); parsed=$(_huawei_parse huawei.cserssi "$raw")
+                    nr_parsed="$parsed"
                     network_mode="EN-DC Mode"
                     #LTE
-                    endc_lte_mcc=$(echo "$response" | awk -F',' '{print $2}')
-                    endc_lte_mnc=$(echo "$response" | awk -F',' '{print $3}')
-                    endc_lte_earfcn=$(echo "$response" | awk -F',' '{print $4}')
-                    endc_lte_cell_id_hex=$(echo "$response" | awk -F',' '{print $5}')
+                    endc_lte_mcc=$(printf '%s' "$monsc_parsed" | jq -r '.mcc // empty')
+                    endc_lte_mnc=$(printf '%s' "$monsc_parsed" | jq -r '.mnc // empty')
+                    endc_lte_earfcn=$(printf '%s' "$monsc_parsed" | jq -r '.channel // empty')
+                    endc_lte_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.lte.cell_id_hex // empty')
                     endc_lte_cell_id=$(echo "ibase=16; $endc_lte_cell_id_hex" | bc)
-                    endc_lte_physical_cell_id_hex=$(echo "$response" | awk -F',' '{print $6}')
+                    endc_lte_physical_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.lte.pci_hex // empty')
                     endc_lte_physical_cell_id=$(echo "ibase=16; $endc_lte_physical_cell_id_hex" | bc)
-                    endc_lte_tac=$(echo "$response" | awk -F',' '{print $7}')
-                    endc_lte_rsrp=$(echo "$response" | awk -F',' '{print $8}')
-                    endc_lte_rsrq=$(echo "$response" | awk -F',' '{print $9}')
-                    endc_lte_rxlev=$(echo "$response" | awk -F',' '{print $10}' | sed 's/\r//g')
+                    endc_lte_tac=$(printf '%s' "$monsc_parsed" | jq -r '.lte.tac // empty')
+                    endc_lte_rsrp=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rsrp // empty')
+                    endc_lte_rsrq=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rsrq // empty')
+                    endc_lte_rxlev=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rxlev // empty')
                     #NR5G-NSA
-                    endc_nr_rsrp=$(echo "$nr_response" | awk -F',' '{print $12}')
-                    endc_nr_rsrq=$(echo "$nr_response" | awk -F',' '{print $13}')
-                    endc_nr_sinr=$(echo "$nr_response" | awk -F',' '{print $14}' | sed 's/\r//g')
+                    endc_nr_rsrp=$(printf '%s' "$nr_parsed" | jq -r '.nr.rsrp // empty')
+                    endc_nr_rsrq=$(printf '%s' "$nr_parsed" | jq -r '.nr.rsrq // empty')
+                    endc_nr_sinr=$(printf '%s' "$nr_parsed" | jq -r '.nr.sinr // empty')
                 ;;
                 "LTE"|"eMTC"|"NB-IoT")
                     network_mode="LTE Mode"
-                    lte_mcc=$(echo "$response" | awk -F',' '{print $2}')
-                    lte_mnc=$(echo "$response" | awk -F',' '{print $3}')
-                    lte_earfcn=$(echo "$response" | awk -F',' '{print $4}')
-                    lte_cell_id_hex=$(echo "$response" | awk -F',' '{print $5}')
+                    lte_mcc=$(printf '%s' "$monsc_parsed" | jq -r '.mcc // empty')
+                    lte_mnc=$(printf '%s' "$monsc_parsed" | jq -r '.mnc // empty')
+                    lte_earfcn=$(printf '%s' "$monsc_parsed" | jq -r '.channel // empty')
+                    lte_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.lte.cell_id_hex // empty')
                     lte_cell_id=$(echo "ibase=16; $lte_cell_id_hex" | bc)
-                    lte_physical_cell_id_hex=$(echo "$response" | awk -F',' '{print $6}')
+                    lte_physical_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.lte.pci_hex // empty')
                     lte_physical_cell_id=$(echo "ibase=16; $lte_physical_cell_id_hex" | bc)
-                    lte_tac=$(echo "$response" | awk -F',' '{print $7}')
-                    lte_rsrp=$(echo "$response" | awk -F',' '{print $8}')
-                    lte_rsrq=$(echo "$response" | awk -F',' '{print $9}')
-                    lte_rxlev=$(echo "$response" | awk -F',' '{print $10}' | sed 's/\r//g')
+                    lte_tac=$(printf '%s' "$monsc_parsed" | jq -r '.lte.tac // empty')
+                    lte_rsrp=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rsrp // empty')
+                    lte_rsrq=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rsrq // empty')
+                    lte_rxlev=$(printf '%s' "$monsc_parsed" | jq -r '.lte.rxlev // empty')
                 ;;
                 "WCDMA"|"TD-SCDMA"|"UMTS")
                     network_mode="WCDMA Mode"
-                    wcdma_mcc=$(echo "$response" | awk -F',' '{print $2}')
-                    wcdma_mnc=$(echo "$response" | awk -F',' '{print $3}')
-                    wcdma_arfcn=$(echo "$response" | awk -F',' '{print $4}')
-                    wcdma_psc=$(echo "$response" | awk -F',' '{print $5}')
-                    wcdma_cell_id_hex=$(echo "$response" | awk -F',' '{print $6}')
+                    wcdma_mcc=$(printf '%s' "$monsc_parsed" | jq -r '.mcc // empty')
+                    wcdma_mnc=$(printf '%s' "$monsc_parsed" | jq -r '.mnc // empty')
+                    wcdma_arfcn=$(printf '%s' "$monsc_parsed" | jq -r '.channel // empty')
+                    wcdma_psc=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.psc // empty')
+                    wcdma_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.cell_id_hex // empty')
                     wcdma_cell_id=$(echo "ibase=16; $wcdma_cell_id_hex" | bc)
-                    wcdma_lac=$(echo "$response" | awk -F',' '{print $7}')
-                    wcdma_rscp=$(echo "$response" | awk -F',' '{print $8}')
-                    wcdma_rxlev=$(echo "$response" | awk -F',' '{print $9}')
-                    wcdma_ecn0=$(echo "$response" | awk -F',' '{print $10}')
-                    wcdma_drx=$(echo "$response" | awk -F',' '{print $11}')
-                    wcdma_ura=$(echo "$response" | awk -F',' '{print $12}' | sed 's/\r//g')
+                    wcdma_lac=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.lac // empty')
+                    wcdma_rscp=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.rscp // empty')
+                    wcdma_rxlev=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.rxlev // empty')
+                    wcdma_ecn0=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.ecn0 // empty')
+                    wcdma_drx=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.drx // empty')
+                    wcdma_ura=$(printf '%s' "$monsc_parsed" | jq -r '.wcdma.ura // empty')
                 ;;
                 "GSM")
                     network_mode="GSM Mode"
-                    gsm_mcc=$(echo "$response" | awk -F',' '{print $2}')
-                    gsm_mnc=$(echo "$response" | awk -F',' '{print $3}')
-                    gsm_band_num=$(echo "$response" | awk -F',' '{print $4}')
+                    gsm_mcc=$(printf '%s' "$monsc_parsed" | jq -r '.mcc // empty')
+                    gsm_mnc=$(printf '%s' "$monsc_parsed" | jq -r '.mnc // empty')
+                    gsm_band_num=$(printf '%s' "$monsc_parsed" | jq -r '.gsm.band_code // empty')
                     gsm_band=$(tdtech_get_band "GSM" ${gsm_band_num})
-                    gsm_arfcn=$(echo "$response" | awk -F',' '{print $5}')
-                    gsm_bsic=$(echo "$response" | awk -F',' '{print $6}')
-                    gsm_cell_id_hex=$(echo "$response" | awk -F',' '{print $7}')
+                    gsm_arfcn=$(printf '%s' "$monsc_parsed" | jq -r '.gsm.arfcn // empty')
+                    gsm_bsic=$(printf '%s' "$monsc_parsed" | jq -r '.gsm.bsic // empty')
+                    gsm_cell_id_hex=$(printf '%s' "$monsc_parsed" | jq -r '.gsm.cell_id_hex // empty')
                     gsm_cell_id=$(echo "ibase=16; $gsm_cell_id_hex" | bc)
-                    gsm_lac=$(echo "$response" | awk -F',' '{print $8}')
-                    gsm_rxlev=$(echo "$response" | awk -F',' '{print $9}')
-                    gsm_rx_quality=$(echo "$response" | awk -F',' '{print $10}')
-                    gsm_ta=$(echo "$response" | awk -F',' '{print $11}' | sed 's/\r//g')
+                    gsm_lac=$(printf '%s' "$monsc_parsed" | jq -r '.gsm.lac // empty')
+                    gsm_rxlev=$(printf '%s' "$monsc_parsed" | jq -r '.gsm.rxlev // empty')
+                    gsm_rx_quality=$(printf '%s' "$monsc_parsed" | jq -r '.gsm.rx_quality // empty')
+                    gsm_ta=$(printf '%s' "$monsc_parsed" | jq -r '.gsm.timing_advance // empty')
                 ;;
             esac
             
@@ -590,39 +623,26 @@ network_info() {
 }
 
 _get_lockband_nr(){
-    local bandcfg=$(cmd_band_query "$at_port")
-    local bandtemplate=$(cmd_band_list_query "$at_port")
-    local start_flag=0
-    IFS=$'\n'
-    for line in $bandtemplate; do
-        if [ "$start_flag" = 0 ];then
-            if [ "${line:0:10}" == "Available:" ];then
-                start_flag=1
-            fi
-            continue
-        else
-            
-            if [  "${line:0:2}" == "OK" ];then
-                break
-            fi
-        fi
-        type_line=$(echo $line | grep '[0-9]* - .*:')
-        if [ -n "$type_line" ]; then
-            type=$(echo $line | grep -o '[0-9]* - .*:')
-            type=${type:4:-1}
-            json_add_object $type
+    local raw parsed
+    raw=$(cmd_band_query "$at_port"); parsed=$(_huawei_parse huawei.band.config "$raw")
+    local bandcfg="$parsed"
+    raw=$(cmd_band_list_query "$at_port"); parsed=$(_huawei_parse huawei.band.list "$raw")
+    local bandtemplate="$parsed"
+    local type band_name band_hex band_bin band_id low_band high_band entry
+    for type in $(printf '%s' "$bandtemplate" | jq -r '.bands[].type' | awk '!seen[$0]++'); do
+            json_add_object "$type"
             json_add_array "available_band"
             json_close_array
             json_add_array "lock_band"
             json_close_array
             json_close_object
-        elif [ -n "$line" ]; then
-            band_name=${line##*-}
-            band_name=$(echo $band_name | xargs)
-            [ -z "$band_name" ] && continue
+    done
+    while IFS= read -r entry; do
+            type=$(printf '%s' "$entry" | jq -r '.type')
+            band_name=$(printf '%s' "$entry" | jq -r '.name')
             case $type in
             "GW")
-                band_hex=${line%%-*}
+                band_hex=$(printf '%s' "$entry" | jq -r '.mask')
                 band_bin=$(echo "obase=2; ibase=16; $band_hex" | bc)
                 band_id=$(echo $band_bin | wc -c)
                 band_id=$(($band_id - 1))
@@ -636,25 +656,21 @@ _get_lockband_nr(){
             add_avalible_band_entry $band_id  ${type}_${band_name} 
             json_close_array
             json_close_object
-        fi
-
-    done
-    for line in $bandcfg; do
-        cfg_line=$(echo $line | grep '[0-9]* - ')
-        if [ -n "$cfg_line" ]; then
-            type=$(echo $cfg_line | cut -d' ' -f3)
-            type=${type:0:-1}
-            low_band=${cfg_line:11:16}
-            high_band=${cfg_line:28:16}
+    done <<EOF
+$(printf '%s' "$bandtemplate" | jq -c '.bands[]')
+EOF
+    while IFS= read -r entry; do
+            type=$(printf '%s' "$entry" | jq -r '.type')
+            low_band=$(printf '%s' "$entry" | jq -r '.low_mask')
+            high_band=$(printf '%s' "$entry" | jq -r '.high_mask')
             json_select $type
             json_select "lock_band"
             _mask_to_band _add_lock_band  $low_band $high_band
             json_select ".."
             json_select ".."
-        fi
-    done
-
-    unset IFS
+    done <<EOF
+$(printf '%s' "$bandcfg" | jq -c '.configurations[]')
+EOF
 }
 
 _set_lockband_nr(){
@@ -675,18 +691,22 @@ _set_lockband_nr(){
     bandlist=$(_band_list_to_mask $lock_band)
     [ "$band_class" -eq 0 ] && bandlist=${bandlist:0:16}
     cmd="AT!BAND=0F,1,\"Custom\",$band_class,${bandlist}"
-    res=$(cmd_band_set_custom "$at_port" "$band_class" "$bandlist" | xargs)
+    local raw parsed
+    raw=$(cmd_band_set_custom "$at_port" "$band_class" "$bandlist"); parsed=$(_huawei_parse huawei.band.set "$raw")
+    res=$(printf '%s' "$parsed"|jq -r '.result // empty'|xargs)
     if [ "$res" == "OK" ]; then
-        r=$(cmd_band_reset "$at_port" "0F")
+        raw=$(cmd_band_reset "$at_port" "0F"); _huawei_parse huawei.band.reset "$raw" >/dev/null
     else
-        r=$(cmd_band_reset "$at_port" "00")
+        raw=$(cmd_band_reset "$at_port" "00"); _huawei_parse huawei.band.reset "$raw" >/dev/null
     fi
     json_add_string "result" "$res"
     json_add_string "cmd" "$cmd"
 }
 
 _get_temperature(){
-    response=$(cmd_chiptemp_query "$at_port" | grep "\^CHIPTEMP" | awk -F',' '{print $6}' | sed 's/\r//g' )
+    local raw parsed
+    raw=$(cmd_chiptemp_query "$at_port"); parsed=$(_huawei_parse huawei.chiptemp "$raw")
+    response=$(printf '%s' "$parsed"|jq -r '.temperature // empty')
     
     local temperature
     case $platform in
@@ -847,15 +867,19 @@ set_sim_slot(){
     echo "$sim_slot" > /tmp/huawei_sim_slot_$config_section
     case $platform in
         "unisoc")
-            response=$(cmd_simswitch_set "$at_port" "$sim_slot" | xargs)
+            local raw parsed
+            raw=$(cmd_simswitch_set "$at_port" "$sim_slot"); parsed=$(_huawei_parse huawei.simswitch.set "$raw")
+            response=$(printf '%s' "$parsed"|jq -r '.result // empty'|xargs)
             ;;
         "hisilicon")
             case $sim_slot in
                 "0")
-                    response=$(cmd_scichg "$at_port" 0 1 | xargs)
+                    raw=$(cmd_scichg "$at_port" 0 1); parsed=$(_huawei_parse huawei.scichg.set "$raw")
+                    response=$(printf '%s' "$parsed"|jq -r '.result // empty'|xargs)
                     ;;
                 "1")
-                    response=$(cmd_scichg "$at_port" 1 0 | xargs)
+                    raw=$(cmd_scichg "$at_port" 1 0); parsed=$(_huawei_parse huawei.scichg.set "$raw")
+                    response=$(printf '%s' "$parsed"|jq -r '.result // empty'|xargs)
                     ;;
             esac
             ;;

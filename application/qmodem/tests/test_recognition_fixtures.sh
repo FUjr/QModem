@@ -54,7 +54,7 @@ for fixture in "${fixture_files[@]}"; do
     fi
 
     command=$(jq -r '.command // empty' "$fixture")
-    response_hex=$(jq -r '.response_hex // empty' "$fixture")
+    response_hex=$(jq -r '.responses[0].response_hex // empty' "$fixture")
     if [ -z "$command" ] || ! printf '%s' "$response_hex" | grep -Eq '^([0-9a-fA-F]{2})*$'; then
         echo "FAIL: $label: invalid command or response_hex"
         fail=1

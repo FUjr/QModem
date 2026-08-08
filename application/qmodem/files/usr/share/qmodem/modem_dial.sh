@@ -547,9 +547,10 @@ check_dial_prepare()
     cpin=$(cmd_dial_cpin_query "$at_port")
     get_sim_status "$cpin"
     [ "$manufacturer" = "neoway" ] && {
-        local res
-        res=$(cmd_dial_neoway_simcross_iccid "$at_port" | grep -q "ERROR")
-        if [ $? -ne 0 ]; then
+        local res parsed
+        res=$(cmd_dial_neoway_simcross_iccid "$at_port")
+        parsed=$(printf '%s' "$res" | qmodem_parse_response core.error-status '{}')
+        if [ "$(printf '%s' "$parsed" | jq -r '.has_error')" = "false" ]; then
             sim_state_code="1"
         else
             sim_state_code="0"
@@ -622,7 +623,12 @@ check_ip()
             ipaddr=$(echo "$config" | grep "ipv4address:" | awk '{print $2}' | cut -d'/' -f1)
             ipaddr="$ipaddr $(echo "$config" | grep "ipv6address:" | awk '{print $2}' | cut -d'/' -f1)"
         else
-            ipaddr=$(cmd_dial_command "$at_port" "$check_ip_command" | grep +CGPADDR:)
+            local address_response address_json
+            address_response=$(cmd_dial_command "$at_port" "$check_ip_command")
+            address_json=$(printf '%s' "$address_response" | qmodem_parse_response core.cgpaddr.addresses '{}')
+            ipv4=$(printf '%s' "$address_json" | jq -r '.ipv4 // empty')
+            ipv6=$(printf '%s' "$address_json" | jq -r '.ipv6 // empty')
+            ipaddr="$ipv4 $ipv6"
         fi
 
         if [ -n "$ipaddr" ];then
@@ -1291,7 +1297,10 @@ at_dial()
                                 auth_num=0 ;;
                         esac
                         if [ -n "$username" ] || [ -n "$password" ] && [ "$auth_num" != "0" ] ; then
-                            plmn=$(cmd_dial_cops_numeric_query "$at_port" | grep "+COPS:" | sed 's/+COPS: //g' | cut -d',' -f3 | sed 's/\"//g' | cut -c1-5 | grep -o -o '[0-9]\{5\}')
+                            local cops_response cops_json
+                            cops_response=$(cmd_dial_cops_numeric_query "$at_port")
+                            cops_json=$(printf '%s' "$cops_response" | qmodem_parse_response core.cops.numeric '{}')
+                            plmn=$(printf '%s' "$cops_json" | jq -r '.plmn // empty')
                             [ -z "$plmn" ] && plmn="00000"
                             ppp_auth_command="AT^AUTHDATA=$pdp_index,$auth_num,$plmn,\"$username\",\"$password\""
                         fi
@@ -1306,7 +1315,10 @@ at_dial()
                     cgdcont_command="AT+CGDCONT=$pdp_index,\"$pdp_type\""$apn_append
                     ;;
                 "qualcomm")
-                    local cnmp=$(cmd_dial_cnmp_query "$at_port" | grep "+CNMP:" | sed 's/+CNMP: //g' | sed 's/\r//g')
+                    local cnmp_response cnmp_json cnmp
+                    cnmp_response=$(cmd_dial_cnmp_query "$at_port")
+                    cnmp_json=$(printf '%s' "$cnmp_response" | qmodem_parse_response core.cnmp '{}')
+                    cnmp=$(printf '%s' "$cnmp_json" | jq -r '.mode // empty')
                     at_command="AT+CNMP=$cnmp;+CNWINFO=1"
                     cgdcont_command="AT+CGDCONT=1,\"$pdp_type\""$apn_append
                     ;;
@@ -1421,11 +1433,11 @@ huawei_auto_dial_unisoc()
     cmd_dial_command "$at_port" "$cgdcont_command"
     # get current auto dial setting
     at_command='AT^SETAUTODIAL?'
-    at_res=$(cmd_dial_command "$at_port" "$at_command" | grep 'SETAUTO')
-    # return ^SETAUTODAIL:1,x
-    current_setting=${at_res##*:}
-    dial_status=$(echo "$current_setting" | cut -d ',' -f 1)
-    current_dial_mode=$(echo "$current_setting" | cut -d ',' -f 2)
+    at_res=$(cmd_dial_command "$at_port" "$at_command")
+    local autodial_json
+    autodial_json=$(printf '%s' "$at_res" | qmodem_parse_response core.setautodial '{}')
+    dial_status=$(printf '%s' "$autodial_json" | jq -r '.enabled // empty')
+    current_dial_mode=$(printf '%s' "$autodial_json" | jq -r '.mode // empty')
     m_debug "current dial status: $dial_status, current dial mode: $current_dial_mode"
     # if dial stat is disabled, or when huawei_dial_mode is not empty and current dial mode is not equal to huawei_dial_mode, enable dial
     if [ "$dial_status" = "0" ] || [ ! -z "$huawei_dial_mode" ] && [ "$current_dial_mode" != "$huawei_dial_mode" ]; then
@@ -1439,10 +1451,10 @@ auto_dial_hang_huawei_unisoc()
 {
     m_debug "huawei_auto_hang"
     at_command='AT^SETAUTODIAL?'
-    current_setting=$(cmd_dial_command "$at_port" "$at_command" | grep 'SETAUTO')
-    # return ^SETAUTODAIL:1,x
-    current_setting=${current_setting##*:}
-    dial_status=$(echo "$current_setting" | cut -d ',' -f 1)
+    current_setting=$(cmd_dial_command "$at_port" "$at_command")
+    local autodial_json
+    autodial_json=$(printf '%s' "$current_setting" | qmodem_parse_response core.setautodial '{}')
+    dial_status=$(printf '%s' "$autodial_json" | jq -r '.enabled // empty')
     if [ "$dial_status" = "1" ]; then 
         at_command="AT^SETAUTODIAL=0"
         cmd_dial_command "$at_port" "$at_command"
@@ -1560,13 +1572,13 @@ quectel_unisoc_ethernet()
             check_ethernet_cmd="AT+QCFG=\"ethernet\""
             time=0
             while [ $time -lt 5 ]; do
-                result=$(cmd_dial_command "$at_port" "$check_ethernet_cmd" | grep "+QCFG:")
-                if [ -n "$result" ]; then
-                    if [ -n "$(echo $result | grep "ethernet\",1")" ]; then
+                result=$(cmd_dial_command "$at_port" "$check_ethernet_cmd")
+                local ethernet_json
+                ethernet_json=$(printf '%s' "$result" | qmodem_parse_response core.quectel.ethernet '{"kind":"ethernet"}')
+                if [ "$(printf '%s' "$ethernet_json" | jq -r '.enabled')" = "true" ]; then
                         echo "1"
                         m_debug "5G Ethernet mode is enabled"
                         break
-                    fi
                 fi
                 sleep 5
                 time=$((time+1))
@@ -1586,7 +1598,7 @@ quectel_qualcomm_ethernet()
 
             time=0
             while [ $time -lt 5 ]; do
-                eth_driver_result=$(cmd_dial_command "$at_port" "$eth_driver_at" | grep "+QETH:")
+                eth_driver_result=$(cmd_dial_command "$at_port" "$eth_driver_at")
                 time=$(($time+1))
                 sleep 1
                 if [ -n "$eth_driver_result" ];then
@@ -1595,16 +1607,18 @@ quectel_qualcomm_ethernet()
             done
             time=0
             while [ $time -lt 5 ]; do
-                data_interface_result=$(cmd_dial_command "$at_port" "$data_interface_at" | grep "+QCFG:")
+                data_interface_result=$(cmd_dial_command "$at_port" "$data_interface_at")
                 time=$(($time+1))
                 sleep 1
                 if [ -n "$data_interface_result" ];then
                     break
                 fi
             done
-            eth_driver_pass=$(echo $eth_driver_result | grep "$ehter_driver_expect")
-            data_interface_pass=$(echo $data_interface_result | grep "$data_interface_expect")
-            if  [ -n "$eth_driver_pass" ] && [ -n "$data_interface_pass" ];then
+            local eth_driver_json data_interface_json
+            eth_driver_json=$(printf '%s' "$eth_driver_result" | qmodem_parse_response core.quectel.ethernet '{"kind":"eth_driver"}')
+            data_interface_json=$(printf '%s' "$data_interface_result" | qmodem_parse_response core.quectel.ethernet '{"kind":"data_interface"}')
+            if [ "$(printf '%s' "$eth_driver_json" | jq -r '.enabled')" = "true" ] && \
+               [ "$(printf '%s' "$data_interface_json" | jq -r '.enabled')" = "true" ]; then
                 echo "1"
                 m_debug "5G Ethernet mode is enabled"
             fi

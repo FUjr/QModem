@@ -3,9 +3,45 @@
   "platform": "unisoc",
   "model": "air724ug",
   "command": "AT+EEMGINFO?",
-  "response_hex": "41542b45454d47494e464f3f0d0a0d0a2b45454d47494e464f3a20332c20320d0a0d0a4f4b0d0a0d0a2b45454d4c54455356433a20313132302c20322c2031372c20363334322c2038312c20313635302c20313635302c20332c20352c203131313734323838312c2036353533352c2035312c2032312c20362c2035312c2032312c2035312c2032312c2036353533352c20302c203235352c20302c20302c20302c20302c20302c2036353533352c20302c20302c20300d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-08T10:55:17Z",
-  "sanitized": true
+  "sanitized": true,
+  "responses": [
+    {
+      "response_hex": "41542b45454d47494e464f3f0d0a0d0a2b45454d47494e464f3a20332c20320d0a0d0a4f4b0d0a0d0a2b45454d4c54455356433a20313132302c20322c2031372c20363334322c2038312c20313635302c20313635302c20332c20352c203131313734323838312c2036353533352c2035312c2032312c20362c2035312c2032312c2035312c2032312c2036353533352c20302c203235352c20302c20302c20302c20302c20302c2036353533352c20302c20302c20300d0a",
+      "rc": 0,
+      "timestamp": "2026-08-08T10:55:17Z",
+      "scenario": "default",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "source": "device",
+      "assertions": [
+        {
+          "parser": "openluat.eem.lte",
+          "context": {},
+          "expected": {
+            "rat": "LTE",
+            "mcc": "1120",
+            "mnc": "17",
+            "tac": "6342",
+            "pci": "81",
+            "dl_earfcn": "1650",
+            "ul_earfcn": "1650",
+            "band": "3",
+            "dl_bandwidth": "5",
+            "cell_id": "111742881",
+            "trans_mode": "65535",
+            "rsrp_raw": "51",
+            "rsrq_raw": "21",
+            "sinr_raw": "6",
+            "rssi_raw": "65535",
+            "cqi_raw": "0",
+            "tx_power_raw": "255",
+            "rank_index": "0",
+            "layout": "Air720"
+          }
+        }
+      ]
+    }
+  ],
+  "schema_version": 2
 }

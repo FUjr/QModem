@@ -1,0 +1,55 @@
+{
+  "schema_version": 2,
+  "vendor": "quectel",
+  "platform": "qualcomm",
+  "model": "example",
+  "command": "AT+COPS?",
+  "tool": "at",
+  "sanitized": true,
+  "responses": [
+    {
+      "scenario": "registered-numeric",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b434f50533f0d0d0a2b434f50533a20302c322c223436303031222c370d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "quectel.cops.operator",
+          "context": {},
+          "expected": {"operator_code": "46001"},
+          "expected_rc": 0
+        },
+        {
+          "parser": "quectel.cops.rat",
+          "context": {},
+          "expected": {"rat_code": 7},
+          "expected_rc": 0
+        }
+      ]
+    },
+    {
+      "scenario": "malformed",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "4552524f520d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "quectel.cops.operator",
+          "context": {},
+          "expected": {"error":{"code":"parse_failed","parser":"quectel.cops.operator"}},
+          "expected_rc": 1
+        },
+        {
+          "parser": "quectel.cops.rat",
+          "context": {},
+          "expected": {"error":{"code":"parse_failed","parser":"quectel.cops.rat"}},
+          "expected_rc": 1
+        }
+      ]
+    }
+  ]
+}

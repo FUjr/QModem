@@ -30,6 +30,7 @@ jobs:
         run: |
           find application/qmodem/files/usr/share/qmodem/cmds \
                application/qmodem/files/usr/share/qmodem/vendor \
+               application/qmodem/files/usr/share/qmodem/parsers \
                application/qmodem/tests/lib \
                -type f -name '*.sh' -exec sh -n {} +
           sh -n application/qmodem/files/usr/share/qmodem/generic.sh
@@ -43,6 +44,8 @@ jobs:
           bash -n application/qmodem/tests/test_recognition_collection.sh
           bash -n application/qmodem/tests/test_recognition_fixtures.sh
           bash -n application/qmodem/tests/test_vendor_fixtures.sh
+          bash -n application/qmodem/tests/test_parser_fixtures.sh
+          bash -n application/qmodem/tests/test_parser_boundary.sh
       - name: Enforce command boundary
         run: |
           application/qmodem/tests/test_vendor_cmds_boundary.sh
@@ -51,6 +54,8 @@ jobs:
           application/qmodem/tests/test_recognition_collection.sh
           application/qmodem/tests/test_recognition_fixtures.sh
           application/qmodem/tests/test_fixture_profiles.sh
+          application/qmodem/tests/test_parser_fixtures.sh
+          application/qmodem/tests/test_parser_boundary.sh
           QMODEM_TEST_SEAL_BIN=/tmp/qmodem-seal \
             application/qmodem/tests/test_collect_encryption.sh
       - name: Replay vendor fixtures

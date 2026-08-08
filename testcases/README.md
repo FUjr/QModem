@@ -14,29 +14,48 @@ testcases/
       <model-slug>-<model-md5前8位>/ # 同名、空格和特殊字符不会造成目录冲突
         AT_CGSN-7c58b773.json        # 一条指令的采集记录
         expected/
-          get_imei.json              # 该型号/平台专属的黄金输出
+          default/
+            get_imei.json            # 该场景专属的业务层黄金输出
 ```
 
 ## fixture 格式
 
 ```json
 {
+  "schema_version": 2,
   "vendor": "quectel",
   "platform": "qualcomm",
   "model": "RM500Q-AE",
   "command": "AT+CGSN",
-  "response_hex": "41542b4347534e0d0d0a3836303030303030303030303031320d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-07T00:00:00Z",
-  "sanitized": true
+  "responses": [
+    {
+      "scenario": "default",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b4347534e0d0d0a3836303030303030303030303031320d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-07T00:00:00Z",
+      "source": "device",
+      "assertions": [
+        {
+          "parser": "quectel.cgsn",
+          "context": {},
+          "expected": {"imei": "860000000000012"},
+          "expected_rc": 0
+        }
+      ]
+    }
+  ]
 }
 ```
 
 - `command`：实际发送的完整 AT 指令（含参数）。
 - `vendor`、`platform`、`model`：采集时的厂商、平台和 UCI `name`（Modem Model）。回放以三者组成的设备画像为边界；同一条 AT 指令可以在不同画像中保存不同响应。
-- `response_hex`：模组原始 stdout 的十六进制编码，由 `xxd -p` 生成；可无损保存 CR/LF、尾部换行及任意二进制字节。
-- `tool`：`at` 或 `fastat`；`rc`：发送工具的退出码。
+- `responses[]`：同一命令可保存多个响应和场景；回放按 `scenario` 隔离，并按 `sequence` 从 0 依次消费，队列耗尽会失败而不是重复最后一条。
+- `response_hex`：单次模组原始 stdout 的十六进制编码，由 `xxd -p` 生成；可无损保存 CR/LF、尾部换行及任意二进制字节。
+- `tool`：`at` 或 `fastat`；响应内的 `rc` 是发送工具退出码。真机采集写 `source: device`，人工样本必须写 `source: synthetic`。
+- `assertions[]`：同一原始响应可交给多个稳定 parser ID 独立解析。每项显式给出 `context`、规范化语义 JSON `expected`，并可用 `expected_rc` 断言失败路径。ID 只经过静态 registry 分发，不作为 shell 函数名执行。
 - `sanitized`：`qmodem_collect pack` 默认脱敏（≥11 位数字串保留头2尾2、中间置 0，长度不变），标记为 true；`pack --raw` 可关闭脱敏（注意隐私）。
 - `capabilities.modes`：仅用于不在 `modem_support.json` 中的合成 fixture；真实型号的拨号模式由 runner 从能力表读取。
 
@@ -95,14 +114,29 @@ git add testcases && git commit
 
 ```sh
 bash application/qmodem/tests/test_vendor_fixtures.sh
+bash application/qmodem/tests/test_parser_fixtures.sh
 bash application/qmodem/tests/test_recognition_fixtures.sh
 ```
+
+单独调试 parser 时，原始响应从 stdin 输入，设备上下文必须显式传入：
+
+```sh
+xxd -r -p response.hex | \
+  application/qmodem/files/usr/share/qmodem/parsers/parse.sh \
+    quectel.cops.operator --platform qualcomm --model RM500Q-AE \
+    --context-json '{}'
+```
+
+成功时输出单行规范化 JSON；无法解析返回退出码 1 和结构化错误 JSON，参数或
+parser ID 非法返回退出码 2。registry 只允许静态列出的稳定 ID，同一份 stdin
+可以由不同 ID 分别调用，不会把 fixture 内容当作 shell 函数执行。
 
 三层校验：
 
 1. fixture 的路径必须与 `vendor/platform/model` 元数据一致，且指令头仍存在于对应 `cmds/<vendor>.sh`；
-2. 每个设备画像建立独立命令响应表，用 fixture 回放 `at`/`fastat`；不同型号或平台不会互相覆盖；
-3. vendor 只读方法必须退出码 0 且输出合法 JSON；
-4. 存在画像专属 `expected/<method>.json` 时，方法输出经 `jq -S` 归一化后与快照精确比对。
+2. 每个设备画像和 scenario 建立独立命令响应队列，用 fixture 回放 `at`/`fastat`；不同型号、平台、场景不会互相覆盖；
+3. 每条 parser assertion 都从原始 `response_hex` 重新解码，允许同一响应由多个 parser 独立解析，并精确比较退出码及规范化语义 JSON；
+4. vendor 只读方法必须退出码 0 且输出合法 JSON；
+5. 存在画像专属 `expected/<scenario>/<method>.json` 时，业务方法输出经 `jq -S` 归一化后与快照精确比对。parser testcase 不绑定最终接口字段，因此业务 JSON 政名不要求修改单命令 parser assertion。
 
 末尾会打印 cmds 指令的 fixture 覆盖报告（仅提示，不失败——覆盖率依赖真机捐赠）。

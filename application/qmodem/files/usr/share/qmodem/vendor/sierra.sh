@@ -5,27 +5,25 @@ _Author="Fujr"
 _Maintainer="Fujr <fjrcn@outlook.com>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
 debug_subject="quectel_ctrl"
+_sierra_parse(){ local id="$1" raw="$2" context="$3"; [ -n "$context" ]||context='{}'; printf '%s' "$raw"|"${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh" "$id" --platform "${platform:-unknown}" --model "${model:-unknown}" --context-json "$context"; }
 unlock_advance(){
     [ -z "$sierra_pass" ] && sierra_pass="A710"
-    cmd_entercnd "$at_port" "$sierra_pass" > /dev/null
+    local raw; raw=$(cmd_entercnd "$at_port" "$sierra_pass"); _sierra_parse sierra.entercnd "$raw" >/dev/null
 }
 
 get_imei(){
-    imei=$(cmd_cgsn "$at_port" | grep -o '[0-9]\{15\}')
+    local raw parsed; raw=$(cmd_cgsn "$at_port"); parsed=$(_sierra_parse sierra.cgsn "$raw"); imei=$(printf '%s' "$parsed"|jq -r '.imei//empty')
     json_add_string imei $imei
 }
 
 set_imei(){
     imei=$1
-    cmd_egmr_set_imei "$at_port" "$imei"
+    local raw parsed; raw=$(cmd_egmr_set_imei "$at_port" "$imei"); parsed=$(_sierra_parse sierra.egmr.set "$raw"); printf '%s' "$parsed"|jq -r '.result//empty'
 }
 
 get_mode(){
-    cfg=$(cmd_usbcomp_query "$at_port")
-    config_type=`echo -e "$cfg" | grep -o 'Config Type:  [0-9]'`
-    config_type=${config_type:14}
-    interface_mask=`echo -e "$cfg" | grep -o 'Interface bitmask: [0-9a-fA-F]*'`
-    interface_mask=${interface_mask:18}
+    local raw parsed; raw=$(cmd_usbcomp_query "$at_port"); parsed=$(_sierra_parse sierra.usbcomp "$raw")
+    config_type=$(printf '%s' "$parsed"|jq -r '.config_type//empty'); interface_mask=$(printf '%s' "$parsed"|jq -r '.interface_mask//empty')
     _mask_to_mode $interface_mask
     if [ "$mbim_port" = "1" ]; then
         mode="mbim"
@@ -58,11 +56,11 @@ set_mode(){
             return 1
             ;;
     esac
-    cmd_usbcomp_set "$at_port" "$interface_mask"
+    local raw parsed; raw=$(cmd_usbcomp_set "$at_port" "$interface_mask"); parsed=$(_sierra_parse sierra.usbcomp.set "$raw"); printf '%s' "$parsed"|jq -r '.result//empty'
 }
 
 get_network_prefer(){
-    res=$(cmd_selrat_query "$at_port" | grep -o "!SELRAT: [0-9A-Fa-f]*")
+    local raw parsed; raw=$(cmd_selrat_query "$at_port"); parsed=$(_sierra_parse sierra.selrat "$raw")
 # (RAT index): 
 # • 00 – Automatic 
 # • 01 – UMTS 3G only 
@@ -71,7 +69,7 @@ get_network_prefer(){
 # • 0E – UMTS and LTE only 
 # • 0F – LTE and NR5G only 
 # • 10 – WCDMA and NR5G only 
-   code=${res:9}
+   code=$(printf '%s' "$parsed"|jq -r '.code//empty')
     local network_prefer_3g="0"
     local network_prefer_4g="0"
     local network_prefer_5g="0"
@@ -146,7 +144,7 @@ set_network_prefer(){
             code="00"
             ;;
     esac
-    res=$(cmd_selrat_set "$at_port" "$code")
+    local raw parsed; raw=$(cmd_selrat_set "$at_port" "$code"); parsed=$(_sierra_parse sierra.selrat.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty')
     json_add_string "code" "$code"
     json_add_string "result" "$res"
 }
@@ -182,25 +180,22 @@ sim_info()
 {
     class="SIM Information"
     
-	slot=$(cmd_uims_query "$at_port" | grep -o '!UIMS: [0-9]*' | grep -o '[0-9]*')
+	local raw parsed; raw=$(cmd_uims_query "$at_port"); parsed=$(_sierra_parse sierra.uims "$raw"); slot=$(printf '%s' "$parsed"|jq -r '.slot_index//empty')
     sim_slot=$(($slot+1))
 
     #SIM Status（SIM状态）
-	sim_status=$(cmd_cpin_query "$at_port" | grep "+CPIN:")
-    sim_status=${sim_status:7:-1}
-    #lowercase
-    sim_status=$(echo $sim_status | tr  A-Z a-z)
+	raw=$(cmd_cpin_query "$at_port"); parsed=$(_sierra_parse sierra.cpin "$raw"); sim_status=$(printf '%s' "$parsed"|jq -r '.status//empty')
     add_plain_info_entry "SIM Status" "$sim_status" "SIM Status" 
     add_plain_info_entry "SIM Slot" "$sim_slot" "SIM Slot"
 }
 
 base_info(){
         #Name（名称）
-    name=$(cmd_cgmm "$at_port" | sed -n '2p' | sed 's/\r//g')
+    local raw parsed; raw=$(cmd_cgmm "$at_port"); parsed=$(_sierra_parse sierra.cgmm "$raw"); name=$(printf '%s' "$parsed"|jq -r '.name//empty')
     #Manufacturer（制造商）
-    manufacturer=$(cmd_cgmi "$at_port" | sed -n '2p' | sed 's/\r//g')
+    raw=$(cmd_cgmi "$at_port"); parsed=$(_sierra_parse sierra.cgmi "$raw"); manufacturer=$(printf '%s' "$parsed"|jq -r '.manufacturer//empty')
     #Revision（固件版本）
-    revision=$(cmd_ati "$at_port" | grep "Revision:" | sed 's/Revision: //g' | sed 's/\r//g')
+    raw=$(cmd_ati "$at_port"); parsed=$(_sierra_parse sierra.ati "$raw"); revision=$(printf '%s' "$parsed"|jq -r '.revision//empty')
     # at_command="AT+CGMR"
     # revision=$(cmd_ati "$at_port" | sed -n '2p' | sed 's/\r//g')
     class="Base Information"
@@ -215,8 +210,8 @@ base_info(){
 
 network_info(){
     class="Network Information"
-    res=$(cmd_gstatus_query "$at_port" | grep -i -v "!GSTATUS" | grep -v "OK")
-    _parse_gstatus "$res"
+    local raw parsed; raw=$(cmd_gstatus_query "$at_port"); parsed=$(_sierra_parse sierra.gstatus "$raw")
+    _render_gstatus "$parsed"
 }
 
 vendor_get_disabled_features(){
@@ -225,71 +220,31 @@ vendor_get_disabled_features(){
 }
 
 _get_lockband_nr(){
-    local bandcfg=$(cmd_band_query "$at_port")
-    local bandtemplate=$(cmd_band_list_query "$at_port")
-    local start_flag=0
-    IFS=$'\n'
-    for line in $bandtemplate; do
-        if [ "$start_flag" = 0 ];then
-            if [ "${line:0:10}" == "Available:" ];then
-                start_flag=1
-            fi
-            continue
-        else
-            
-            if [  "${line:0:2}" == "OK" ];then
-                break
-            fi
-        fi
-        type_line=$(echo $line | grep '[0-9]* - .*:')
-        if [ -n "$type_line" ]; then
-            type=$(echo $line | grep -o '[0-9]* - .*:')
-            type=${type:4:-1}
-            json_add_object $type
-            json_add_array "available_band"
-            json_close_array
-            json_add_array "lock_band"
-            json_close_array
-            json_close_object
-        elif [ -n "$line" ]; then
-            band_name=${line##*-}
-            band_name=$(echo $band_name | xargs)
-            [ -z "$band_name" ] && continue
-            case $type in
-            "GW")
-                band_hex=${line%%-*}
-                band_bin=$(echo "obase=2; ibase=16; $band_hex" | bc)
-                band_id=$(echo $band_bin | wc -c)
-                band_id=$(($band_id - 1))
-                ;;
-            *)
-                band_id=$(echo $band_name |grep -o '^[BbNn][0-9]*' | grep -o '[0-9]*')
-                ;;
-            esac
-            json_select $type
-            json_select "available_band"
-            add_avalible_band_entry $band_id  ${type}_${band_name} 
-            json_close_array
-            json_close_object
-        fi
-
+    local raw parsed list config type_count type_index band_count band_index type band_id band_name low high
+    raw=$(cmd_band_query "$at_port"); config=$(_sierra_parse sierra.band.config "$raw")
+    raw=$(cmd_band_list_query "$at_port"); list=$(_sierra_parse sierra.band.list "$raw")
+    type_count=$(printf '%s' "$list"|jq '.types|length'); type_index=0
+    while [ "$type_index" -lt "$type_count" ]; do
+        type=$(printf '%s' "$list"|jq -r ".types[$type_index].type")
+        json_add_object "$type"; json_add_array "available_band"
+        band_count=$(printf '%s' "$list"|jq ".types[$type_index].bands|length"); band_index=0
+        while [ "$band_index" -lt "$band_count" ]; do
+            band_id=$(printf '%s' "$list"|jq -r ".types[$type_index].bands[$band_index].id")
+            band_name=$(printf '%s' "$list"|jq -r ".types[$type_index].bands[$band_index].name")
+            add_avalible_band_entry "$band_id" "${type}_${band_name}"
+            band_index=$((band_index+1))
+        done
+        json_close_array; json_add_array "lock_band"; json_close_array; json_close_object
+        type_index=$((type_index+1))
     done
-    for line in $bandcfg; do
-        cfg_line=$(echo $line | grep '[0-9]* - ')
-        if [ -n "$cfg_line" ]; then
-            type=$(echo $cfg_line | cut -d' ' -f3)
-            type=${type:0:-1}
-            low_band=${cfg_line:11:16}
-            high_band=${cfg_line:28:16}
-            json_select $type
-            json_select "lock_band"
-            _mask_to_band _add_lock_band  $low_band $high_band
-            json_select ".."
-            json_select ".."
-        fi
+    type_count=$(printf '%s' "$config"|jq '.configurations|length'); type_index=0
+    while [ "$type_index" -lt "$type_count" ]; do
+        type=$(printf '%s' "$config"|jq -r ".configurations[$type_index].type")
+        low=$(printf '%s' "$config"|jq -r ".configurations[$type_index].low_mask")
+        high=$(printf '%s' "$config"|jq -r ".configurations[$type_index].high_mask")
+        json_select "$type"; json_select "lock_band"; _mask_to_band _add_lock_band "$low" "$high"; json_select ".."; json_select ".."
+        type_index=$((type_index+1))
     done
-
-    unset IFS
 }
 
 _set_lockband_nr(){
@@ -310,25 +265,26 @@ _set_lockband_nr(){
     bandlist=$(_band_list_to_mask $lock_band)
     [ "$band_class" -eq 0 ] && bandlist=${bandlist:0:16}
     cmd="AT!BAND=0F,1,\"Custom\",$band_class,${bandlist}"
-    res=$(cmd_band_set_custom "$at_port" "$band_class" "$bandlist" | xargs)
+    local raw parsed
+    raw=$(cmd_band_set_custom "$at_port" "$band_class" "$bandlist"); parsed=$(_sierra_parse sierra.band.set "$raw"); res=$(printf '%s' "$parsed"|jq -r '.result//empty'|xargs)
     if [ "$res" == "OK" ]; then
-        r=$(cmd_band_reset "$at_port" "0F")
+        raw=$(cmd_band_reset "$at_port" "0F"); _sierra_parse sierra.band.reset "$raw" >/dev/null
     else
-        r=$(cmd_band_reset "$at_port" "00")
+        raw=$(cmd_band_reset "$at_port" "00"); _sierra_parse sierra.band.reset "$raw" >/dev/null
     fi
     json_add_string "result" "$res"
     json_add_string "cmd" "$cmd"
 }
 
 _get_voltage(){
-    voltage=$(cmd_pcvolt_query "$at_port" | grep -o 'Power supply voltage: [0-9]* mV'|grep -o '[0-9]*' )
+    local raw parsed; raw=$(cmd_pcvolt_query "$at_port"); parsed=$(_sierra_parse sierra.pcvolt "$raw"); voltage=$(printf '%s' "$parsed"|jq -r '.millivolts//empty')
     [ -n "$voltage" ] && {
         add_plain_info_entry "voltage" "$voltage mV" "Voltage" 
     }
 }
 
 _get_temperature(){
-    temperature=$(cmd_pctemp_query "$at_port" | grep -o 'Temperature: [0-9]*\.[0-9]*'|grep -o '[0-9]*\.[0-9]*' )
+    local raw parsed; raw=$(cmd_pctemp_query "$at_port"); parsed=$(_sierra_parse sierra.pctemp "$raw"); temperature=$(printf '%s' "$parsed"|jq -r '.celsius//empty')
     [ -n "$temperature" ] && {
         add_plain_info_entry "temperature" "$temperature C" "Temperature" 
     }
@@ -407,44 +363,23 @@ _mask_to_mode()
     mbim_port=${hex_to_bin: -13:1}
 }
 
-_parse_gstatus(){
-data=$1
-IFS=$'\t\r\n'
-for line in $data;do
-    line=${line//[$'\t\r\n']}
-    key=${line%%:*}
-    value=${line##*:}
-    key=${key}
-    #trim space at value
-    value=$(echo $value | xargs)
-    if [ -z "$value" ] || [ "$value" = "---" ]; then
-        continue
-    fi
-   
-    
-    case $key in
-    OK)
-        continue
-        ;;
-    *SINR*)
-        add_bar_info_entry "SINR" "$value" "$key" 0 30 dB
-        ;;
-    *RSRP*)
-        add_bar_info_entry "RSRP" "$value" "$key" -140 -44 dBm
-        ;;
-    *RSRQ*)
-            add_bar_info_entry "RSRQ" "$value" "$key" -19.5 -3 dB
-        ;;
-    *RSSI*)
-            add_bar_info_entry "RSSI" "$value" "$key" -120 -20 dBm
-            ;;
-    *)
-        add_plain_info_entry $key $value $key
-        ;;
-    esac
-    
-done
-unset IFS
+_render_gstatus(){
+    local parsed="$1" count i key value kind
+    count=$(printf '%s' "$parsed"|jq '.entries|length')
+    i=0
+    while [ "$i" -lt "$count" ]; do
+        key=$(printf '%s' "$parsed"|jq -r ".entries[$i].key")
+        value=$(printf '%s' "$parsed"|jq -r ".entries[$i].value")
+        kind=$(printf '%s' "$parsed"|jq -r ".entries[$i].kind")
+        case "$kind" in
+            sinr) add_bar_info_entry "SINR" "$value" "$key" 0 30 dB ;;
+            rsrp) add_bar_info_entry "RSRP" "$value" "$key" -140 -44 dBm ;;
+            rsrq) add_bar_info_entry "RSRQ" "$value" "$key" -19.5 -3 dB ;;
+            rssi) add_bar_info_entry "RSSI" "$value" "$key" -120 -20 dBm ;;
+            *) add_plain_info_entry "$key" "$value" "$key" ;;
+        esac
+        i=$((i+1))
+    done
 }
 
 

@@ -3,9 +3,19 @@
   "platform": "unisoc",
   "model": "air724ug",
   "command": "AT+CNUM",
-  "response_hex": "41542b434e554d0d0a0d0a2b434e554d3a2022222c222b38363030303030303030303737222c3134350d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-08T10:55:16Z",
-  "sanitized": true
+  "sanitized": true,
+  "responses": [
+    {
+      "response_hex": "41542b434e554d0d0a0d0a2b434e554d3a2022222c222b38363030303030303030303737222c3134350d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-08T10:55:16Z",
+      "scenario": "default",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "source": "device",
+      "assertions": [{"parser":"openluat.cnum","context":{},"expected":{"number":"+8600000000077"}}]
+    }
+  ],
+  "schema_version": 2
 }

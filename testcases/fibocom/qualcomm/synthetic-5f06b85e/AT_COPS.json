@@ -1,0 +1,30 @@
+{
+  "schema_version": 2,
+  "vendor": "fibocom",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT+COPS?",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "registered-numeric",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b434f50533f0d0a2b434f50533a20302c322c223436303031222c370d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "fibocom.cops.operator",
+          "context": {},
+          "expected": {"operator": "46001"}
+        },
+        {
+          "parser": "fibocom.cops.rat",
+          "context": {},
+          "expected": {"rat_code": "7"}
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "vendor": "huawei",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT^MONSC",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "lte",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41545e4d4f4e53430d0a5e4d4f4e53433a204c54452c3436302c30312c313635302c4142434445462c31412c303046462c2d39352c2d31302c34300d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [{
+        "parser": "huawei.monsc",
+        "context": {},
+        "expected": {"rat":"LTE","mcc":"460","mnc":"01","channel":"1650","nr":{"scs_code":"ABCDEF","cell_id_hex":"1A","pci_hex":"00FF","tac":"-95","rsrp":"-10","rsrq":"40","sinr":""},"lte":{"cell_id_hex":"ABCDEF","pci_hex":"1A","tac":"00FF","rsrp":"-95","rsrq":"-10","rxlev":"40"},"wcdma":{"psc":"ABCDEF","cell_id_hex":"1A","lac":"00FF","rscp":"-95","rxlev":"-10","ecn0":"40","drx":"","ura":""},"gsm":{"band_code":"1650","arfcn":"ABCDEF","bsic":"1A","cell_id_hex":"00FF","lac":"-95","rxlev":"-10","rx_quality":"40","timing_advance":""}}
+      }]
+    },
+    {
+      "scenario": "nr-sa",
+      "sequence": 0,
+      "capture_sequence": 1,
+      "response_hex": "41545e4d4f4e53430d0a5e4d4f4e53433a204e522c3436302c30312c3632373236342c312c41424344452c31302c303041412c2d38382c2d392c32350d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [{
+        "parser": "huawei.monsc",
+        "context": {},
+        "expected": {"rat":"NR","mcc":"460","mnc":"01","channel":"627264","nr":{"scs_code":"1","cell_id_hex":"ABCDE","pci_hex":"10","tac":"00AA","rsrp":"-88","rsrq":"-9","sinr":"25"},"lte":{"cell_id_hex":"1","pci_hex":"ABCDE","tac":"10","rsrp":"00AA","rsrq":"-88","rxlev":"-9"},"wcdma":{"psc":"1","cell_id_hex":"ABCDE","lac":"10","rscp":"00AA","rxlev":"-88","ecn0":"-9","drx":"25","ura":""},"gsm":{"band_code":"627264","arfcn":"1","bsic":"ABCDE","cell_id_hex":"10","lac":"00AA","rxlev":"-88","rx_quality":"-9","timing_advance":"25"}}
+      }]
+    }
+  ]
+}

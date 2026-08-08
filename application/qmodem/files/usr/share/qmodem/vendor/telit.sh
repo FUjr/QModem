@@ -6,6 +6,20 @@ _Maintainer="sfwtw <sfwtw@qq.com>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
 debug_subject="telit_ctrl"
 
+telit_parse_response()
+{
+    local parser_id="$1" raw="$2"
+    printf '%s' "$raw" | "${QMODEM_PARSER:-${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh}" \
+        "$parser_id" --platform "${platform:-unknown}" --model "${model:-${QMODEM_TESTCASE_MODEL:-unknown}}" --context-json '{}'
+}
+
+telit_parse_field()
+{
+    local parser_id="$1" field="$2" raw="$3" parsed
+    parsed=$(telit_parse_response "$parser_id" "$raw") || return
+    printf '%s' "$parsed" | jq -r --arg field "$field" '.[$field] // empty'
+}
+
 vendor_get_disabled_features()
 {
     json_add_string "" "IMEI"
@@ -14,7 +28,9 @@ vendor_get_disabled_features()
 
 get_mode()
 {
-    local mode_num=$(cmd_usbcfg_query "$at_port" | grep -o "#USBCFG:" | awk -F': ' '{print $2}')
+    local raw mode_num
+    raw=$(cmd_usbcfg_query "$at_port")
+    mode_num=$(telit_parse_field telit.usbcfg legacy_mode_num "$raw")
     case "$mode_num" in
         "0") mode="rndis" ;;
         "1") mode="qmi" ;;
@@ -44,7 +60,8 @@ set_mode()
         "ecm") mode="3" ;;
         *) echo "Invalid mode" && return 1;;
     esac
-    res=$(cmd_usbcfg_set "$at_port" "$mode")
+    raw=$(cmd_usbcfg_set "$at_port" "$mode")
+    res=$(telit_parse_field telit.command.completion command_output "$raw")
     json_select "result"
     json_add_string "set_mode" "$res"
     json_close_object
@@ -52,32 +69,12 @@ set_mode()
 
 get_network_prefer()
 {
-    local response=$(cmd_ws46_query "$at_port" | grep "+WS46:" | awk -F': ' '{print $2}' | sed 's/\r//g')
-    
-    network_prefer_3g="0";
-    network_prefer_4g="0";
-    network_prefer_5g="0";
-
-    #匹配不同的网络类型
-    local auto=$(echo "${response}" | grep "38")
-    if [ -n "$auto" ]; then
-        network_prefer_3g="1"
-        network_prefer_4g="1"
-        network_prefer_5g="1"
-    else
-        local wcdma=$(echo "${response}" | grep "22" || echo "${response}" | grep "31" || echo "${response}" | grep "38" || echo "${response}" | grep "40")
-        local lte=$(echo "${response}" | grep "28" || echo "${response}" | grep "31" || echo "${response}" | grep "37" || echo "${response}" | grep "38")
-        local nr=$(echo "${response}" | grep "36" || echo "${response}" | grep "37" || echo "${response}" | grep "38" || echo "${response}" | grep "40")
-        if [ -n "$wcdma" ]; then
-            network_prefer_3g="1"
-        fi
-        if [ -n "$lte" ]; then
-            network_prefer_4g="1"
-        fi
-        if [ -n "$nr" ]; then
-            network_prefer_5g="1"
-        fi
-    fi
+    local raw parsed
+    raw=$(cmd_ws46_query "$at_port")
+    parsed=$(telit_parse_response telit.ws46 "$raw") || return
+    network_prefer_3g=$(printf '%s' "$parsed" | jq -r 'if .enabled["3G"] then "1" else "0" end')
+    network_prefer_4g=$(printf '%s' "$parsed" | jq -r 'if .enabled["4G"] then "1" else "0" end')
+    network_prefer_5g=$(printf '%s' "$parsed" | jq -r 'if .enabled["5G"] then "1" else "0" end')
     json_add_object network_prefer
     json_add_string 3G $network_prefer_3g
     json_add_string 4G $network_prefer_4g
@@ -115,12 +112,15 @@ set_network_prefer()
         *) network_prefer_config="38" ;;
     esac
 
-    cmd_ws46_set "$at_port" "$network_prefer_config"
+    raw=$(cmd_ws46_set "$at_port" "$network_prefer_config")
+    telit_parse_field telit.command.completion command_output "$raw"
 }
 
 get_voltage()
 {
-    local voltage=$(cmd_cbc "$at_port" | grep "#CBC:" | awk -F',' '{print $2}' | sed 's/\r//g')
+    local raw voltage
+    raw=$(cmd_cbc "$at_port")
+    voltage=$(telit_parse_field telit.cbc millivolts "$raw")
     [ -n "$voltage" ] && {
         voltage=$(awk "BEGIN {printf \"%.2f\", $voltage / 100}")
         add_plain_info_entry "voltage" "$voltage V" "Voltage" 
@@ -130,8 +130,8 @@ get_voltage()
 get_temperature()
 {   
     local temp
-    QTEMP=$(cmd_tempsens "$at_port" | grep "#TEMPSENS: TSENS,")
-    temp=$(echo $QTEMP | awk -F',' '{print $2}' | sed 's/\r//g')
+    QTEMP=$(cmd_tempsens "$at_port")
+    temp=$(telit_parse_field telit.tempsens temperature "$QTEMP")
     if [ -n "$temp" ]; then
         temp="${temp}$(printf "\xc2\xb0")C"
     fi
@@ -143,11 +143,11 @@ base_info()
     m_debug  "Telit base info"
 
     #Name（名称）
-    name=$(cmd_cgmm "$at_port" | sed -n '3p' | sed 's/\r//g')
+    raw=$(cmd_cgmm "$at_port"); name=$(telit_parse_field telit.cgmm name "$raw")
     #Manufacturer（制造商）
-    manufacturer=$(cmd_cgmi "$at_port" | sed -n '3p' | sed 's/\r//g')
+    raw=$(cmd_cgmi "$at_port"); manufacturer=$(telit_parse_field telit.cgmi manufacturer "$raw")
     #Revision（固件版本）
-    revision=$(cmd_cgmr "$at_port" | sed -n '3p' | sed 's/\r//g')
+    raw=$(cmd_cgmr "$at_port"); revision=$(telit_parse_field telit.cgmr revision "$raw")
     class="Base Information"
     add_plain_info_entry "name" "$name" "Name"
     add_plain_info_entry "manufacturer" "$manufacturer" "Manufacturer"
@@ -163,17 +163,12 @@ sim_info()
     m_debug  "Telit sim info"
     
     #SIM Slot（SIM卡卡槽）
-    sim_slot=$(cmd_qss_query "$at_port" | grep "#QSS:" | awk -F',' '{print $3}' | sed 's/\r//g')
-    if [ "$sim_slot" = "0" ]; then
-        sim_slot="1"
-    elif [ "$sim_slot" = "1" ]; then
-        sim_slot="2"
-    fi
+    raw=$(cmd_qss_query "$at_port"); sim_slot=$(telit_parse_field telit.qss sim_slot "$raw")
     #IMEI（国际移动设备识别码）
-    imei=$(cmd_cgsn "$at_port" | sed -n '3p' | sed 's/\r//g')
+    raw=$(cmd_cgsn "$at_port"); imei=$(telit_parse_field telit.cgsn imei "$raw")
 
     #SIM Status（SIM状态）
-    sim_status_flag=$(cmd_cpin_query "$at_port" | sed -n '3p')
+    raw=$(cmd_cpin_query "$at_port"); sim_status_flag=$(telit_parse_field telit.cpin status_text "$raw")
     sim_status=$(get_sim_status "$sim_status_flag")
 
     if [ "$sim_status" != "ready" ]; then
@@ -181,7 +176,7 @@ sim_info()
     fi
 
     #ISP（互联网服务提供商）
-    isp=$(cmd_cops_query "$at_port" | sed -n '3p' | awk -F'"' '{print $2}')
+    raw=$(cmd_cops_query "$at_port"); isp=$(telit_parse_field telit.cops operator "$raw")
     # if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ]|| [ "$isp" = "46000" ]; then
     #     isp="中国移动"
     # # elif [ "$isp" = "CHN-UNICOM" ] || [ "$isp" = "UNICOM" ] || [ "$isp" = "46001" ]; then
@@ -193,10 +188,12 @@ sim_info()
     # fi
 
     #IMSI（国际移动用户识别码）
-    imsi=$(cmd_cimi "$at_port" | sed -n '3p' | sed 's/\r//g')
+    raw=$(cmd_cimi "$at_port"); imsi=$(telit_parse_field telit.cimi imsi "$raw")
 
     #ICCID（集成电路卡识别码）
-    iccid=$(cmd_iccid "$at_port" | grep -o "+ICCID:[ ]*[-0-9]\+" | grep -o "[-0-9]\{1,4\}")
+    raw=$(cmd_iccid "$at_port")
+    parsed=$(telit_parse_response telit.iccid "$raw") || return
+    iccid=$(printf '%s' "$parsed" | jq -r '.iccid_chunks | join("\n")')
     class="SIM Information"
     case "$sim_status" in
         "ready")
@@ -228,15 +225,8 @@ network_info()
 {
     m_debug  "Telit network info"
 
-    network_type=$(cmd_cametrics "$at_port" | grep "#CAMETRICS:" | awk -F',' '{print $3}')
-
-    response=$(cmd_cqi "$at_port" | grep "#CQI:" | sed 's/#CQI: //g' | sed 's/\r//g')
-
-    if [ -n "$response" ]; then
-        cqi=$(echo "$response" | cut -d',' -f1)
-        second_value=$(echo "$response" | cut -d',' -f2)
-        [ "$cqi" = "31" ] && cqi="$second_value"
-    fi
+    raw=$(cmd_cametrics "$at_port"); network_type=$(telit_parse_field telit.cametrics network_type "$raw")
+    raw=$(cmd_cqi "$at_port"); cqi=$(telit_parse_field telit.cqi downlink_cqi "$raw")
 
     class="Network Information"
     add_plain_info_entry "Network Type" "$network_type" "Network Type"
@@ -323,6 +313,8 @@ get_lockband()
     m_debug "Telit get lockband info"
     get_lockband_config_res=$(cmd_bnd_query "$at_port")
     get_available_band_res=$(cmd_bnd_list_query "$at_port")
+    lock_parsed=$(telit_parse_response telit.bnd.config "$get_lockband_config_res") || return
+    available_parsed=$(telit_parse_response telit.bnd.available "$get_available_band_res") || return
     json_add_object "LTE"
     json_add_array "available_band"
     json_close_array
@@ -341,29 +333,21 @@ get_lockband()
     json_add_array "lock_band"
     json_close_array
     json_close_object
-    lte_avalible_band=$(echo $get_available_band_res | grep -o "#BND: ([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*)" | sed 's/#BND: (\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\))/\3/')
-    lte_avalible_band=$(lte_hex_to_bands "$lte_avalible_band")
-    nsa_nr_avalible_band_1_64=$(echo $get_available_band_res | grep -o "#BND: ([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*)" | sed 's/#BND: (\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\))/\5/')
-    nsa_nr_avalible_band_65_128=$(echo $get_available_band_res | grep -o "#BND: ([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*)" | sed 's/#BND: (\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\))/\6/')
-    nsa_nr_avalible_band="$(nr_hex_to_bands "$nsa_nr_avalible_band_1_64" "1_64") $(nr_hex_to_bands "$nsa_nr_avalible_band_65_128" "65_128")"
-    sa_nr_avalible_band_1_64=$(echo $get_available_band_res | grep -o "#BND: ([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*)" | sed 's/#BND: (\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\))/\7/')
-    sa_nr_avalible_band_65_128=$(echo $get_available_band_res | grep -o "#BND: ([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*),([^)]*)" | sed 's/#BND: (\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\)),(\([^)]*\))/\8/')
-    sa_nr_avalible_band="$(nr_hex_to_bands "$sa_nr_avalible_band_1_64" "1_64") $(nr_hex_to_bands "$sa_nr_avalible_band_65_128" "65_128")"
-    for i in $(echo "$lte_avalible_band" | awk -F" " '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$available_parsed" | jq -r '.bands.lte[]'); do
         json_select "LTE"
         json_select "available_band"
         add_avalible_band_entry  "$i" "$i"
         json_select ..
         json_select ..
     done
-    for i in $(echo "$nsa_nr_avalible_band" | awk -F" " '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$available_parsed" | jq -r '.bands.nsa[]'); do
         json_select "NR_NSA"
         json_select "available_band"
         add_avalible_band_entry  "$i" "$i"
         json_select ..
         json_select ..
     done
-    for i in $(echo "$sa_nr_avalible_band" | awk -F" " '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$available_parsed" | jq -r '.bands.sa[]'); do
         json_select "NR"
         json_select "available_band"
         add_avalible_band_entry  "$i" "$i"
@@ -371,15 +355,7 @@ get_lockband()
         json_select ..
     done
 
-    lte_band=$(echo $get_lockband_config_res | awk -F "," '{print $3}')
-    lte_band=$(lte_hex_to_bands "$lte_band")
-    nsa_nr_band_1_64=$(echo $get_lockband_config_res | awk -F "," '{print $5}')
-    nsa_nr_band_65_128=$(echo $get_lockband_config_res | awk -F "," '{print $6}')
-    nsa_nr_band="$(nr_hex_to_bands "$nsa_nr_band_1_64" "1_64") $(nr_hex_to_bands "$nsa_nr_band_65_128" "65_128")"
-    sa_nr_band_1_64=$(echo $get_lockband_config_res | awk -F "," '{print $7}')
-    sa_nr_band_65_128=$(echo $get_lockband_config_res | awk -F "," '{print $8}' | sed 's/\r//g' | sed 's/ OK//g')
-    sa_nr_band="$(nr_hex_to_bands "$sa_nr_band_1_64" "1_64") $(nr_hex_to_bands "$sa_nr_band_65_128" "65_128")"
-    for i in $(echo "$lte_band" | cut -d, -f2|tr -d '\r' | awk -F" " '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$lock_parsed" | jq -r '.bands.lte[]'); do
         if [ -n "$i" ]; then
             json_select "LTE"
             json_select "lock_band"
@@ -388,7 +364,7 @@ get_lockband()
             json_select ..
         fi
     done
-    for i in $(echo "$nsa_nr_band" | cut -d, -f2|tr -d '\r' | awk -F" " '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$lock_parsed" | jq -r '.bands.nsa[]'); do
         if [ -n "$i" ]; then
             json_select "NR_NSA"
             json_select "lock_band"
@@ -397,7 +373,7 @@ get_lockband()
             json_select ..
         fi
     done
-    for i in $(echo "$sa_nr_band" | cut -d, -f2|tr -d '\r' | awk -F" " '{for(j=1; j<=NF; j++) print $j}'); do
+    for i in $(printf '%s' "$lock_parsed" | jq -r '.bands.sa[]'); do
         if [ -n "$i" ]; then
             json_select "NR"
             json_select "lock_band"
@@ -421,12 +397,16 @@ set_lockband()
     case "$band_class" in
         "LTE") 
             lock_band=$(lte_bands_to_hex "$lock_band")
-            res=$(cmd_bnd_set "$at_port" "$lock_band")
+            raw=$(cmd_bnd_set "$at_port" "$lock_band")
+            res=$(telit_parse_field telit.command.completion command_output "$raw")
             ;;
         "NR_NSA")
             orig=$(cmd_bnd_query "$at_port")
-            orig_lte=$(echo $orig | awk -F "," '{print $3}')
-            orig_lte_ext=$(echo $orig | awk -F "," '{print $4}')
+            orig_parsed=$(telit_parse_response telit.bnd.config "$orig") || return
+            orig_lte=$(printf '%s' "$orig_parsed" | jq -r '.masks.lte')
+            orig_lte_ext=$(printf '%s' "$orig_parsed" | jq -r '.masks.lte_ext')
+            orig_nsa_nr_1_64=$(printf '%s' "$orig_parsed" | jq -r '.masks.nsa_1_64')
+            orig_nsa_nr_65_128=$(printf '%s' "$orig_parsed" | jq -r '.masks.nsa_65_128')
 
             nr_bands_1_64=""
             nr_bands_65_128=""
@@ -445,16 +425,18 @@ set_lockband()
             [ -z "$nsa_nr_1_64" ] && nsa_nr_1_64=$orig_nsa_nr_1_64
             [ -z "$nsa_nr_65_128" ] && nsa_nr_65_128=$orig_nsa_nr_65_128
             
-            res=$(cmd_bnd_set "$at_port" "$orig_lte,$orig_lte_ext,$nsa_nr_1_64,$nsa_nr_65_128")
+            raw=$(cmd_bnd_set "$at_port" "$orig_lte,$orig_lte_ext,$nsa_nr_1_64,$nsa_nr_65_128")
+            res=$(telit_parse_field telit.command.completion command_output "$raw")
             ;;
         "NR")
             orig=$(cmd_bnd_query "$at_port")
-            orig_lte=$(echo $orig | awk -F "," '{print $3}')
-            orig_lte_ext=$(echo $orig | awk -F "," '{print $4}')
-            orig_nsa_nr_1_64=$(echo $orig | awk -F "," '{print $5}')
-            orig_nsa_nr_65_128=$(echo $orig | awk -F "," '{print $6}')
-            orig_sa_nr_1_64=$(echo $orig | awk -F "," '{print $7}')
-            orig_sa_nr_65_128=$(echo $orig | awk -F "," '{print $8}' | sed 's/\r//g' | sed 's/ OK//g')
+            orig_parsed=$(telit_parse_response telit.bnd.config "$orig") || return
+            orig_lte=$(printf '%s' "$orig_parsed" | jq -r '.masks.lte')
+            orig_lte_ext=$(printf '%s' "$orig_parsed" | jq -r '.masks.lte_ext')
+            orig_nsa_nr_1_64=$(printf '%s' "$orig_parsed" | jq -r '.masks.nsa_1_64')
+            orig_nsa_nr_65_128=$(printf '%s' "$orig_parsed" | jq -r '.masks.nsa_65_128')
+            orig_sa_nr_1_64=$(printf '%s' "$orig_parsed" | jq -r '.masks.sa_1_64')
+            orig_sa_nr_65_128=$(printf '%s' "$orig_parsed" | jq -r '.masks.sa_65_128')
             nr_bands_1_64=""
             nr_bands_65_128=""
             for band in $lock_band; do
@@ -471,7 +453,8 @@ set_lockband()
 
             [ -z "$nr_1_64" ] && nr_1_64=$orig_sa_nr_1_64
             [ -z "$nr_65_128" ] && nr_65_128=$orig_sa_nr_65_128
-            res=$(cmd_bnd_set "$at_port" "$orig_lte,$orig_lte_ext,$orig_nsa_nr_1_64,$orig_nsa_nr_65_128,$nr_1_64,$nr_65_128")
+            raw=$(cmd_bnd_set "$at_port" "$orig_lte,$orig_lte_ext,$orig_nsa_nr_1_64,$orig_nsa_nr_65_128,$nr_1_64,$nr_65_128")
+            res=$(telit_parse_field telit.command.completion command_output "$raw")
             ;;
     esac
     json_select "result"
@@ -608,130 +591,20 @@ cell_info()
 
     ca_response=$(cmd_cainfoext_query "$at_port")
 
-    info_line=$(echo "$ca_response" | grep -o "#CAINFOEXT: [^$]*" | head -1)
-    ca_count=$(echo "$info_line" | awk -F',' '{print $1}' | awk -F': ' '{print $2}')
-    network_type_raw=$(echo "$info_line" | awk -F',' '{print $2}')
-    network_mode=$(echo "$network_type_raw" | tr -d ' ')
-
-    [ "$ca_count" -gt 1 ] && network_mode="$network_mode with $ca_count CA"
-    pcc_line=$(echo "$ca_response" | grep "PCC-")
-    band_number=$(echo "$pcc_line" | grep -o "BandClass: [^,]*" | awk -F': ' '{print $2}')
-    band=$(convert_band_number "$band_number")
-    bw=$(echo "$pcc_line" | grep -o "BW: [^,]*" | awk -F': ' '{print $2}')
-    if [ -z "$bw" ]; then
-        dl_bw_raw=$(echo "$pcc_line" | grep -o "DL_BW: [^,]*" | awk -F': ' '{print $2}')
-        case "$dl_bw_raw" in
-            "0") bw="1.4 MHz" ;;
-            "1") bw="3 MHz" ;;
-            "2") bw="5 MHz" ;;
-            "3") bw="10 MHz" ;;
-            "4") bw="15 MHz" ;;
-            "5") bw="20 MHz" ;;
-            *) bw="$dl_bw_raw" ;;
-        esac
-    fi
-    arfcn=$(echo "$pcc_line" | grep -o "CH: [^,]*" | awk -F': ' '{print $2}')
-    [ -z "$arfcn" ] && arfcn=$(echo "$pcc_line" | grep -o "RX_CH: [^,]*" | awk -F': ' '{print $2}')
-    pci=$(echo "$pcc_line" | grep -o "PCI: [^,]*" | awk -F': ' '{print $2}')
-    rsrp=$(echo "$pcc_line" | grep -o "RSRP: [^,]*" | awk -F': ' '{print $2}')
-    rsrq=$(echo "$pcc_line" | grep -o "RSRQ: [^,]*" | awk -F': ' '{print $2}')
-    rssi=$(echo "$pcc_line" | grep -o "RSSI: [^,]*" | awk -F': ' '{print $2}')
-    sinr_raw=$(echo "$pcc_line" | grep -o "SINR: [^,]*" | awk -F': ' '{print $2}')
-    sinr=$(printf "%.1f" $(echo "-20 + ($sinr_raw * 0.2)" | bc -l))
-    tac=$(echo "$pcc_line" | grep -o "TAC: [^,]*" | awk -F': ' '{print $2}')
-    tx_power=$(echo "$pcc_line" | grep -o "TX_PWR: [^,]*" | awk -F': ' '{print $2}')
-    [ -n "$tx_power" ] && tx_power=$(printf "%.1f" $(echo "$tx_power / 10" | bc -l))
-    [ -z "$tx_power" ] && tx_power="0"
-    ul_mod=$(echo "$pcc_line" | grep -o "UL_MOD: [^,]*" | awk -F': ' '{print $2}')
-    dl_mod=$(echo "$pcc_line" | grep -o "DL_MOD: [^,]*" | awk -F': ' '{print $2}' | sed 's/[^0-9]//g')
-    case "$ul_mod" in
-        "0") ul_mod="BPSK" ;;
-        "1") ul_mod="QPSK" ;;
-        "2") ul_mod="16QAM" ;;
-        "3") ul_mod="64QAM" ;;
-        "4") ul_mod="256QAM" ;;
-        *) ul_mod="$ul_mod" ;;
-    esac
-
-    case "$dl_mod" in
-        "0") dl_mod="BPSK" ;;
-        "1") dl_mod="QPSK" ;;
-        "2") dl_mod="16QAM" ;;
-        "3") dl_mod="64QAM" ;;
-        "4") dl_mod="256QAM" ;;
-        *) dl_mod="$dl_mod" ;;
-    esac
-
-    if [ "$ca_count" -gt 1 ]; then
-        scc_band=""
-        scc_bw=""
-        scc_arfcn=""
-        scc_pci=""
-        scc_rsrp=""
-        scc_rssi=""
-        scc_rsrq=""
-        scc_sinr=""
-        for i in $(seq 0 $((ca_count-2))); do
-            scc_line=$(echo "$ca_response" | grep -A 1 "SCC$i-" | tr '\r\n' ' ')
-            if [ -n "$scc_line" ]; then
-                scc_band_number=$(echo "$scc_line" | grep -o "BandClass: [^,]*" | awk -F': ' '{print $2}')
-                scc_band_new=$(convert_band_number "$scc_band_number")
-                if [ -z "$scc_band" ]; then
-                    scc_band="$scc_band_new"
-                else
-                    scc_band="$scc_band / $scc_band_new"
-                fi
-                scc_bw_new=$(echo "$scc_line" | grep -o "BW: [^,]*" | awk -F': ' '{print $2}')
-                if [ -z "$scc_bw_new" ]; then
-                    scc_dl_bw=$(echo "$scc_line" | grep -o "DL_BW: [^,]*" | awk -F': ' '{print $2}')
-                    case "$scc_dl_bw" in
-                        "0") scc_bw_new="1.4 MHz" ;;
-                        "1") scc_bw_new="3 MHz" ;;
-                        "2") scc_bw_new="5 MHz" ;;
-                        "3") scc_bw_new="10 MHz" ;;
-                        "4") scc_bw_new="15 MHz" ;;
-                        "5") scc_bw_new="20 MHz" ;;
-                        *) scc_bw_new="$scc_dl_bw" ;;
-                    esac
-                fi
-                if [ -z "$scc_bw" ]; then
-                    scc_bw="$scc_bw_new"
-                else
-                    scc_bw="$scc_bw / $scc_bw_new"
-                fi
-                scc_arfcn_new=$(echo "$scc_line" | grep -o "CH: [^,]*" | awk -F': ' '{print $2}')
-                [ -z "$scc_arfcn_new" ] && scc_arfcn_new=$(echo "$scc_line" | grep -o "RX_CH: [^,]*" | awk -F': ' '{print $2}')
-                if [ -z "$scc_arfcn" ]; then
-                    scc_arfcn="$scc_arfcn_new"
-                else
-                    scc_arfcn="$scc_arfcn / $scc_arfcn_new"
-                fi
-                scc_pci_new=$(echo "$scc_line" | grep -o "PCI: [^,]*" | awk -F': ' '{print $2}')
-                if [ -z "$scc_pci" ]; then
-                    scc_pci="$scc_pci_new"
-                else
-                    scc_pci="$scc_pci / $scc_pci_new"
-                fi
-                scc_rsrp_new=$(echo "$scc_line" | grep -o "RSRP: [^,]*" | awk -F': ' '{print $2}')
-                scc_rsrp="$scc_rsrp $scc_rsrp_new"
-                scc_rssi_new=$(echo "$scc_line" | grep -o "RSSI: [^,]*" | awk -F': ' '{print $2}')
-                scc_rssi="$scc_rssi $scc_rssi_new"
-                scc_rsrq_new=$(echo "$scc_line" | grep -o "RSRQ: [^,]*" | awk -F': ' '{print $2}')
-                scc_rsrq="$scc_rsrq $scc_rsrq_new"
-                scc_sinr_raw=$(echo "$scc_line" | grep -o "SINR: [^,]*" | awk -F': ' '{print $2}')
-                scc_sinr_new=$(printf "%.1f" $(echo "-20 + ($scc_sinr_raw * 0.2)" | bc -l))
-                scc_sinr="$scc_sinr $scc_sinr_new"
-            fi
-        done
-        arfcn="$arfcn / $scc_arfcn"
-        band="$band / $scc_band"
-        bw="$bw / $scc_bw"
-        pci="$pci / $scc_pci"
-        # rsrp=$(calc_average "$rsrp $scc_rsrp")
-        # rssi=$(calc_average "$rssi $scc_rssi")
-        # rsrq=$(calc_average "$rsrq $scc_rsrq")
-        # sinr=$(calc_average "$sinr $scc_sinr")
-    fi
+    parsed=$(telit_parse_response telit.cainfoext "$ca_response") || return
+    network_mode=$(printf "%s" "$parsed" | jq -r .network_mode)
+    band=$(printf "%s" "$parsed" | jq -r .band)
+    bw=$(printf "%s" "$parsed" | jq -r .bandwidth)
+    arfcn=$(printf "%s" "$parsed" | jq -r .arfcn)
+    pci=$(printf "%s" "$parsed" | jq -r .pci)
+    rsrp=$(printf "%s" "$parsed" | jq -r .rsrp)
+    rsrq=$(printf "%s" "$parsed" | jq -r .rsrq)
+    rssi=$(printf "%s" "$parsed" | jq -r .rssi)
+    sinr=$(printf "%s" "$parsed" | jq -r .sinr)
+    tac=$(printf "%s" "$parsed" | jq -r .tac)
+    tx_power=$(printf "%s" "$parsed" | jq -r .tx_power)
+    ul_mod=$(printf "%s" "$parsed" | jq -r .ul_mod)
+    dl_mod=$(printf "%s" "$parsed" | jq -r .dl_mod)
 
     class="Cell Information"
     add_plain_info_entry "network_mode" "$network_mode" "Network Mode"

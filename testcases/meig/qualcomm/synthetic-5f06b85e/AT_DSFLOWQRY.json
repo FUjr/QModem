@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "vendor": "meig",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT^DSFLOWQRY",
+  "tool": "at",
+  "responses": [{
+    "scenario": "traffic",
+    "sequence": 0,
+    "capture_sequence": 0,
+    "response_hex": "41545e4453464c4f575152590d0a5e4453464c4f575250543a20313233342c353637380d0a4f4b0d0a",
+    "rc": 0,
+    "source": "synthetic",
+    "assertions": [{
+      "parser": "meig.dsflowqry",
+      "context": {},
+      "expected": {"tx_rate":"1234","rx_rate":"5678"}
+    }]
+  }]
+}

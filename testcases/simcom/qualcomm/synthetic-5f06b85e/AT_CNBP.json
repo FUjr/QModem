@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "vendor": "simcom",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT+CNBP?",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "profile-a",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b434e42503f0d0a2b434e42503a203078312c3078322c3078330d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "simcom.cnbp",
+          "context": {},
+          "expected": {"mode": "0x1", "lte_mode": "0x2", "lte_modeext": "0x3"}
+        }
+      ]
+    },
+    {
+      "scenario": "profile-b",
+      "sequence": 0,
+      "capture_sequence": 1,
+      "response_hex": "41542b434e42503f0d0a2b434e42503a203078342c3078352c3078360d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "simcom.cnbp",
+          "context": {},
+          "expected": {"mode": "0x4", "lte_mode": "0x5", "lte_modeext": "0x6"}
+        }
+      ]
+    }
+  ]
+}

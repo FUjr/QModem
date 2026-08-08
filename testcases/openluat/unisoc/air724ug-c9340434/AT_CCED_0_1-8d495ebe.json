@@ -3,9 +3,40 @@
   "platform": "unisoc",
   "model": "air724ug",
   "command": "AT+CCED=0,1",
-  "response_hex": "41542b434345443d302c310d0a0d0a2b434345443a4c54452063757272656e742063656c6c3a3436302c31312c3436303030303030303030303039302c302c332c6e3130302c313635302c3131313734323838312c35312c31392c363334322c33382c38310d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-08T10:55:16Z",
-  "sanitized": true
+  "sanitized": true,
+  "responses": [
+    {
+      "response_hex": "41542b434345443d302c310d0a0d0a2b434345443a4c54452063757272656e742063656c6c3a3436302c31312c3436303030303030303030303039302c302c332c6e3130302c313635302c3131313734323838312c35312c31392c363334322c33382c38310d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-08T10:55:16Z",
+      "scenario": "default",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "source": "device",
+      "assertions": [
+        {
+          "parser": "openluat.cced.serving",
+          "context": {},
+          "expected": {
+            "rat": "LTE",
+            "mcc": "460",
+            "mnc": "11",
+            "imsi": "460000000000090",
+            "roaming": "0",
+            "band": "3",
+            "bandwidth": "n100",
+            "dl_earfcn": "1650",
+            "cell_id": "111742881",
+            "rsrp_raw": "51",
+            "rsrq_raw": "19",
+            "tac": "6342",
+            "srxlev": "38",
+            "pci": "81"
+          }
+        }
+      ]
+    }
+  ],
+  "schema_version": 2
 }

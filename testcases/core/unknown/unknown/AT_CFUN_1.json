@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "vendor": "core",
+  "platform": "unknown",
+  "model": "unknown",
+  "command": "AT+CFUN=1",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "accepted",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b4346554e3d310d0d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "core.command.completion",
+          "context": {},
+          "expected": {
+            "accepted": true,
+            "final": "OK",
+            "result": "AT+CFUN=1\r\r\nOK\r"
+          },
+          "expected_rc": 0
+        }
+      ]
+    },
+    {
+      "scenario": "malformed",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "554e45585045435445440d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "core.command.completion",
+          "context": {},
+          "expected": {"error":{"code":"parse_failed","parser":"core.command.completion"}},
+          "expected_rc": 1
+        }
+      ]
+    }
+  ]
+}

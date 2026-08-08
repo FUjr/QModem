@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "vendor": "telit",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT#CAINFOEXT",
+  "tool": "at",
+  "responses": [{
+    "scenario": "lte-ca", "sequence": 0, "capture_sequence": 0,
+    "response_hex": "4154234341494e464f4558540d0a234341494e464f4558543a20322c204c54450d0a5043432d2042616e64436c6173733a203132322c2042573a203230204d487a2c2043483a20313330302c205043493a2031302c20525352503a202d39352c20525352513a202d31302c20525353493a202d36352c2053494e523a203135302c205441433a20313233342c2054585f5057523a203233302c20554c5f4d4f443a20322c20444c5f4d4f443a20330d0a534343302d2042616e64436c6173733a203134392c2042573a203130204d487a2c2043483a2034313030302c205043493a2032302c20525352503a202d3130302c20525352513a202d31322c20525353493a202d37302c2053494e523a203132300d0a4f4b0d0a", "rc": 0, "source": "synthetic",
+    "assertions": [{"parser":"telit.cainfoext","context":{},"expected":{"ca_count":2,"network_mode":"LTE with 2 CA","band":"B3 / B41","bandwidth":"20 MHz / 10 MHz","arfcn":"1300 / 41000","pci":"10 / 20","rsrp":"-95","rsrq":"-10","rssi":"-65","sinr":"10.0","tac":"1234","tx_power":"23.0","ul_mod":"16QAM","dl_mod":"64QAM"}}]
+  }]
+}

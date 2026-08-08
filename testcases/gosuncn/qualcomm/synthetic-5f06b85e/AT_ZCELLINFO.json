@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "vendor": "gosuncn",
+  "platform": "qualcomm",
+  "model": "synthetic",
+  "command": "AT+ZCELLINFO?",
+  "tool": "at",
+  "responses": [
+    {
+      "scenario": "lte-positional",
+      "sequence": 0,
+      "capture_sequence": 0,
+      "response_hex": "41542b5a43454c4c494e464f3f0d0a2b5a43454c4c494e464f3a20303041412c4142434445462c3132332c330d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "gosuncn.zcellinfo",
+          "context": {},
+          "expected": {
+            "tac": "00AA",
+            "cell_id": "ABCDEF",
+            "pci": "123",
+            "band": "3"
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "nr-labelled",
+      "sequence": 0,
+      "capture_sequence": 1,
+      "response_hex": "41542b5a43454c4c494e464f3f0d0a2b5a43454c4c494e464f3a207461633a303042422c63656c6c69643a3132333435362c7063693a3332312c62616e643a37380d0a4f4b0d0a",
+      "rc": 0,
+      "source": "synthetic",
+      "assertions": [
+        {
+          "parser": "gosuncn.zcellinfo",
+          "context": {},
+          "expected": {
+            "tac": "00BB",
+            "cell_id": "123456",
+            "pci": "321",
+            "band": "78"
+          }
+        }
+      ]
+    }
+  ]
+}

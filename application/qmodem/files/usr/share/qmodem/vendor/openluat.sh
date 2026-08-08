@@ -7,6 +7,15 @@ source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
 
 debug_subject="openluat_ctrl"
 
+openluat_parse()
+{
+    local parser_id="$1" context
+    context=${2:-"{}"}
+    "${QMODEM_HOME:-/usr/share/qmodem}/parsers/parse.sh" "$parser_id" \
+        --platform "${platform:-unknown}" --model "${model:-unknown}" \
+        --context-json "$context"
+}
+
 
 # Read only the value belonging to an exact AT response prefix. This avoids
 # treating unsolicited reports (for example +CESQ) or diagnostic output as the
@@ -14,40 +23,9 @@ debug_subject="openluat_ctrl"
 openluat_at_prefixed_value()
 {
   local prefix="$1"
-  awk -v prefix="$prefix" '
-    function clean(value) {
-      sub(/^[[:space:]]+/, "", value)
-      sub(/[[:space:]]+$/, "", value)
-      if (value ~ /^".*"$/) {
-        sub(/^"/, "", value)
-        sub(/"$/, "", value)
-      }
-      return value
-    }
-    {
-      line=$0
-      sub(/\r$/, "", line)
-      sub(/^[[:space:]]+/, "", line)
-      if (index(line, prefix) == 1) {
-        value=clean(substr(line, length(prefix) + 1))
-        if (value != "" && value !~ /^\+/) {
-          print value
-          exit
-        }
-        waiting=1
-        next
-      }
-      if (waiting) {
-        value=clean(line)
-        if (value == "")
-          next
-        if (value == "OK" || value == "ERROR" || value ~ /^\+/)
-          exit
-        print value
-        exit
-      }
-    }
-  '
+  local context
+  context=$(jq -cn --arg prefix "$prefix" '{prefix:$prefix,key:"value"}')
+  openluat_parse openluat.identity "$context" | jq -r '.value // empty'
 }
 
 # Print the primary and secondary DNS addresses (one per line) for a requested
@@ -56,45 +34,9 @@ openluat_at_prefixed_value()
 openluat_parse_cgcontrdp_dns()
 {
   local wanted_cid="$1"
-  awk -v wanted_cid="$wanted_cid" '
-    function clean(value) {
-      gsub(/^[[:space:]\"]+|[[:space:]\"]+$/, "", value)
-      return value
-    }
-    function parse(line, fields, count) {
-      count=split(line, fields, ",")
-      if (count < 8 || clean(fields[1]) != wanted_cid)
-        return 0
-      print clean(fields[7])
-      print clean(fields[8])
-      return 1
-    }
-    {
-      line=$0
-      sub(/\r$/, "", line)
-      if (line ~ /^[[:space:]]*\+CGCONTRDP:/) {
-        sub(/^[[:space:]]*\+CGCONTRDP:[[:space:]]*/, "", line)
-        if (line == "") {
-          waiting=1
-          next
-        }
-        if (parse(line))
-          exit
-        next
-      }
-      if (waiting) {
-        sub(/^[[:space:]]+/, "", line)
-        sub(/[[:space:]]+$/, "", line)
-        if (line == "")
-          next
-        waiting=0
-        if (line == "OK" || line == "ERROR" || line ~ /^\+/)
-          next
-        if (parse(line))
-          exit
-      }
-    }
-  '
+  local context
+  context=$(jq -cn --arg cid "$wanted_cid" '{cid:$cid}')
+  openluat_parse openluat.cgcontrdp "$context" | jq -r '.ipv4_dns1, .ipv4_dns2'
 }
 
 openluat_is_ipv4()
@@ -131,49 +73,12 @@ openluat_query_prefixed()
 
 openluat_first_number()
 {
-    printf '%s\n' "$1" | grep -o '[0-9]\{15,20\}' | head -n1
+    printf '%s\n' "$1" | openluat_parse openluat.cgsn | jq -r '.imei // empty'
 }
 
 openluat_parse_cbc_voltage()
 {
-    printf '%s\n' "$1" | awk '
-        /^[[:space:]]*[+]CBC[[:space:]]*:/ {
-            line = $0
-            sub(/^[[:space:]]*[+]CBC[[:space:]]*:[[:space:]]*/, "", line)
-            field_count = split(line, fields, ",")
-            if (field_count != 3)
-                exit
-
-            voltage = fields[3]
-            gsub(/[[:space:]\r]/, "", voltage)
-            numeric_voltage = voltage + 0
-            if (voltage ~ /^[0-9]+$/ && numeric_voltage > 0 && numeric_voltage <= 10000)
-                print numeric_voltage
-            exit
-        }
-    '
-}
-
-openluat_cesq_field()
-{
-    local response="$1"
-    local field_index="$2"
-
-    printf '%s\n' "$response" | awk -v field_index="$field_index" '
-        /^[[:space:]]*[+]CESQ[[:space:]]*:/ {
-            line = $0
-            sub(/^[[:space:]]*[+]CESQ[[:space:]]*:[[:space:]]*/, "", line)
-            field_count = split(line, fields, ",")
-            if (field_count < 6 || field_index > field_count)
-                exit
-
-            value = fields[field_index]
-            gsub(/[[:space:]]/, "", value)
-            if (value ~ /^[0-9]+$/)
-                print value
-            exit
-        }
-    '
+    printf '%s\n' "$1" | openluat_parse openluat.cbc | jq -r '.voltage_mv // empty'
 }
 
 openluat_lte_rsrp_value()
@@ -210,63 +115,22 @@ openluat_lte_rsrq_value()
 # values 0 and the top bucket are represented by their nearest finite bound.
 openluat_cesq_rsrp()
 {
-    openluat_lte_rsrp_value "$(openluat_cesq_field "$1" 6)"
+    printf '%s\n' "$1" | openluat_parse openluat.cesq | jq -r '.rsrp_dbm // empty'
 }
 
 openluat_cesq_rsrq()
 {
-    openluat_lte_rsrq_value "$(openluat_cesq_field "$1" 5)"
+    printf '%s\n' "$1" | openluat_parse openluat.cesq | jq -r '.rsrq_db // empty'
 }
 
 openluat_ctec_mode()
 {
-    printf '%s\n' "$1" | awk '
-        /^[[:space:]]*[+]CTEC[[:space:]]*:/ {
-            line = $0
-            sub(/^[[:space:]]*[+]CTEC[[:space:]]*:[[:space:]]*/, "", line)
-            sub(/\r$/, "", line)
-            field_count = split(line, fields, ",")
-            for (i = 1; i <= field_count; i++) {
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", fields[i])
-            }
-
-            value = fields[2]
-            if (value !~ /^(0|2|4)$/)
-                value = fields[1]
-            if (value ~ /^(0|2|4)$/)
-                print value
-            exit
-        }
-    '
+    printf '%s\n' "$1" | openluat_parse openluat.ctec | jq -r '.mode // empty'
 }
 
 openluat_band_values()
 {
-    printf '%s\n' "$1" | awk '
-        /^[[:space:]]*[*]BAND[[:space:]]*:/ {
-            line = $0
-            sub(/^[[:space:]]*[*]BAND[[:space:]]*:[[:space:]]*/, "", line)
-            sub(/\r$/, "", line)
-            field_count = split(line, fields, ",")
-            if (field_count < 8)
-                exit
-
-            valid = 1
-            for (i = 1; i <= 8; i++) {
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", fields[i])
-                if (fields[i] !~ /^[0-9]+$/)
-                    valid = 0
-            }
-            if (!valid)
-                exit
-
-            printf "%s", fields[1]
-            for (i = 2; i <= 8; i++)
-                printf ",%s", fields[i]
-            printf "\n"
-            exit
-        }
-    '
+    printf '%s\n' "$1" | openluat_parse openluat.band | jq -r '[.mode,.gsm_band,.umts_band,.lte_high,.lte_low,.roaming_config,.srv_domain,.priority] | join(",")'
 }
 
 openluat_available_lte_bands()
@@ -375,69 +239,12 @@ openluat_lte_bands_from_masks()
 
 openluat_parse_cced_neighbors()
 {
-    printf '%s\n' "$1" | awk '
-        function trim(value) {
-            gsub(/^[[:space:]]+|[[:space:]\r]+$/, "", value)
-            return value
-        }
-        /^[[:space:]]*[+]CCED:LTE neighbor cell[[:space:]]*:/ {
-            line = $0
-            sub(/^[[:space:]]*[+]CCED:LTE neighbor cell[[:space:]]*:[[:space:]]*/, "", line)
-            field_count = split(line, fields, ",")
-            if (field_count != 9)
-                next
-            printf "LTE"
-            for (i = 1; i <= 9; i++)
-                printf "\t%s", trim(fields[i])
-            printf "\n"
-            next
-        }
-        /^[[:space:]]*[+]CCED:GSM neighbor cell info[[:space:]]*:/ {
-            line = $0
-            sub(/^[[:space:]]*[+]CCED:GSM neighbor cell info[[:space:]]*:[[:space:]]*/, "", line)
-            field_count = split(line, fields, ",")
-            if (field_count != 6)
-                next
-            printf "GSM"
-            for (i = 1; i <= 6; i++)
-                printf "\t%s", trim(fields[i])
-            printf "\n"
-        }
-    '
+    printf '%s\n' "$1" | openluat_parse openluat.cced.neighbors | jq -r '.records[] | if .rat == "LTE" then [.rat,.mcc,.mnc,.arfcn,.cell_id,.rsrp_raw,.rsrq_raw,.tac,.srxlev,.pci] else [.rat,.mcc,.mnc,.lac,.cell_id,.bsic,.rxlev] end | @tsv'
 }
 
 openluat_parse_cced_serving()
 {
-    printf '%s\n' "$1" | awk '
-        function trim(value) {
-            gsub(/^[[:space:]]+|[[:space:]\r]+$/, "", value)
-            return value
-        }
-        /^[[:space:]]*[+]CCED:LTE current cell[[:space:]]*:/ {
-            line = $0
-            sub(/^[[:space:]]*[+]CCED:LTE current cell[[:space:]]*:[[:space:]]*/, "", line)
-            field_count = split(line, fields, ",")
-            if (field_count != 13)
-                next
-            printf "LTE"
-            for (i = 1; i <= 13; i++)
-                printf "|%s", trim(fields[i])
-            printf "\n"
-            exit
-        }
-        /^[[:space:]]*[+]CCED:GSM current cell info[[:space:]]*:/ {
-            line = $0
-            sub(/^[[:space:]]*[+]CCED:GSM current cell info[[:space:]]*:[[:space:]]*/, "", line)
-            field_count = split(line, fields, ",")
-            if (field_count != 8)
-                next
-            printf "GSM"
-            for (i = 1; i <= 8; i++)
-                printf "|%s", trim(fields[i])
-            printf "\n"
-            exit
-        }
-    '
+    printf '%s\n' "$1" | openluat_parse openluat.cced.serving | jq -r 'if .rat == "LTE" then [.rat,.mcc,.mnc,.imsi,.roaming,.band,.bandwidth,.dl_earfcn,.cell_id,.rsrp_raw,.rsrq_raw,.tac,.srxlev,.pci] else [.rat,.mcc,.mnc,.lac,.cell_id,.bsic,.rxlev,.rxlev_sub,.arfcn] end | join("|")'
 }
 
 # AT+EEMGINFO? has two documented LTE service layouts. The first fourteen
@@ -446,40 +253,7 @@ openluat_parse_cced_serving()
 # matching any unsolicited engineering line.
 openluat_parse_eem_lte_service()
 {
-    printf '%s\n' "$1" | awk '
-        function trim(value) {
-            gsub(/^[[:space:]]+|[[:space:]\r]+$/, "", value)
-            return value
-        }
-        /^[[:space:]]*[+]EEMLTESVC[[:space:]]*:/ {
-            line = $0
-            sub(/^[[:space:]]*[+]EEMLTESVC[[:space:]]*:[[:space:]]*/, "", line)
-            field_count = split(line, fields, ",")
-            if (field_count < 22)
-                next
-            for (i = 1; i <= field_count; i++)
-                fields[i] = trim(fields[i])
-
-            layout = "Air720"
-            rssi = fields[19]
-            cqi = fields[20]
-            tx_power = fields[21]
-            rank_index = fields[22]
-            if (field_count >= 50) {
-                layout = "Air720S"
-                rssi = fields[32]
-                cqi = fields[33]
-                rank_index = fields[46]
-                tx_power = fields[50]
-            }
-
-            printf "LTE|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", \
-                fields[1], fields[3], fields[4], fields[5], fields[6], fields[7], \
-                fields[8], fields[9], fields[10], fields[11], fields[12], fields[13], \
-                fields[14], rssi, cqi, tx_power, rank_index, layout
-            exit
-        }
-    '
+    printf '%s\n' "$1" | openluat_parse openluat.eem.lte | jq -r '[.rat,.mcc,.mnc,.tac,.pci,.dl_earfcn,.ul_earfcn,.band,.dl_bandwidth,.cell_id,.trans_mode,.rsrp_raw,.rsrq_raw,.sinr_raw,.rssi_raw,.cqi_raw,.tx_power_raw,.rank_index,.layout] | join("|")'
 }
 
 openluat_lte_duplex_mode()
@@ -558,7 +332,7 @@ openluat_load_eem_lte_service()
 
 openluat_at_response_ok()
 {
-    printf '%s\n' "$1" | grep -Eq '^[[:space:]]*OK[[:space:]\r]*$'
+    [ "$(printf '%s\n' "$1" | openluat_parse openluat.command.completion | jq -r '.accepted // false')" = true ]
 }
 
 get_network_prefer()
@@ -843,7 +617,7 @@ get_imei()
     local response imei
 
     response=$(cmd_openluat_cgsn "$at_port")
-    imei=$(openluat_first_number "$response" | cut -c1-15)
+    imei=$(openluat_first_number "$response" | jq -Rr '.[0:15]')
     json_add_string "imei" "$imei"
 }
 
@@ -853,7 +627,7 @@ get_mode()
     local response mode_num mode available_modes available_mode
 
     response=$(cmd_openluat_setusb_query "$at_port")
-    mode_num=$(printf '%s\n' "$response" | sed -n 's/^[[:space:]]*[Mm]ode:[[:space:]]*\([12]\)[[:space:]]*$/\1/p' | head -n1)
+    mode_num=$(printf '%s\n' "$response" | openluat_parse openluat.setusb | jq -r '.mode // empty')
 
     case "$mode_num" in
         1) mode="rndis" ;;
@@ -936,11 +710,11 @@ sim_info()
 
     m_debug "OpenLuat SIM info"
     response=$(cmd_openluat_cpin_query "$at_port")
-    sim_status_flag=$(printf '%s\n' "$response" | grep -E '^\+CPIN:|^\+CME ERROR:' | head -n1)
+    sim_status_flag=$(printf '%s\n' "$response" | openluat_parse openluat.cpin | jq -r '.status_line // empty')
     sim_status=$(get_sim_status "$sim_status_flag")
 
     response=$(cmd_openluat_cgsn "$at_port")
-    imei=$(openluat_first_number "$response" | cut -c1-15)
+    imei=$(openluat_first_number "$response" | jq -Rr '.[0:15]')
 
     class="SIM Information"
     add_plain_info_entry "SIM Status" "$sim_status" "SIM Status"
@@ -948,19 +722,19 @@ sim_info()
     [ "$sim_status" = "ready" ] || return
 
     response=$(cmd_openluat_cops_query "$at_port")
-    isp=$(printf '%s\n' "$response" | awk -F'"' '/^\+COPS:/ { print $2; exit }')
+    isp=$(printf '%s\n' "$response" | openluat_parse openluat.cops | jq -r '.operator // empty')
 
     response=$(cmd_openluat_cnum "$at_port")
-    sim_number=$(printf '%s\n' "$response" | awk -F'"' '/^\+CNUM:/ { if ($4 != "") print $4; else print $2; exit }')
+    sim_number=$(printf '%s\n' "$response" | openluat_parse openluat.cnum | jq -r '.number // empty')
 
     response=$(cmd_openluat_cimi "$at_port")
-    imsi=$(printf '%s\n' "$response" | grep -o '[0-9]\{15\}' | head -n1)
+    imsi=$(printf '%s\n' "$response" | openluat_parse openluat.cimi | jq -r '.imsi // empty')
 
     response=$(cmd_openluat_iccid "$at_port")
-    iccid=$(printf '%s\n' "$response" | openluat_at_prefixed_value "+ICCID:" | grep -o '[0-9]\{18,20\}' | head -n1)
+    iccid=$(printf '%s\n' "$response" | openluat_parse openluat.iccid | jq -r '.iccid // empty')
     if [ -z "$iccid" ]; then
         response=$(cmd_openluat_ccid "$at_port")
-        iccid=$(printf '%s\n' "$response" | openluat_at_prefixed_value "+CCID:" | grep -o '[0-9]\{18,20\}' | head -n1)
+        iccid=$(printf '%s\n' "$response" | openluat_parse openluat.iccid | jq -r '.iccid // empty')
     fi
 
     add_plain_info_entry "ISP" "$isp" "Internet Service Provider"
@@ -976,8 +750,8 @@ network_info()
 
     m_debug "OpenLuat network info"
     response=$(cmd_openluat_cops_query "$at_port")
-    carrier=$(printf '%s\n' "$response" | awk -F'"' '/^\+COPS:/ { print $2; exit }')
-    rat_num=$(printf '%s\n' "$response" | awk -F',' '/^\+COPS:/ { gsub(/\r/, "", $4); print $4; exit }')
+    carrier=$(printf '%s\n' "$response" | openluat_parse openluat.cops | jq -r '.operator // empty')
+    rat_num=$(printf '%s\n' "$response" | openluat_parse openluat.cops | jq -r '.rat_code // empty')
     network_type=$(get_rat "$rat_num")
 
     openluat_load_serving_cell
@@ -1032,12 +806,12 @@ EOF
 
     if [ -z "$serving_rat" ]; then
         response=$(cmd_openluat_cops_query "$at_port")
-        rat_num=$(printf '%s\n' "$response" | awk -F',' '/^\+COPS:/ { gsub(/[[:space:]\r\"]/, "", $4); print $4; exit }')
+        rat_num=$(printf '%s\n' "$response" | openluat_parse openluat.cops | jq -r '.rat_code // empty')
         serving_rat=$(get_rat "$rat_num")
     fi
 
     response=$(cmd_openluat_csq "$at_port")
-    csq=$(printf '%s\n' "$response" | awk -F'[:,]' '/^\+CSQ:/ { gsub(/[[:space:]\r]/, "", $2); print $2; exit }')
+    csq=$(printf '%s\n' "$response" | openluat_parse openluat.csq | jq -r '.rssi_raw // empty')
     case "$csq" in
         ''|*[!0-9]*) rssi="" ;;
         *)
