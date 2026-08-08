@@ -54,9 +54,16 @@ for fixture in "${fixture_files[@]}"; do
     fi
 
     command=$(jq -r '.command // empty' "$fixture")
-    response_hex=$(jq -r '.response_hex // empty' "$fixture")
-    if [ -z "$command" ] || ! printf '%s' "$response_hex" | grep -Eq '^([0-9a-fA-F]{2})*$'; then
-        echo "FAIL: $label: invalid command or response_hex"
+    if [ -z "$command" ] || ! jq -e '
+        (.responses | type) == "array" and (.responses | length) > 0 and
+        all(.responses[];
+            ((.rc // 0) | type) == "number" and
+            ((.scenario | type) == "string" and (.scenario | test("^[a-z0-9._-]+$"))) and
+            ((.sequence | type) == "number" and .sequence >= 0) and
+            ((.capture_sequence | type) == "number" and .capture_sequence >= 0) and
+            ((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))))
+        ' "$fixture" >/dev/null; then
+        echo "FAIL: $label: invalid command or responses"
         fail=1
         continue
     fi

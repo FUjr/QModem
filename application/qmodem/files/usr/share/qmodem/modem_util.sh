@@ -31,6 +31,13 @@ qmodem_testcase_path_segment()
   printf '%s' "$slug"
 }
 
+qmodem_testcase_scenario()
+{
+  local scenario="${QMODEM_TESTCASE_SCENARIO:-}"
+  [ -n "$scenario" ] || scenario=$(uci -q get qmodem.main.testcase_scenario 2>/dev/null)
+  qmodem_testcase_path_segment "${scenario:-default}" default
+}
+
 qmodem_testcase_profile_dir()
 {
   local collect_dir="${QMODEM_COLLECT_DIR:-/tmp/qmodem/testcases}"
@@ -61,7 +68,7 @@ qmodem_record_testcase_file()
   local vendor_name="${vendor:-${manufacturer:-core}}"
   local platform_name="${platform:-unknown}"
   local model_name="${QMODEM_TESTCASE_MODEL:-}" dir phase=vendor
-  local slug hash file
+  local slug hash file update_file timestamp scenario lock_dir attempts
   [ -n "$model_name" ] || model_name=$(uci -q get "qmodem.${config_section:-}.name" 2>/dev/null)
   [ -n "$model_name" ] || model_name="unknown"
   if [ "$vendor_name" = "core" ] || [ "$vendor_name" = "unknown" ] || [ "$model_name" = "unknown" ]; then
@@ -73,6 +80,43 @@ qmodem_record_testcase_file()
   hash=$(printf '%s' "$atcmd" | md5sum | cut -c1-8)
   file="${dir}/${slug}-${hash}.json"
   response_hex=$(xxd -p "$response_file" | tr -d '\n') || return 0
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  scenario=$(qmodem_testcase_scenario)
+  lock_dir="${file}.lock"
+  attempts=0
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    attempts=$((attempts + 1))
+    [ "$attempts" -lt 100 ] || return 0
+    sleep 0.05
+  done
+  update_file=$(mktemp "${dir}/.fixture.XXXXXX") || {
+    rmdir "$lock_dir" 2>/dev/null
+    return 0
+  }
+  if [ -f "$file" ]; then
+    jq --arg response_hex "$response_hex" --argjson rc "$rc" --arg timestamp "$timestamp" \
+      --arg scenario "$scenario" '
+      if has("responses") then .
+      else .responses=[{response_hex:(.response_hex // ""), rc:(.rc // 0),
+                        timestamp:(.timestamp // ""), scenario:"default", sequence:0}]
+        | del(.response_hex, .response, .rc, .timestamp)
+      end
+      | .responses |= map(if .response == null then del(.response) else . end)
+      | .responses |= to_entries | .responses |= map(
+          .value + {scenario:(.value.scenario // "default"), sequence:(.value.sequence // .key),
+                    capture_sequence:(.value.capture_sequence // .value.sequence // .key)})
+      | .responses |= map(.value // .)
+      | ([.responses[] | select(.scenario == $scenario) | .sequence] | max // -1) as $last
+      | .responses += [{response_hex:$response_hex, rc:$rc, timestamp:$timestamp,
+                        scenario:$scenario, sequence:($last + 1), capture_sequence:($last + 1)}]' "$file" > "$update_file" 2>/dev/null || {
+          rm -f "$update_file"
+          rmdir "$lock_dir" 2>/dev/null
+          return 0
+        }
+    mv "$update_file" "$file" 2>/dev/null || rm -f "$update_file"
+    rmdir "$lock_dir" 2>/dev/null
+    return 0
+  fi
   jq -n \
     --arg vendor "$vendor_name" \
     --arg platform "$platform_name" \
@@ -81,13 +125,16 @@ qmodem_record_testcase_file()
     --arg response_hex "$response_hex" \
     --arg tool "$tool" \
     --arg phase "$phase" \
+    --arg scenario "$scenario" \
     --arg config_section "${config_section:-unknown}" \
     --argjson rc "$rc" \
-    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg timestamp "$timestamp" \
     '{vendor:$vendor, platform:$platform, model:$model, phase:$phase,
-      config_section:$config_section, command:$command,
-      response_hex:$response_hex, tool:$tool, rc:$rc, timestamp:$timestamp}' \
-    > "$file" 2>/dev/null || rm -f "$file"
+      config_section:$config_section, command:$command, tool:$tool,
+      responses:[{response_hex:$response_hex, rc:$rc, timestamp:$timestamp,
+                  scenario:$scenario, sequence:0, capture_sequence:0}]}' \
+    > "$update_file" 2>/dev/null && mv "$update_file" "$file" 2>/dev/null || rm -f "$update_file"
+  rmdir "$lock_dir" 2>/dev/null
 }
 
 at()

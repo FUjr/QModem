@@ -3,9 +3,16 @@
   "platform": "unisoc",
   "model": "air724ug",
   "command": "AT+CIMI",
-  "response_hex": "41542b43494d490d0a0d0a3436303030303030303030303039300d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-08T10:55:16Z",
-  "sanitized": true
+  "sanitized": true,
+  "responses": [
+    {
+      "response_hex": "41542b43494d490d0a0d0a3436303030303030303030303039300d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-08T10:55:16Z",
+      "scenario": "feedback-20260808",
+      "sequence": 0,
+      "capture_sequence": 0
+    }
+  ]
 }

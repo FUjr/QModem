@@ -3,9 +3,16 @@
   "platform": "unisoc",
   "model": "air724ug",
   "command": "AT+CPIN?",
-  "response_hex": "41542b4350494e3f0d0a0d0a2b4350494e3a2052454144590d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-08T10:55:15Z",
-  "sanitized": true
+  "sanitized": true,
+  "responses": [
+    {
+      "response_hex": "41542b4350494e3f0d0a0d0a2b4350494e3a2052454144590d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-08T10:55:15Z",
+      "scenario": "feedback-20260808",
+      "sequence": 0,
+      "capture_sequence": 0
+    }
+  ]
 }

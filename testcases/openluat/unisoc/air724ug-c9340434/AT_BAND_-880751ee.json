@@ -3,9 +3,16 @@
   "platform": "unisoc",
   "model": "air724ug",
   "command": "AT*BAND?",
-  "response_hex": "41542a42414e443f0d0a0d0a2b434d45204552524f523a20696e76616c696420636f6d6d616e64206c696e650d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-08T10:56:14Z",
-  "sanitized": true
+  "sanitized": true,
+  "responses": [
+    {
+      "response_hex": "41542a42414e443f0d0a0d0a2b434d45204552524f523a20696e76616c696420636f6d6d616e64206c696e650d0a",
+      "rc": 0,
+      "timestamp": "2026-08-08T10:56:14Z",
+      "scenario": "feedback-20260808",
+      "sequence": 0,
+      "capture_sequence": 0
+    }
+  ]
 }
