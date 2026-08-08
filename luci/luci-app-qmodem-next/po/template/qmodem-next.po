@@ -626,7 +626,7 @@ msgstr ""
 msgid "Confirm Delete All"
 msgstr ""
 
-#: generic.sh:600
+#: generic.sh:606
 msgid "Connect Status"
 msgstr ""
 
@@ -1915,7 +1915,7 @@ msgstr ""
 msgid "Modem Name"
 msgstr ""
 
-#: generic.sh:616
+#: generic.sh:622
 msgid "Modem Offline"
 msgstr ""
 
@@ -2696,7 +2696,7 @@ msgstr ""
 msgid "SIM Card SMS Management"
 msgstr ""
 
-#: generic.sh:615
+#: generic.sh:621
 msgid "SIM Error,Error code:"
 msgstr ""
 
