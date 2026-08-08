@@ -1,0 +1,43 @@
+name: Vendor fixture tests
+
+on:
+  push:
+    paths:
+      - 'application/qmodem/**'
+      - 'testcases/**'
+      - 'scripts/import_testcases.sh'
+      - '.github/workflows/vendor-fixtures.yml'
+  pull_request:
+    paths:
+      - 'application/qmodem/**'
+      - 'testcases/**'
+      - 'scripts/import_testcases.sh'
+      - '.github/workflows/vendor-fixtures.yml'
+
+jobs:
+  fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install fixture tools
+        run: sudo apt-get update && sudo apt-get install -y jq xxd
+      - name: Check shell syntax
+        run: |
+          find application/qmodem/files/usr/share/qmodem/cmds \
+               application/qmodem/files/usr/share/qmodem/vendor \
+               application/qmodem/tests/lib \
+               -type f -name '*.sh' -exec sh -n {} +
+          sh -n application/qmodem/files/usr/share/qmodem/generic.sh
+          sh -n application/qmodem/files/usr/share/qmodem/modem_util.sh
+          sh -n application/qmodem/files/usr/sbin/qmodem_collect
+          sh -n application/qmodem/tests/test_core_cmds.sh
+          sh -n application/qmodem/tests/test_vendor_cmds_boundary.sh
+          bash -n application/qmodem/tests/test_fixture_collection_bytes.sh
+          bash -n application/qmodem/tests/test_vendor_fixtures.sh
+      - name: Enforce command boundary
+        run: |
+          application/qmodem/tests/test_vendor_cmds_boundary.sh
+          application/qmodem/tests/test_core_cmds.sh
+          application/qmodem/tests/test_fixture_collection_bytes.sh
+      - name: Replay vendor fixtures
+        run: application/qmodem/tests/test_vendor_fixtures.sh

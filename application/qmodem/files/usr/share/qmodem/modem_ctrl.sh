@@ -1,5 +1,6 @@
 #!/bin/sh
-source /usr/share/libubox/jshn.sh
+source "${QMODEM_JSHN:-/usr/share/libubox/jshn.sh}"
+qmodem_home="${QMODEM_HOME:-/usr/share/qmodem}"
 method=$1
 config_section=$2
 at_port=$(uci -q get qmodem.$config_section.at_port)
@@ -21,14 +22,22 @@ modem_slot=$(basename $modem_path)
 [ "${use_ubus:-0}" -eq 1 ] && use_ubus_flag="-u"
 
 #please update dynamic_load.json to add new vendor
-vendor_script_prefix="/usr/share/qmodem/vendor"
+vendor_script_prefix="$qmodem_home/vendor"
+cmds_script_prefix="$qmodem_home/cmds"
 dynamic_load_json="$vendor_script_prefix/dynamic_load.json"
 vendor_file="${vendor_script_prefix}/`jq -r --arg vendor $vendor '.[$vendor]' $dynamic_load_json`"
 if [ -z "$vendor" ] || [ ! -f "$vendor_file" ]; then
     logger -t modem_ctrl "vendor $vendor not support"
-    . /usr/share/qmodem/generic.sh
+    . "$qmodem_home/generic.sh"
 fi
 . $vendor_file
+#vendor scripts send AT commands only through the cmds layer
+cmds_file="$cmds_script_prefix/$(basename $vendor_file)"
+if [ -f "$cmds_file" ]; then
+    . "$cmds_file"
+else
+    logger -t modem_ctrl "cmds file for vendor $vendor not found"
+fi
 
 try_cache() {
     cache_timeout=$1
@@ -318,4 +327,11 @@ case $method in
         set_sim_slot $3
         ;;
 esac
-json_dump
+#optionally keep a golden snapshot of the final JSON for fixture tests
+if qmodem_testcase_collect_enabled; then
+    expected_dir="${QMODEM_COLLECT_DIR:-/tmp/qmodem/testcases}/${vendor:-core}/expected"
+    mkdir -p "$expected_dir" 2>/dev/null
+    json_dump | tee "$expected_dir/$method.json"
+else
+    json_dump
+fi

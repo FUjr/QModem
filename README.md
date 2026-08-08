@@ -120,3 +120,8 @@ This project builds upon the work of several other open-source projects and comm
 - [gl-inet/gl-modem-at](https://github.com/gl-inet/gl-modem-at)
 - [ouyangzq/sendat](https://github.com/ouyangzq/sendat)
 - [qosmio/nss-packages](https://github.com/qosmio/nss-packages) — Thanks to the author for the excellent work on Qualcomm NSS driver packages
+## Vendor AT fixture development
+
+All AT commands sent by vendor and dialing implementations are defined in `application/qmodem/files/usr/share/qmodem/cmds/`. Vendor, generic, modem utility, and dialing scripts call `cmd_*` wrappers only; CI rejects direct `at` or `fastat` calls from these files.
+
+On a device, enable collection with `uci set qmodem.main.testcase_collect=1 && uci commit qmodem`, exercise the relevant modem functions, then run `qmodem_collect pack`. Import the archive on a development machine with `scripts/import_testcases.sh <archive.tar.gz>`. Fixtures live under `testcases/<vendor>/`; optional method snapshots live under `expected/`. See [testcases/README.md](testcases/README.md) for the schema, privacy handling, and replay commands.
