@@ -162,6 +162,7 @@ jobs:
   job_build_qmodem:
     name: Build QModem
     needs: [job_prepare]
+    if: ${{ always() && needs.job_prepare.result == 'success' }}
     continue-on-error: true
     strategy:
       matrix:
