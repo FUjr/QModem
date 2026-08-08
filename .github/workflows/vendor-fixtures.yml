@@ -20,7 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install fixture tools
-        run: sudo apt-get update && sudo apt-get install -y jq xxd
+        run: sudo apt-get update && sudo apt-get install -y gcc jq libsodium-dev xxd
+      - name: Build and test qmodem-seal
+        run: |
+          gcc -std=c11 -O2 -Wall -Wextra -Werror \
+            -o /tmp/qmodem-seal application/qmodem-seal/src/qmodem-seal.c -lsodium
+          application/qmodem-seal/tests/test_qmodem_seal.sh /tmp/qmodem-seal
       - name: Check shell syntax
         run: |
           find application/qmodem/files/usr/share/qmodem/cmds \
@@ -31,6 +36,7 @@ jobs:
           sh -n application/qmodem/files/usr/share/qmodem/modem_util.sh
           sh -n application/qmodem/files/usr/sbin/qmodem_collect
           sh -n application/qmodem/tests/test_core_cmds.sh
+          bash -n application/qmodem/tests/test_collect_encryption.sh
           sh -n application/qmodem/tests/test_vendor_cmds_boundary.sh
           bash -n application/qmodem/tests/test_fixture_collection_bytes.sh
           bash -n application/qmodem/tests/test_vendor_fixtures.sh
@@ -39,5 +45,7 @@ jobs:
           application/qmodem/tests/test_vendor_cmds_boundary.sh
           application/qmodem/tests/test_core_cmds.sh
           application/qmodem/tests/test_fixture_collection_bytes.sh
+          QMODEM_TEST_SEAL_BIN=/tmp/qmodem-seal \
+            application/qmodem/tests/test_collect_encryption.sh
       - name: Replay vendor fixtures
         run: application/qmodem/tests/test_vendor_fixtures.sh
