@@ -88,12 +88,14 @@ resolve_recognition_fixture()
 
 cmd_status()
 {
-    local seal_bin recipient_id
+    local seal_bin recipient_id scenario
     if collect_enabled; then
         echo "testcase_collect: on"
     else
         echo "testcase_collect: off (enable: uci set qmodem.main.testcase_collect=1 && uci commit qmodem)"
     fi
+    scenario=$(uci -q get qmodem.main.testcase_scenario 2>/dev/null)
+    echo "testcase_scenario: ${scenario:-default}"
     if [ -d "$COLLECT_DIR" ]; then
         echo "collect dir: $COLLECT_DIR ($(find "$COLLECT_DIR" -name '*.json' 2>/dev/null | wc -l) fixture files)"
     else
@@ -157,6 +159,9 @@ cmd_pack()
                   | del(.response_hex, .response, .rc, .timestamp)
                 end
                 | .responses |= map(if .response == null then del(.response) else . end)
+                | .responses |= to_entries | .responses |= map(
+                    .value + {scenario:(.value.scenario // "default"), sequence:(.value.sequence // .key),
+                              capture_sequence:(.value.capture_sequence // .value.sequence // .key)})
                 | if $vendor != "" then .expected_identity={vendor:$vendor, platform:$platform, model:$model}
                   else . end' "$file" > "$prepared" || exit 1
         fi

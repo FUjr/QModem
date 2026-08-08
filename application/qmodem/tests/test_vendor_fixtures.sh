@@ -77,12 +77,27 @@ for profile_dir in "${profile_dirs[@]}"; do
 
     LOOKUP=$(mktemp -d)
     CMDS_LIST="$LOOKUP/commands.txt"
+    SCENARIOS="$LOOKUP/scenarios.txt"
     : > "$CMDS_LIST"
+    : > "$SCENARIOS"
     for f in "$profile_dir"/*.json; do
         [ -f "$f" ] || continue
         fixture_vendor=$(jq -r '.vendor // empty' "$f")
         fixture_platform=$(jq -r '.platform // empty' "$f")
         current_model=$(jq -r '.model // empty' "$f")
+        if ! jq -e '
+            (.responses | type) == "array" and (.responses | length) > 0 and
+            all(.responses[];
+                ((.scenario | type) == "string" and (.scenario | test("^[a-z0-9._-]+$"))) and
+                ((.sequence | type) == "number" and .sequence >= 0) and
+                ((.capture_sequence | type) == "number" and .capture_sequence >= 0) and
+                ((.rc // 0) | type) == "number" and
+                (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or
+                 (.response != null)))' "$f" >/dev/null; then
+            echo "FAIL: $profile_label: invalid responses in $(basename "$f")"
+            fail=1
+            continue
+        fi
         if [ "$fixture_vendor" != "$profile_vendor_value" ] || \
            [ "$fixture_platform" != "$profile_platform_value" ] || \
            [ "$current_model" != "$fixture_model" ]; then
@@ -98,18 +113,24 @@ for profile_dir in "${profile_dirs[@]}"; do
             continue
         fi
         mkdir -p "$LOOKUP/$h.responses"
-        response_count=$(jq '.responses | length' "$f")
-        for ((response_index=0; response_index<response_count; response_index++)); do
-            response_hex=$(jq -r --argjson i "$response_index" '.responses[$i].response_hex // empty' "$f")
-            if [ -n "$response_hex" ]; then
-                fixture_hex_decode "$response_hex" > "$LOOKUP/$h.responses/$response_index.response"
-            else
-                jq -j --argjson i "$response_index" '.responses[$i].response' "$f" \
-                    > "$LOOKUP/$h.responses/$response_index.response"
+        while IFS= read -r response; do
+            scenario=$(jq -r '.scenario // "default"' <<< "$response")
+            if [ "$(profile_segment "$scenario" default)" != "$scenario" ]; then
+                echo "FAIL: $profile_label: invalid response scenario '$scenario' in $(basename "$f")"
+                fail=1
+                continue
             fi
-            jq -r --argjson i "$response_index" '.responses[$i].rc // 0' "$f" \
-                > "$LOOKUP/$h.responses/$response_index.rc"
-        done
+            mkdir -p "$LOOKUP/$h.responses/$scenario"
+            response_index=$(find "$LOOKUP/$h.responses/$scenario" -name '*.response' | wc -l)
+            response_hex=$(jq -r '.response_hex // empty' <<< "$response")
+            if [ -n "$response_hex" ]; then
+                fixture_hex_decode "$response_hex" > "$LOOKUP/$h.responses/$scenario/$response_index.response"
+            else
+                jq -j '.response' <<< "$response" > "$LOOKUP/$h.responses/$scenario/$response_index.response"
+            fi
+            jq -r '.rc // 0' <<< "$response" > "$LOOKUP/$h.responses/$scenario/$response_index.rc"
+            printf '%s\n' "$scenario" >> "$SCENARIOS"
+        done < <(jq -c '.responses | sort_by(.scenario // "default", .sequence // 0)[]' "$f")
         printf '%s\n' "$cmd" >> "$CMDS_LIST"
     done
 
@@ -124,123 +145,99 @@ for profile_dir in "${profile_dirs[@]}"; do
         fi
     done < "$CMDS_LIST"
 
-    (
-    . "$TESTS_DIR/lib/test_env.sh"
-    vendor="$vendor"
-    platform="$profile_platform"
-    QMODEM_TESTCASE_MODEL="$fixture_model"
-    QMODEM_TESTCASE_MODES="$fixture_modes"
-    export vendor platform QMODEM_TESTCASE_MODEL QMODEM_TESTCASE_MODES
-    . "$QMODEM_JSHN"
-    . "$vendor_file"
-    . "$cmds_file"
-    FIXTURE_LOOKUP="$LOOKUP"
-    export FIXTURE_LOOKUP
-    mkdir -p "$FIXTURE_LOOKUP/selected"
-    . "$TESTS_DIR/lib/at_fixture.sh"
+    while IFS= read -r fixture_scenario; do
+        [ -n "$fixture_scenario" ] || continue
+        (
+        . "$TESTS_DIR/lib/test_env.sh"
+        vendor="$vendor"
+        platform="$profile_platform"
+        QMODEM_TESTCASE_MODEL="$fixture_model"
+        QMODEM_TESTCASE_MODES="$fixture_modes"
+        FIXTURE_LOOKUP="$LOOKUP"
+        FIXTURE_SCENARIO="$fixture_scenario"
+        export vendor platform QMODEM_TESTCASE_MODEL QMODEM_TESTCASE_MODES
+        export FIXTURE_LOOKUP FIXTURE_SCENARIO
+        . "$QMODEM_JSHN"
+        . "$vendor_file"
+        . "$cmds_file"
+        mkdir -p "$FIXTURE_LOOKUP/cursors"
+        . "$TESTS_DIR/lib/at_fixture.sh"
 
-    for fixture in "$profile_dir"/*.json; do
-        [ -f "$fixture" ] || continue
-        fixture_cmd=$(jq -r '.command' "$fixture")
-        fixture_tool=$(jq -r '.tool // "at"' "$fixture")
-        fixture_hash=$(printf '%s' "$fixture_cmd" | md5sum | cut -c1-8)
-        response_count=$(jq '.responses | length' "$fixture")
-        for ((response_index=0; response_index<response_count; response_index++)); do
-            fixture_rc=$(jq -r --argjson i "$response_index" '.responses[$i].rc // 0' "$fixture")
-            expected_file="$LOOKUP/expected.response"
-            replayed_file="$LOOKUP/replayed.response"
-            fixture_hex=$(jq -r --argjson i "$response_index" '.responses[$i].response_hex // empty' "$fixture")
-            if [ -n "$fixture_hex" ]; then
-                fixture_hex_decode "$fixture_hex" > "$expected_file"
-            else
-                jq -j --argjson i "$response_index" '.responses[$i].response' "$fixture" > "$expected_file"
-            fi
-            printf '%s\n' "$response_index" > "$FIXTURE_LOOKUP/selected/$fixture_hash"
-            "$fixture_tool" "$at_port" "$fixture_cmd" > "$replayed_file"
-            replayed_rc=$?
-            if [ "$replayed_rc" -ne "$fixture_rc" ] || ! cmp "$expected_file" "$replayed_file"; then
-                echo "FAIL: $profile_label: fixture replay mismatch: $(basename "$fixture") response[$response_index]"
-                exit 1
-            fi
-        done
-        rm -f "$FIXTURE_LOOKUP/selected/$fixture_hash"
-    done
-
-    for exp in "$profile_dir"/expected/*.json; do
-        [ -f "$exp" ] || continue
-        method=$(basename "$exp" .json)
-        case "$method" in
-            base_info|cell_info|get_*) ;;
-            *) echo "WARN: $profile_label: refusing non-read-only snapshot method: $method"; continue ;;
-        esac
-        if ! command -v "$method" >/dev/null; then
-            echo "WARN: $profile_label: $method not defined, skipping snapshot"
-            continue
-        fi
-        : > "$FIXTURE_LOOKUP/hits.log"
-        out=$(
-            json_init
-            json_add_object result
-            json_close_object
-            case "$method" in
-                base_info|cell_info)
-                    json_add_array modem_info
-                    "$method"
-                    json_close_array
-                    ;;
-                *) "$method" ;;
-            esac
-            json_dump
-        )
-        rc=$?
-        if [ "$rc" -ne 0 ] || ! printf '%s' "$out" | jq -e . >/dev/null 2>&1; then
-            echo "FAIL: $profile_label: $method failed (rc=$rc) or emitted invalid JSON"
-            exit 1
-        fi
-        if ! diff <(jq -S . "$exp") <(printf '%s' "$out" | jq -S .) >/dev/null; then
-            echo "FAIL: $profile_label: $method differs from expected/$method.json:"
-            diff <(jq -S . "$exp") <(printf '%s' "$out" | jq -S .) | head -20
-            exit 1
-        fi
-        echo "OK: $profile_label: $method matches golden snapshot"
-
-        while read -r used_hash; do
-            [ -n "$used_hash" ] || continue
-            response_count=$(find "$FIXTURE_LOOKUP/$used_hash.responses" -name '*.response' | wc -l)
-            for ((response_index=1; response_index<response_count; response_index++)); do
-                printf '%s\n' "$response_index" > "$FIXTURE_LOOKUP/selected/$used_hash"
-                variant_out=$(
-                    json_init
-                    json_add_object result
-                    json_close_object
-                    case "$method" in
-                        base_info|cell_info)
-                            json_add_array modem_info
-                            "$method"
-                            json_close_array
-                            ;;
-                        *) "$method" ;;
-                    esac
-                    json_dump
-                )
-                variant_rc=$?
-                rm -f "$FIXTURE_LOOKUP/selected/$used_hash"
-                if [ "$variant_rc" -ne 0 ] || ! printf '%s' "$variant_out" | jq -e . >/dev/null 2>&1; then
-                    echo "FAIL: $profile_label: $method could not parse $used_hash response[$response_index]"
+        # First prove the queue preserves every recorded byte sequence and rc.
+        rm -f "$FIXTURE_LOOKUP/cursors"/*
+        for fixture in "$profile_dir"/*.json; do
+            [ -f "$fixture" ] || continue
+            fixture_cmd=$(jq -r '.command' "$fixture")
+            fixture_tool=$(jq -r '.tool // "at"' "$fixture")
+            while IFS= read -r response; do
+                fixture_rc=$(jq -r '.rc // 0' <<< "$response")
+                fixture_hex=$(jq -r '.response_hex // empty' <<< "$response")
+                expected_file="$LOOKUP/expected.response"
+                replayed_file="$LOOKUP/replayed.response"
+                if [ -n "$fixture_hex" ]; then
+                    fixture_hex_decode "$fixture_hex" > "$expected_file"
+                else
+                    jq -j '.response' <<< "$response" > "$expected_file"
+                fi
+                "$fixture_tool" "$at_port" "$fixture_cmd" > "$replayed_file"
+                replayed_rc=$?
+                if [ "$replayed_rc" -ne "$fixture_rc" ] || ! cmp "$expected_file" "$replayed_file"; then
+                    echo "FAIL: $profile_label/$fixture_scenario: queue replay mismatch: $(basename "$fixture")"
                     exit 1
                 fi
-                echo "OK: $profile_label: $method parses $used_hash response[$response_index]"
-            done
-        done < <(sort -u "$FIXTURE_LOOKUP/hits.log")
-    done
+            done < <(jq -c --arg scenario "$fixture_scenario" \
+                '.responses | map(select((.scenario // "default") == $scenario)) | sort_by(.sequence // 0)[]' "$fixture")
+        done
 
-    echo "OK: $profile_label: replay passed"
-    ) || fail=1
+        expected_dir="$profile_dir/expected/$fixture_scenario"
+        for exp in "$expected_dir"/*.json; do
+            [ -f "$exp" ] || continue
+            method=$(basename "$exp" .json)
+            case "$method" in
+                base_info|cell_info|get_*) ;;
+                *) echo "WARN: $profile_label/$fixture_scenario: refusing non-read-only snapshot: $method"; continue ;;
+            esac
+            if ! command -v "$method" >/dev/null; then
+                echo "WARN: $profile_label/$fixture_scenario: $method not defined, skipping snapshot"
+                continue
+            fi
+            rm -f "$FIXTURE_LOOKUP/cursors"/* "$FIXTURE_LOOKUP/misses.log"
+            out=$(
+                json_init
+                json_add_object result
+                json_close_object
+                case "$method" in
+                    base_info|cell_info)
+                        json_add_array modem_info
+                        "$method"
+                        json_close_array
+                        ;;
+                    *) "$method" ;;
+                esac
+                json_dump
+            )
+            rc=$?
+            if [ -s "$FIXTURE_LOOKUP/misses.log" ]; then
+                echo "FAIL: $profile_label/$fixture_scenario: $method exhausted or missed fixture responses"
+                sed 's/^/  /' "$FIXTURE_LOOKUP/misses.log"
+                exit 1
+            fi
+            if [ "$rc" -ne 0 ] || ! printf '%s' "$out" | jq -e . >/dev/null 2>&1; then
+                echo "FAIL: $profile_label/$fixture_scenario: $method failed (rc=$rc) or emitted invalid JSON"
+                exit 1
+            fi
+            if ! diff <(jq -S . "$exp") <(printf '%s' "$out" | jq -S .) >/dev/null; then
+                echo "FAIL: $profile_label/$fixture_scenario: $method differs from expected snapshot:"
+                diff <(jq -S . "$exp") <(printf '%s' "$out" | jq -S .) | head -20
+                exit 1
+            fi
+            echo "OK: $profile_label/$fixture_scenario: $method matches golden snapshot"
+        done
 
-    if [ -f "$LOOKUP/misses.log" ]; then
-        echo "INFO: $profile_label: commands used but without fixtures:"
-        sort -u "$LOOKUP/misses.log" | sed 's/^/  /' | head -10
-    fi
+        echo "OK: $profile_label/$fixture_scenario: replay passed"
+        ) || fail=1
+    done < <(sort -u "$SCENARIOS")
+
     rm -rf "$LOOKUP"
 done
 

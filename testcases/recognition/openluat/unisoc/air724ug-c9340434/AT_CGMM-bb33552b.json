@@ -16,7 +16,10 @@
     {
       "response_hex": "41542b43474d4d0d0a0d0a2b43474d4d3a20224169723732345547220d0a0d0a4f4b0d0a",
       "rc": 0,
-      "timestamp": "2026-08-08T10:56:05Z"
+      "timestamp": "2026-08-08T10:56:05Z",
+      "scenario": "feedback-20260808",
+      "sequence": 0,
+      "capture_sequence": 0
     }
   ]
 }

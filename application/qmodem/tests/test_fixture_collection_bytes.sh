@@ -56,6 +56,9 @@ fixture=$(find "$QMODEM_COLLECT_DIR/quectel" -name '*FASTBYTECHECK*.json')
 fixture_hex_decode "$(jq -r '.responses[0].response_hex' "$fixture")" > "$recorded"
 cmp "$expected" "$recorded"
 [ "$(jq -r '.responses[0].rc' "$fixture")" -eq 9 ]
+[ "$(jq -r '.responses[0].scenario' "$fixture")" = default ]
+[ "$(jq -r '.responses[0].sequence' "$fixture")" -eq 0 ]
+[ "$(jq -r '.responses[0].capture_sequence' "$fixture")" -eq 0 ]
 
 variant=ONE
 tom_modem()
@@ -66,8 +69,25 @@ at /dev/ttyUSB2 'AT+VARIANT' >/dev/null
 variant=TWO
 at /dev/ttyUSB2 'AT+VARIANT' >/dev/null
 at /dev/ttyUSB2 'AT+VARIANT' >/dev/null
+QMODEM_TESTCASE_SCENARIO=sim-absent
+export QMODEM_TESTCASE_SCENARIO
+at /dev/ttyUSB2 'AT+VARIANT' >/dev/null
 fixture=$(find "$QMODEM_COLLECT_DIR/quectel" -name '*VARIANT*.json')
-[ "$(jq '.responses | length' "$fixture")" -eq 2 ]
+[ "$(jq '.responses | length' "$fixture")" -eq 4 ]
 [ "$(jq -r '.responses[0].response_hex' "$fixture")" != "$(jq -r '.responses[1].response_hex' "$fixture")" ]
+[ "$(jq -r '[.responses[] | select(.scenario == "default") | .sequence] | join(" ")' "$fixture")" = '0 1 2' ]
+[ "$(jq -r '[.responses[] | select(.scenario == "sim-absent") | .sequence] | join(" ")' "$fixture")" = '0' ]
+
+QMODEM_TESTCASE_SCENARIO=parallel
+export QMODEM_TESTCASE_SCENARIO
+for n in 0 1 2 3 4 5 6 7; do
+    response_file="$QMODEM_COLLECT_DIR/parallel-$n.response"
+    printf 'RESPONSE-%s\r\n' "$n" > "$response_file"
+    (qmodem_record_testcase_file at 'AT+PARALLEL' "$response_file" 0) &
+done
+wait
+fixture=$(find "$QMODEM_COLLECT_DIR/quectel" -name '*PARALLEL*.json')
+[ "$(jq '.responses | length' "$fixture")" -eq 8 ]
+[ "$(jq -r '[.responses[].sequence] | sort | join(" ")' "$fixture")" = '0 1 2 3 4 5 6 7' ]
 
 echo 'fixture collection byte tests passed'

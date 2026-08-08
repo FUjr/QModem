@@ -14,13 +14,31 @@ mkdir -p "$source_dir"
 jq -n '{vendor:"quectel",platform:"qualcomm",model:"example",command:"AT+CGSN",
         tool:"at",response_hex:"4f4b0d0a",rc:0,timestamp:"legacy"}' \
     > "$source_dir/AT_CGSN.json"
+mkdir -p "$source_dir/expected"
+jq -n '{result:{},imei:"legacy"}' > "$source_dir/expected/get_imei.json"
 tar -czf "$archive" -C "$test_root/source" .
 
 QMODEM_TEST_REPO_ROOT="$test_root/import" "$REPO_ROOT/scripts/import_testcases.sh" "$archive" >/dev/null
 fixture="$test_root/import/testcases/quectel/qualcomm/example-1a79a4d6/AT_CGSN.json"
 jq -e '
     (.responses | length) == 1 and
-    .responses[0] == {response_hex:"4f4b0d0a",rc:0,timestamp:"legacy"} and
+    .responses[0] == {response_hex:"4f4b0d0a",rc:0,timestamp:"legacy",scenario:"default",sequence:0,capture_sequence:0} and
     (has("response_hex") | not) and (has("rc") | not)' "$fixture" >/dev/null
+[ -f "$test_root/import/testcases/quectel/qualcomm/example-1a79a4d6/expected/default/get_imei.json" ]
+
+# Importing another capture merges stateful responses and remains idempotent.
+jq -n '{vendor:"quectel",platform:"qualcomm",model:"example",command:"AT+CGSN",tool:"at",
+        responses:[
+          {response_hex:"4552524f520d0a",rc:1,timestamp:"second",scenario:"default",sequence:0},
+          {response_hex:"524f414d494e470d0a",rc:0,timestamp:"second",scenario:"roaming",sequence:0}
+        ]}' > "$source_dir/AT_CGSN.json"
+tar -czf "$archive" -C "$test_root/source" .
+QMODEM_TEST_REPO_ROOT="$test_root/import" "$REPO_ROOT/scripts/import_testcases.sh" "$archive" >/dev/null
+QMODEM_TEST_REPO_ROOT="$test_root/import" "$REPO_ROOT/scripts/import_testcases.sh" "$archive" >/dev/null
+jq -e '
+  (.responses | length) == 3 and
+  ([.responses[] | select(.scenario == "default") | .sequence] == [0,1]) and
+  ([.responses[] | select(.scenario == "roaming") | .sequence] == [0])
+' "$fixture" >/dev/null
 
 echo 'testcase import compatibility tests passed'

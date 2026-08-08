@@ -9,7 +9,10 @@
     {
       "response_hex": "41542b43474d490d0a0d0a2b43474d493a2022220d0a0d0a4f4b0d0a",
       "rc": 0,
-      "timestamp": "2026-08-08T10:55:24Z"
+      "timestamp": "2026-08-08T10:55:24Z",
+      "scenario": "feedback-20260808",
+      "sequence": 0,
+      "capture_sequence": 0
     }
   ]
 }

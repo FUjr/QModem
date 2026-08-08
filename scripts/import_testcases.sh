@@ -11,6 +11,13 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 tar -xzf "$tarball" -C "$tmp"
 
+# Legacy snapshots had no state boundary. Place them in the default scenario.
+find "$tmp" -type f -name '*.json' -path '*/expected/*.json' | while IFS= read -r f; do
+    [ "$(basename "$(dirname "$f")")" = expected ] || continue
+    mkdir -p "$(dirname "$f")/default"
+    mv "$f" "$(dirname "$f")/default/$(basename "$f")"
+done
+
 # validate every fixture before merging; archives may contain fixtures only
 fixture_list="$tmp/fixture-list"
 find "$tmp" -name '*.json' -type f > "$fixture_list"
@@ -22,7 +29,8 @@ while IFS= read -r f; do
             if ! jq -e 'has("responses")' "$f" >/dev/null 2>&1; then
                 normalized="${f}.normalized"
                 jq '.responses=[{response_hex:(.response_hex // ""), response:.response,
-                                  rc:(.rc // 0), timestamp:(.timestamp // "")}]
+                                  rc:(.rc // 0), timestamp:(.timestamp // ""),
+                                  scenario:"default", sequence:0, capture_sequence:0}]
                     | .responses |= map(if .response == null then del(.response) else . end)
                     | del(.response_hex, .response, .rc, .timestamp)' "$f" > "$normalized" || {
                         echo "invalid legacy fixture: $f" >&2
@@ -30,6 +38,11 @@ while IFS= read -r f; do
                     }
                 mv "$normalized" "$f"
             fi
+            normalized="${f}.normalized"
+            jq '.responses |= to_entries | .responses |= map(
+                    .value + {scenario:(.value.scenario // "default"), sequence:(.value.sequence // .key),
+                              capture_sequence:(.value.capture_sequence // .value.sequence // .key)})' \
+                "$f" > "$normalized" && mv "$normalized" "$f"
             ;;
     esac
     case "$f" in
@@ -42,14 +55,20 @@ while IFS= read -r f; do
                 (.expected_identity.vendor and .expected_identity.platform and .expected_identity.model) and
                 ((.responses | type) == "array" and (.responses | length) > 0) and
                 all(.responses[];
+                    ((.scenario | type) == "string" and (.scenario | test("^[a-z0-9._-]+$"))) and
+                    ((.sequence | type) == "number" and .sequence >= 0) and
+                    ((.capture_sequence | type) == "number" and .capture_sequence >= 0) and
                     ((.rc // 0) | type) == "number" and
                     (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or
                      (.response != null)))'
             ;;
-        "$tmp"/*/*/*/expected/*.json) filter='type == "object"' ;;
+        "$tmp"/*/*/*/expected/*/*.json) filter='type == "object"' ;;
         "$tmp"/*/*/*/*.json) filter='.vendor and .platform and .model and .command and
             ((.responses | type) == "array" and (.responses | length) > 0) and
             all(.responses[];
+                ((.scenario | type) == "string" and (.scenario | test("^[a-z0-9._-]+$"))) and
+                ((.sequence | type) == "number" and .sequence >= 0) and
+                ((.capture_sequence | type) == "number" and .capture_sequence >= 0) and
                 ((.rc // 0) | type) == "number" and
                 (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or
                  (.response != null)))' ;;
@@ -64,14 +83,26 @@ while IFS= read -r f; do
     }
 done < "$fixture_list"
 
-# merge (same relative path overwrites; responses are deduplicated during collection)
+# Merge command responses by scenario. Expected snapshots remain scenario-specific files.
 cd "$tmp"
 find . -name '*.json' -type f > "$fixture_list"
 while IFS= read -r f; do
     rel=${f#./}
     dst="$repo_root/testcases/$rel"
     mkdir -p "$(dirname "$dst")"
-    cp "$f" "$dst"
+    if [ -f "$dst" ] && [ "${rel#*/expected/}" = "$rel" ]; then
+        merged="${dst}.merged"
+        jq -s '
+          .[0] as $old | .[1] as $new | ($old * $new)
+          | .responses = ([$old.responses[], $new.responses[]]
+              | unique_by([.scenario, .capture_sequence, .timestamp, .response_hex, .response, .rc])
+              | group_by(.scenario)
+              | map(sort_by(.sequence) | to_entries | map(.value + {sequence:.key}))
+              | add)
+        ' "$dst" "$f" > "$merged" && mv "$merged" "$dst"
+    else
+        cp "$f" "$dst"
+    fi
 done < "$fixture_list"
 cd "$repo_root"
 
