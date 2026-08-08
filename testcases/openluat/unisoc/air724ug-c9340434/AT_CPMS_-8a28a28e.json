@@ -1,0 +1,11 @@
+{
+  "vendor": "openluat",
+  "platform": "unisoc",
+  "model": "air724ug",
+  "command": "AT+CPMS?",
+  "response_hex": "41542b43504d533f0d0a0d0a2b43504d533a2022534d222c302c34302c22534d222c302c34302c22534d222c302c34300d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-08T10:56:58Z",
+  "sanitized": true
+}

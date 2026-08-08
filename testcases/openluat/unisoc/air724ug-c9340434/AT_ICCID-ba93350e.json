@@ -1,0 +1,11 @@
+{
+  "vendor": "openluat",
+  "platform": "unisoc",
+  "model": "air724ug",
+  "command": "AT+ICCID",
+  "response_hex": "41542b49434349440d0a0d0a2b49434349443a2038393030303030303030303030303030303032320d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-08T10:55:16Z",
+  "sanitized": true
+}

@@ -1,0 +1,1 @@
+{ "result": { "set_mode": "AT+SETUSB=2\r\n\r\nOK\r", "hangup": "AT+RNDISCALL=0,0\r\n\r\nOK\r" } }
