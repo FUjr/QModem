@@ -10,5 +10,6 @@
     "neoway" : "neoway.sh",
     "telit" : "telit.sh",
     "nk" : "nk.sh",
-    "gosuncn" : "gosuncn.sh"
+    "gosuncn" : "gosuncn.sh",
+    "openluat" : "openluat.sh"
 }

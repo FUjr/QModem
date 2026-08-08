@@ -95,6 +95,7 @@ msgstr ""
 #: vendor/huawei.sh:271
 #: vendor/meig.sh:228
 #: vendor/neoway.sh:154
+#: vendor/openluat.sh:925
 #: vendor/quectel.sh:389
 #: vendor/sierra.sh:210
 #: vendor/simcom.sh:256
@@ -124,6 +125,7 @@ msgstr ""
 #: vendor/huawei.sh:504
 #: vendor/neoway.sh:700
 #: vendor/neoway.sh:755
+#: vendor/openluat.sh:1132
 #: vendor/simcom.sh:1149
 #: vendor/simcom.sh:1189
 #: vendor/telit.sh:740
@@ -324,6 +326,7 @@ msgstr ""
 #: vendor/neoway.sh:712
 #: vendor/neoway.sh:737
 #: vendor/neoway.sh:756
+#: vendor/openluat.sh:1114
 #: vendor/simcom.sh:1150
 #: vendor/simcom.sh:1172
 #: vendor/simcom.sh:1190
@@ -350,11 +353,16 @@ msgstr ""
 #: vendor/huawei.sh:267
 #: vendor/meig.sh:224
 #: vendor/neoway.sh:150
+#: vendor/openluat.sh:921
 #: vendor/quectel.sh:385
 #: vendor/sierra.sh:206
 #: vendor/simcom.sh:252
 #: vendor/telit.sh:151
 msgid "Base Information"
+msgstr ""
+
+#: vendor/openluat.sh:1131
+msgid "Base Station Identity Code"
 msgstr ""
 
 #: view/qmodem/network_config.js:416
@@ -394,6 +402,7 @@ msgid "Cancel"
 msgstr ""
 
 #: vendor/gosuncn.sh:497
+#: vendor/openluat.sh:999
 msgid "Carrier"
 msgstr ""
 
@@ -431,6 +440,8 @@ msgstr ""
 #: vendor/neoway.sh:698
 #: vendor/neoway.sh:709
 #: vendor/neoway.sh:733
+#: vendor/openluat.sh:1111
+#: vendor/openluat.sh:1130
 #: vendor/simcom.sh:1146
 #: vendor/simcom.sh:1168
 #: vendor/simcom.sh:1201
@@ -446,6 +457,7 @@ msgstr ""
 #: vendor/huawei.sh:494
 #: vendor/meig.sh:536
 #: vendor/neoway.sh:691
+#: vendor/openluat.sh:1056
 #: vendor/quectel.sh:1673
 #: vendor/simcom.sh:1139
 #: vendor/telit.sh:736
@@ -480,6 +492,7 @@ msgstr ""
 #: vendor/huawei.sh:526
 #: vendor/huawei.sh:557
 #: vendor/neoway.sh:722
+#: vendor/openluat.sh:1121
 #: vendor/quectel.sh:1698
 #: vendor/quectel.sh:1716
 #: vendor/simcom.sh:1152
@@ -700,6 +713,7 @@ msgstr ""
 #: vendor/meig.sh:574
 #: vendor/meig.sh:590
 #: vendor/neoway.sh:723
+#: vendor/openluat.sh:1116
 #: vendor/simcom.sh:1151
 #: vendor/simcom.sh:1174
 #: vendor/simcom.sh:1191
@@ -881,6 +895,7 @@ msgstr ""
 #: vendor/meig.sh:542
 #: vendor/meig.sh:557
 #: vendor/meig.sh:584
+#: vendor/openluat.sh:1107
 #: vendor/quectel.sh:1677
 #: vendor/quectel.sh:1691
 #: vendor/quectel.sh:1710
@@ -901,6 +916,7 @@ msgstr ""
 #: vendor/huawei.sh:521
 #: vendor/huawei.sh:546
 #: vendor/neoway.sh:711
+#: vendor/openluat.sh:1113
 #: vendor/simcom.sh:1170
 #: vendor/simcom.sh:1203
 msgid "E-UTRA Absolute Radio Frequency Channel Number"
@@ -1484,6 +1500,7 @@ msgstr ""
 #: vendor/meig.sh:285
 #: vendor/neoway.sh:205
 #: vendor/neoway.sh:219
+#: vendor/openluat.sh:969
 #: vendor/quectel.sh:465
 #: vendor/quectel.sh:479
 #: vendor/simcom.sh:311
@@ -1508,6 +1525,7 @@ msgstr ""
 #: vendor/neoway.sh:203
 #: vendor/neoway.sh:209
 #: vendor/neoway.sh:217
+#: vendor/openluat.sh:947
 #: vendor/quectel.sh:463
 #: vendor/quectel.sh:469
 #: vendor/quectel.sh:477
@@ -1530,6 +1548,7 @@ msgstr ""
 #: vendor/meig.sh:284
 #: vendor/neoway.sh:204
 #: vendor/neoway.sh:218
+#: vendor/openluat.sh:968
 #: vendor/quectel.sh:464
 #: vendor/quectel.sh:478
 #: vendor/simcom.sh:310
@@ -1544,6 +1563,7 @@ msgstr ""
 #: vendor/gosuncn.sh:450
 #: vendor/meig.sh:266
 #: vendor/neoway.sh:200
+#: vendor/openluat.sh:966
 #: vendor/quectel.sh:460
 #: vendor/simcom.sh:306
 #: vendor/telit.sh:204
@@ -1665,6 +1685,7 @@ msgstr ""
 #: vendor/huawei.sh:565
 #: vendor/meig.sh:599
 #: vendor/neoway.sh:732
+#: vendor/openluat.sh:1129
 #: vendor/simcom.sh:1219
 msgid "Location Area Code"
 msgstr ""
@@ -1729,6 +1750,7 @@ msgstr ""
 #: vendor/huawei.sh:269
 #: vendor/meig.sh:226
 #: vendor/neoway.sh:152
+#: vendor/openluat.sh:923
 #: vendor/quectel.sh:387
 #: vendor/sierra.sh:208
 #: vendor/simcom.sh:254
@@ -1800,6 +1822,8 @@ msgstr ""
 #: vendor/neoway.sh:707
 #: vendor/neoway.sh:730
 #: vendor/neoway.sh:753
+#: vendor/openluat.sh:1108
+#: vendor/openluat.sh:1127
 #: vendor/simcom.sh:1143
 #: vendor/simcom.sh:1165
 #: vendor/simcom.sh:1186
@@ -1834,6 +1858,8 @@ msgstr ""
 #: vendor/neoway.sh:708
 #: vendor/neoway.sh:731
 #: vendor/neoway.sh:754
+#: vendor/openluat.sh:1109
+#: vendor/openluat.sh:1128
 #: vendor/simcom.sh:1144
 #: vendor/simcom.sh:1166
 #: vendor/simcom.sh:1187
@@ -1947,6 +1973,7 @@ msgstr ""
 #: vendor/huawei.sh:268
 #: vendor/meig.sh:225
 #: vendor/neoway.sh:151
+#: vendor/openluat.sh:922
 #: vendor/quectel.sh:386
 #: vendor/sierra.sh:207
 #: vendor/simcom.sh:253
@@ -1971,6 +1998,7 @@ msgstr ""
 #: vendor/gosuncn.sh:495
 #: vendor/meig.sh:358
 #: vendor/neoway.sh:272
+#: vendor/openluat.sh:997
 #: vendor/quectel.sh:538
 #: vendor/sierra.sh:217
 #: vendor/simcom.sh:342
@@ -1995,6 +2023,9 @@ msgstr ""
 #: vendor/huawei.sh:495
 #: vendor/meig.sh:537
 #: vendor/neoway.sh:692
+#: vendor/openluat.sh:1106
+#: vendor/openluat.sh:1126
+#: vendor/openluat.sh:1136
 #: vendor/quectel.sh:1674
 #: vendor/simcom.sh:1140
 #: vendor/telit.sh:737
@@ -2014,6 +2045,7 @@ msgstr ""
 #: vendor/gosuncn.sh:496
 #: vendor/meig.sh:359
 #: vendor/neoway.sh:752
+#: vendor/openluat.sh:998
 #: vendor/quectel.sh:539
 #: vendor/simcom.sh:343
 #: vendor/telit.sh:242
@@ -2270,6 +2302,7 @@ msgstr ""
 #: vendor/meig.sh:586
 #: vendor/neoway.sh:699
 #: vendor/neoway.sh:710
+#: vendor/openluat.sh:1112
 #: vendor/simcom.sh:1147
 #: vendor/simcom.sh:1169
 #: vendor/simcom.sh:1188
@@ -2506,6 +2539,9 @@ msgstr ""
 #: vendor/gosuncn.sh:679
 #: vendor/huawei.sh:553
 #: vendor/neoway.sh:719
+#: vendor/openluat.sh:1120
+#: vendor/openluat.sh:1133
+#: vendor/openluat.sh:1137
 #: vendor/quectel.sh:1697
 #: vendor/quectel.sh:1715
 #: vendor/simcom.sh:1157
@@ -2534,6 +2570,8 @@ msgstr ""
 #: vendor/meig.sh:591
 #: vendor/neoway.sh:702
 #: vendor/neoway.sh:716
+#: vendor/openluat.sh:1117
+#: vendor/openluat.sh:1138
 #: vendor/simcom.sh:1155
 #: vendor/simcom.sh:1176
 #: vendor/simcom.sh:1192
@@ -2560,6 +2598,8 @@ msgstr ""
 #: vendor/meig.sh:592
 #: vendor/neoway.sh:703
 #: vendor/neoway.sh:717
+#: vendor/openluat.sh:1118
+#: vendor/openluat.sh:1139
 #: vendor/simcom.sh:1156
 #: vendor/simcom.sh:1177
 #: vendor/simcom.sh:1193
@@ -2600,6 +2640,7 @@ msgstr ""
 #: vendor/huawei.sh:270
 #: vendor/meig.sh:227
 #: vendor/neoway.sh:153
+#: vendor/openluat.sh:924
 #: vendor/quectel.sh:388
 #: vendor/sierra.sh:209
 #: vendor/simcom.sh:255
@@ -2665,6 +2706,7 @@ msgstr ""
 #: vendor/huawei.sh:225
 #: vendor/meig.sh:262
 #: vendor/neoway.sh:196
+#: vendor/openluat.sh:945
 #: vendor/quectel.sh:456
 #: vendor/sierra.sh:183
 #: vendor/simcom.sh:302
@@ -2682,6 +2724,7 @@ msgstr ""
 #: vendor/huawei.sh:253
 #: vendor/meig.sh:268
 #: vendor/neoway.sh:202
+#: vendor/openluat.sh:967
 #: vendor/quectel.sh:462
 #: vendor/simcom.sh:308
 msgid "SIM Number"
@@ -2726,6 +2769,7 @@ msgstr ""
 #: vendor/neoway.sh:208
 #: vendor/neoway.sh:212
 #: vendor/neoway.sh:215
+#: vendor/openluat.sh:946
 #: vendor/quectel.sh:459
 #: vendor/quectel.sh:468
 #: vendor/quectel.sh:472
@@ -2974,6 +3018,7 @@ msgstr ""
 #: vendor/meig.sh:593
 #: vendor/neoway.sh:704
 #: vendor/neoway.sh:718
+#: vendor/openluat.sh:1119
 msgid "Signal to Interference plus Noise Ratio"
 msgstr ""
 
@@ -3123,6 +3168,7 @@ msgstr ""
 #: vendor/huawei.sh:558
 #: vendor/meig.sh:567
 #: vendor/meig.sh:594
+#: vendor/openluat.sh:1122
 #: vendor/quectel.sh:1699
 #: vendor/quectel.sh:1717
 #: vendor/simcom.sh:1153
@@ -3196,6 +3242,7 @@ msgstr ""
 #: vendor/gosuncn.sh:596
 #: vendor/gosuncn.sh:675
 #: vendor/neoway.sh:713
+#: vendor/openluat.sh:1110
 #: vendor/telit.sh:742
 msgid "Tracking Area Code"
 msgstr ""
@@ -3256,6 +3303,7 @@ msgstr ""
 #: vendor/meig.sh:562
 #: vendor/meig.sh:589
 #: vendor/neoway.sh:724
+#: vendor/openluat.sh:1115
 #: vendor/simcom.sh:1173
 #: vendor/simcom.sh:1205
 msgid "UL Bandwidth"
@@ -3367,6 +3415,7 @@ msgstr ""
 #: vendor/fibocom.sh:696
 #: vendor/foxconn.sh:449
 #: vendor/meig.sh:181
+#: vendor/openluat.sh:906
 #: vendor/quectel.sh:343
 #: vendor/sierra.sh:326
 #: vendor/simcom.sh:218

@@ -1374,15 +1374,42 @@ at_auto_dial()
 {
     case $manufacturer in
         "huawei")
-            case $platform in
+            case "$platform" in
                 "unisoc")
                     huawei_auto_dial_unisoc
                     return 0
                     ;;
             esac
             ;;
+        "openluat")
+            case "$platform" in
+                "unisoc")
+                    openluat_auto_dial_unisoc
+                    return 0
+                    ;;
+            esac
+            ;;
     esac
     return 1
+}
+
+openluat_auto_dial_unisoc()
+{
+    local at_command="AT+RNDISCALL=1"
+    local at_res
+    local at_res_log
+    m_debug "openluat_auto_dial: enable RNDIS/ECM auto dial(no monitor)"
+    m_debug "openluat_auto_dial: vendor:$manufacturer; platform:$platform; driver:$driver; command:$at_command; pdp_index:$pdp_index; at_port:$at_port"
+    at_res=$(cmd_dial_command "$at_port" "$at_command")
+    at_res_log=$(echo "$at_res" | tr '\r\n' '  ')
+    if echo "$at_res" | grep -q "OK"; then
+        m_debug "openluat_auto_dial: RNDIS/ECM enabled successfully"
+    else
+        m_debug "openluat_auto_dial: unexpected response from $at_command: $at_res_log"
+    fi
+    # Air724UG maintains the PDP connection itself. Always report auto-dial
+    # support so the generic AT dialer does not fall back to AT+COPS=0,0.
+    return 0
 }
 
 huawei_auto_dial_unisoc()
@@ -1431,6 +1458,12 @@ auto_dial_hang_huawei_unisoc()
     return 1
 }
 
+auto_dial_hang_openluat_unisoc()
+{
+    m_debug "openluat auto dial hang: keep modem PDP/RNDIS active; stop host interface only"
+    return 0
+}
+
 auto_dial_hang(){
     m_debug "auto_dial_hang"
     case "$manufacturer" in 
@@ -1438,6 +1471,14 @@ auto_dial_hang(){
             case "$platform" in
                 "unisoc")
                     auto_dial_hang_huawei_unisoc
+                    return $?
+                    ;;
+            esac
+            ;;
+        "openluat")
+            case "$platform" in
+                "unisoc")
+                    auto_dial_hang_openluat_unisoc
                     return $?
                     ;;
             esac
