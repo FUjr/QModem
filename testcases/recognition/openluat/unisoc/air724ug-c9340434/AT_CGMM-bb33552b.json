@@ -1,0 +1,18 @@
+{
+  "vendor": "core",
+  "platform": "unknown",
+  "model": "unknown",
+  "command": "AT+CGMM",
+  "response_hex": "41542b43474d4d0d0a0d0a2b43474d4d3a20224169723732345547220d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-08T10:56:05Z",
+  "sanitized": true,
+  "phase": "recognition",
+  "config_section": "legacy-import",
+  "expected_identity": {
+    "vendor": "openluat",
+    "platform": "unisoc",
+    "model": "air724ug"
+  }
+}

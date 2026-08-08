@@ -1,0 +1,1 @@
+{ "result": { "status": "1", "cmd": "tom_modem -u  -d \/dev\/ttyUSB2 -o s -p \"00000000000000F1000000000000000038\"", "res": "{\"status\":\"success\"}" } }
