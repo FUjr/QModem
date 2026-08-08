@@ -51,6 +51,41 @@ mask_digits()
     }'
 }
 
+path_segment()
+{
+    local value="$1" fallback="$2" slug
+    [ -n "$value" ] || value="$fallback"
+    slug=$(printf '%s' "$value" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9._-' '_' | cut -c1-40)
+    printf '%s' "${slug:-$fallback}"
+}
+
+# Resolve recognition fixtures after modem discovery has populated UCI.
+# Prints: output-relative-path<TAB>vendor<TAB>platform<TAB>model
+resolve_recognition_fixture()
+{
+    local file="$1" rel="$2" section vendor platform model
+    local vendor_slug platform_slug model_slug model_hash
+    if [ "$(jq -r '.phase // "vendor"' "$file")" != "recognition" ]; then
+        printf '%s\t\t\t\n' "$rel"
+        return
+    fi
+    section=$(jq -r '.config_section // empty' "$file")
+    vendor=$(uci -q get "qmodem.$section.manufacturer" 2>/dev/null)
+    platform=$(uci -q get "qmodem.$section.platform" 2>/dev/null)
+    model=$(uci -q get "qmodem.$section.name" 2>/dev/null)
+    if [ -z "$vendor" ] || [ -z "$platform" ] || [ -z "$model" ]; then
+        printf '%s\t\t\t\n' "$rel"
+        return
+    fi
+    vendor_slug=$(path_segment "$vendor" unknown)
+    platform_slug=$(path_segment "$platform" unknown)
+    model_slug=$(path_segment "$model" unknown)
+    model_hash=$(printf '%s' "$model" | md5sum | cut -c1-8)
+    printf 'recognition/%s/%s/%s-%s/%s\t%s\t%s\t%s\n' \
+        "$vendor_slug" "$platform_slug" "$model_slug" "$model_hash" "$(basename "$rel")" \
+        "$vendor" "$platform" "$model"
+}
+
 cmd_status()
 {
     local seal_bin recipient_id
@@ -99,29 +134,41 @@ cmd_pack()
         exit 1
     }
     local work out_file file count timestamp inner_file seal_work seal_bin
+    local rel resolved target_rel expected_vendor expected_platform expected_model prepared
     local recipient recipient_id seal_output review_key wrapped_key_hex
     work=$(mktemp -d) || exit 1
     PACK_WORK="$work"
     count=0
     #copy fixtures, sanitizing unless --raw
     for file in $(find "$COLLECT_DIR" -name '*.json' | sort); do
-        local rel="${file#$COLLECT_DIR/}"
-        mkdir -p "$work/$(dirname "$rel")"
+        rel="${file#$COLLECT_DIR/}"
+        resolved=$(resolve_recognition_fixture "$file" "$rel")
+        target_rel=${resolved%%	*}
+        expected_vendor=$(printf '%s' "$resolved" | cut -f2)
+        expected_platform=$(printf '%s' "$resolved" | cut -f3)
+        expected_model=$(printf '%s' "$resolved" | cut -f4)
+        prepared="$file"
+        if [ -n "$expected_vendor" ]; then
+            prepared="$work/.fixture.$count.json"
+            jq --arg vendor "$expected_vendor" --arg platform "$expected_platform" --arg model "$expected_model" \
+                '.expected_identity={vendor:$vendor, platform:$platform, model:$model}' "$file" > "$prepared" || exit 1
+        fi
+        mkdir -p "$work/$(dirname "$target_rel")"
         if [ "$raw" = "1" ]; then
-            cp "$file" "$work/$rel"
-        elif [ "${rel#*/expected/}" != "$rel" ]; then
-            mask_digits < "$file" > "$work/$rel"
-            jq -e . "$work/$rel" >/dev/null 2>&1 || {
+            cp "$prepared" "$work/$target_rel"
+        elif [ "${target_rel#*/expected/}" != "$target_rel" ]; then
+            mask_digits < "$prepared" > "$work/$target_rel"
+            jq -e . "$work/$target_rel" >/dev/null 2>&1 || {
                 rm -rf "$work"
                 echo "failed to sanitize expected snapshot: $file" >&2
                 exit 1
             }
         else
             local cmd_masked resp_hex raw_response sanitized_response
-            cmd_masked=$(jq -r '.command // ""' "$file" | mask_digits)
+            cmd_masked=$(jq -r '.command // ""' "$prepared" | mask_digits)
             raw_response="$work/.response.raw"
             sanitized_response="$work/.response.sanitized"
-            resp_hex=$(jq -r '.response_hex // empty' "$file")
+            resp_hex=$(jq -r '.response_hex // empty' "$prepared")
             if [ -n "$resp_hex" ]; then
                 printf '%s' "$resp_hex" | xxd -r -p > "$raw_response" || {
                     rm -rf "$work"
@@ -129,7 +176,7 @@ cmd_pack()
                     exit 1
                 }
             else
-                jq -j '.response // ""' "$file" > "$raw_response"
+                jq -j '.response // ""' "$prepared" > "$raw_response"
             fi
             mask_digits < "$raw_response" > "$sanitized_response"
             resp_hex=$(xxd -p "$sanitized_response" | tr -d '\n') || {
@@ -138,13 +185,14 @@ cmd_pack()
                 exit 1
             }
             jq --arg c "$cmd_masked" --arg h "$resp_hex" \
-                '.command=$c | .response_hex=$h | del(.response) | .sanitized=true' "$file" > "$work/$rel" || {
+                '.command=$c | .response_hex=$h | del(.response) | .sanitized=true' "$prepared" > "$work/$target_rel" || {
                 rm -rf "$work"
                 echo "failed to sanitize fixture: $file" >&2
                 exit 1
             }
             rm -f "$raw_response" "$sanitized_response"
         fi
+        [ "$prepared" = "$file" ] || rm -f "$prepared"
         count=$((count + 1))
     done
     timestamp=$(date +%Y%m%d_%H%M%S)

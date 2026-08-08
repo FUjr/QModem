@@ -40,12 +40,16 @@ jobs:
           bash -n application/qmodem/tests/test_fixture_profiles.sh
           sh -n application/qmodem/tests/test_vendor_cmds_boundary.sh
           bash -n application/qmodem/tests/test_fixture_collection_bytes.sh
+          bash -n application/qmodem/tests/test_recognition_collection.sh
+          bash -n application/qmodem/tests/test_recognition_fixtures.sh
           bash -n application/qmodem/tests/test_vendor_fixtures.sh
       - name: Enforce command boundary
         run: |
           application/qmodem/tests/test_vendor_cmds_boundary.sh
           application/qmodem/tests/test_core_cmds.sh
           application/qmodem/tests/test_fixture_collection_bytes.sh
+          application/qmodem/tests/test_recognition_collection.sh
+          application/qmodem/tests/test_recognition_fixtures.sh
           application/qmodem/tests/test_fixture_profiles.sh
           QMODEM_TEST_SEAL_BIN=/tmp/qmodem-seal \
             application/qmodem/tests/test_collect_encryption.sh
