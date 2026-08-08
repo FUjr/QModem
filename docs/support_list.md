@@ -122,8 +122,8 @@ t99w640 | qualcomm |✘ | ✔ pcie(mbim)
 # thales
 Model | Platform | USB  | PCIe 
 --- | --- | --- | ---
-mv32-w-a | qualcomm |✔ usb(mbim) | ✔ pcie(mbim)
-mv32-w-b | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
+mv32-w-a | qualcomm |✔ usb(mbim) | ✘
+mv32-w-b | qualcomm |✔ usb(mbim,rmnet) | ✘
 
 # neoway
 Model | Platform | USB  | PCIe 
