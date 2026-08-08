@@ -20,9 +20,11 @@ trap cleanup EXIT
 profile=quectel/qualcomm/rm500q-ae-9f94df3c
 mkdir -p "$test_dir/fixtures/$profile"
 response_hex=$(printf 'AT+CGSN\r\n861234567890123\r\nOK\r\n\r\n' | xxd -p | tr -d '\n')
-jq -n --arg h "$response_hex" \
+response_hex_2=$(printf 'AT+CGSN\r\n869876543210987\r\nOK\r\n\r\n' | xxd -p | tr -d '\n')
+jq -n --arg h "$response_hex" --arg h2 "$response_hex_2" \
     '{vendor:"quectel",platform:"qualcomm",model:"RM500Q-AE",
-      command:"AT+CGSN",response_hex:$h,tool:"at",rc:0}' \
+      command:"AT+CGSN",tool:"at",
+      responses:[{response_hex:$h,rc:0},{response_hex:$h2,rc:0}]}' \
     > "$test_dir/fixtures/$profile/cgsn.json"
 
 plain_output=$(QMODEM_COLLECT_DIR="$test_dir/fixtures" \
@@ -66,8 +68,11 @@ owner_review=$(printf '%s\n' "$token" | "$seal_bin" review-key --token-stdin \
 printf '%s\n' "$review_key" | "$seal_bin" decrypt --review-key --token-stdin \
     --input "$encrypted_file" --output "$test_dir/review.tar.gz"
 tar -xOzf "$test_dir/review.tar.gz" "./$profile/cgsn.json" \
-    | jq -r '.response_hex' | xxd -r -p \
+    | jq -r '.responses[0].response_hex' | xxd -r -p \
     | cmp - <(printf 'AT+CGSN\r\n860000000000023\r\nOK\r\n\r\n')
+tar -xOzf "$test_dir/review.tar.gz" "./$profile/cgsn.json" \
+    | jq -r '.responses[1].response_hex' | xxd -r -p \
+    | cmp - <(printf 'AT+CGSN\r\n860000000000087\r\nOK\r\n\r\n')
 
 forced_output=$(QMODEM_COLLECT_DIR="$test_dir/fixtures" QMODEM_SEAL_BIN="$seal_bin" \
     "$collect_bin" pack --unencrypted 2>&1)

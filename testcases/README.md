@@ -25,18 +25,23 @@ testcases/
   "platform": "qualcomm",
   "model": "RM500Q-AE",
   "command": "AT+CGSN",
-  "response_hex": "41542b4347534e0d0d0a3836303030303030303030303031320d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-07T00:00:00Z",
+  "responses": [
+    {
+      "response_hex": "41542b4347534e0d0a3836303030303030303030303031320d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-07T00:00:00Z"
+    }
+  ],
   "sanitized": true
 }
 ```
 
 - `command`：实际发送的完整 AT 指令（含参数）。
 - `vendor`、`platform`、`model`：采集时的厂商、平台和 UCI `name`（Modem Model）。回放以三者组成的设备画像为边界；同一条 AT 指令可以在不同画像中保存不同响应。
+- `responses`：同一命令在不同设备或状态下采集的独立返回。测试逐项注入，不假设调用顺序；相同 `response_hex + rc` 不重复保存。
 - `response_hex`：模组原始 stdout 的十六进制编码，由 `xxd -p` 生成；可无损保存 CR/LF、尾部换行及任意二进制字节。
-- `tool`：`at` 或 `fastat`；`rc`：发送工具的退出码。
+- `tool`：`at` 或 `fastat`；每个 response 的 `rc` 是发送工具退出码。
 - `sanitized`：`qmodem_collect pack` 默认脱敏（≥11 位数字串保留头2尾2、中间置 0，长度不变），标记为 true；`pack --raw` 可关闭脱敏（注意隐私）。
 - `capabilities.modes`：仅用于不在 `modem_support.json` 中的合成 fixture；真实型号的拨号模式由 runner 从能力表读取。
 
@@ -101,8 +106,8 @@ bash application/qmodem/tests/test_recognition_fixtures.sh
 三层校验：
 
 1. fixture 的路径必须与 `vendor/platform/model` 元数据一致，且指令头仍存在于对应 `cmds/<vendor>.sh`；
-2. 每个设备画像建立独立命令响应表，用 fixture 回放 `at`/`fastat`；不同型号或平台不会互相覆盖；
-3. vendor 只读方法必须退出码 0 且输出合法 JSON；
+2. 每个设备画像建立独立命令响应表，用 fixture 逐项回放 `at`/`fastat`；不同型号、平台和同一命令的不同返回不会互相覆盖；
+3. vendor 只读方法使用基准返回比对 golden snapshot，并逐个注入它实际使用过的额外返回，要求解析成功且输出合法 JSON；
 4. 存在画像专属 `expected/<method>.json` 时，方法输出经 `jq -S` 归一化后与快照精确比对。
 
 末尾会打印 cmds 指令的 fixture 覆盖报告（仅提示，不失败——覆盖率依赖真机捐赠）。

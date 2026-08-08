@@ -5,7 +5,7 @@ set -eu
 [ $# -ge 1 ] || { echo "usage: $0 <qmodem_testcases_*.tar.gz>" >&2; exit 1; }
 tarball="$1"
 [ -f "$tarball" ] || { echo "not found: $tarball" >&2; exit 1; }
-repo_root=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
+repo_root=${QMODEM_TEST_REPO_ROOT:-$(CDPATH= cd "$(dirname "$0")/.." && pwd)}
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -17,6 +17,22 @@ find "$tmp" -name '*.json' -type f > "$fixture_list"
 [ -s "$fixture_list" ] || { echo "archive contains no fixtures" >&2; exit 1; }
 while IFS= read -r f; do
     case "$f" in
+        */expected/*) ;;
+        *)
+            if ! jq -e 'has("responses")' "$f" >/dev/null 2>&1; then
+                normalized="${f}.normalized"
+                jq '.responses=[{response_hex:(.response_hex // ""), response:.response,
+                                  rc:(.rc // 0), timestamp:(.timestamp // "")}]
+                    | .responses |= map(if .response == null then del(.response) else . end)
+                    | del(.response_hex, .response, .rc, .timestamp)' "$f" > "$normalized" || {
+                        echo "invalid legacy fixture: $f" >&2
+                        exit 1
+                    }
+                mv "$normalized" "$f"
+            fi
+            ;;
+    esac
+    case "$f" in
         "$tmp"/recognition/pending/*)
             echo "unresolved recognition fixture: $f" >&2
             exit 1
@@ -24,11 +40,19 @@ while IFS= read -r f; do
         "$tmp"/recognition/*/*/*/*.json)
             filter='.phase == "recognition" and .config_section and .command and
                 (.expected_identity.vendor and .expected_identity.platform and .expected_identity.model) and
-                (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or (.response != null))'
+                ((.responses | type) == "array" and (.responses | length) > 0) and
+                all(.responses[];
+                    ((.rc // 0) | type) == "number" and
+                    (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or
+                     (.response != null)))'
             ;;
         "$tmp"/*/*/*/expected/*.json) filter='type == "object"' ;;
         "$tmp"/*/*/*/*.json) filter='.vendor and .platform and .model and .command and
-            (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or (.response != null))' ;;
+            ((.responses | type) == "array" and (.responses | length) > 0) and
+            all(.responses[];
+                ((.rc // 0) | type) == "number" and
+                (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or
+                 (.response != null)))' ;;
         *)
             echo "invalid fixture path (expected vendor/platform/model): $f" >&2
             exit 1
@@ -40,7 +64,7 @@ while IFS= read -r f; do
     }
 done < "$fixture_list"
 
-# merge (same relative path overwrites; filename = command hash, so reruns dedupe)
+# merge (same relative path overwrites; responses are deduplicated during collection)
 cd "$tmp"
 find . -name '*.json' -type f > "$fixture_list"
 while IFS= read -r f; do

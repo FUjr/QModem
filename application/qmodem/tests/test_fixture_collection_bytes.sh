@@ -40,9 +40,9 @@ rc=$?
 [ "$rc" -eq 7 ]
 cmp "$expected" "$actual"
 fixture=$(find "$QMODEM_COLLECT_DIR/quectel" -name '*BYTECHECK*.json')
-fixture_hex_decode "$(jq -r '.response_hex' "$fixture")" > "$recorded"
+fixture_hex_decode "$(jq -r '.responses[0].response_hex' "$fixture")" > "$recorded"
 cmp "$expected" "$recorded"
-[ "$(jq -r '.rc' "$fixture")" -eq 7 ]
+[ "$(jq -r '.responses[0].rc' "$fixture")" -eq 7 ]
 [ "$(jq -r '.platform' "$fixture")" = qualcomm ]
 [ "$(jq -r '.model' "$fixture")" = RM500Q-AE ]
 case "$fixture" in */quectel/qualcomm/rm500q-ae-9f94df3c/*) ;; *) exit 1 ;; esac
@@ -53,8 +53,21 @@ rc=$?
 [ "$rc" -eq 9 ]
 cmp "$expected" "$actual"
 fixture=$(find "$QMODEM_COLLECT_DIR/quectel" -name '*FASTBYTECHECK*.json')
-fixture_hex_decode "$(jq -r '.response_hex' "$fixture")" > "$recorded"
+fixture_hex_decode "$(jq -r '.responses[0].response_hex' "$fixture")" > "$recorded"
 cmp "$expected" "$recorded"
-[ "$(jq -r '.rc' "$fixture")" -eq 9 ]
+[ "$(jq -r '.responses[0].rc' "$fixture")" -eq 9 ]
+
+variant=ONE
+tom_modem()
+{
+    printf '%s\r\nOK\r\n' "$variant"
+}
+at /dev/ttyUSB2 'AT+VARIANT' >/dev/null
+variant=TWO
+at /dev/ttyUSB2 'AT+VARIANT' >/dev/null
+at /dev/ttyUSB2 'AT+VARIANT' >/dev/null
+fixture=$(find "$QMODEM_COLLECT_DIR/quectel" -name '*VARIANT*.json')
+[ "$(jq '.responses | length' "$fixture")" -eq 2 ]
+[ "$(jq -r '.responses[0].response_hex' "$fixture")" != "$(jq -r '.responses[1].response_hex' "$fixture")" ]
 
 echo 'fixture collection byte tests passed'

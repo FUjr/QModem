@@ -135,7 +135,7 @@ cmd_pack()
     }
     local work out_file file count timestamp inner_file seal_work seal_bin
     local rel resolved target_rel expected_vendor expected_platform expected_model prepared
-    local recipient recipient_id seal_output review_key wrapped_key_hex
+    local recipient recipient_id seal_output review_key wrapped_key_hex response_count response_index update_file
     work=$(mktemp -d) || exit 1
     PACK_WORK="$work"
     count=0
@@ -148,10 +148,17 @@ cmd_pack()
         expected_platform=$(printf '%s' "$resolved" | cut -f3)
         expected_model=$(printf '%s' "$resolved" | cut -f4)
         prepared="$file"
-        if [ -n "$expected_vendor" ]; then
+        if [ "${target_rel#*/expected/}" = "$target_rel" ]; then
             prepared="$work/.fixture.$count.json"
-            jq --arg vendor "$expected_vendor" --arg platform "$expected_platform" --arg model "$expected_model" \
-                '.expected_identity={vendor:$vendor, platform:$platform, model:$model}' "$file" > "$prepared" || exit 1
+            jq --arg vendor "$expected_vendor" --arg platform "$expected_platform" --arg model "$expected_model" '
+                if has("responses") then .
+                else .responses=[{response_hex:(.response_hex // ""), response:.response,
+                                  rc:(.rc // 0), timestamp:(.timestamp // "")}]
+                  | del(.response_hex, .response, .rc, .timestamp)
+                end
+                | .responses |= map(if .response == null then del(.response) else . end)
+                | if $vendor != "" then .expected_identity={vendor:$vendor, platform:$platform, model:$model}
+                  else . end' "$file" > "$prepared" || exit 1
         fi
         mkdir -p "$work/$(dirname "$target_rel")"
         if [ "$raw" = "1" ]; then
@@ -168,28 +175,33 @@ cmd_pack()
             cmd_masked=$(jq -r '.command // ""' "$prepared" | mask_digits)
             raw_response="$work/.response.raw"
             sanitized_response="$work/.response.sanitized"
-            resp_hex=$(jq -r '.response_hex // empty' "$prepared")
-            if [ -n "$resp_hex" ]; then
-                printf '%s' "$resp_hex" | xxd -r -p > "$raw_response" || {
+            jq --arg c "$cmd_masked" '.command=$c | .sanitized=true' "$prepared" > "$work/$target_rel" || exit 1
+            response_count=$(jq '.responses | length' "$prepared")
+            response_index=0
+            while [ "$response_index" -lt "$response_count" ]; do
+                resp_hex=$(jq -r --argjson i "$response_index" '.responses[$i].response_hex // empty' "$prepared")
+                if [ -n "$resp_hex" ]; then
+                    printf '%s' "$resp_hex" | xxd -r -p > "$raw_response" || {
+                        rm -rf "$work"
+                        echo "invalid response_hex in fixture: $file response[$response_index]" >&2
+                        exit 1
+                    }
+                else
+                    jq -j --argjson i "$response_index" '.responses[$i].response // ""' "$prepared" > "$raw_response"
+                fi
+                mask_digits < "$raw_response" > "$sanitized_response"
+                resp_hex=$(xxd -p "$sanitized_response" | tr -d '\n') || {
                     rm -rf "$work"
-                    echo "invalid response_hex in fixture: $file" >&2
+                    echo "failed to encode fixture response: $file response[$response_index]" >&2
                     exit 1
                 }
-            else
-                jq -j '.response // ""' "$prepared" > "$raw_response"
-            fi
-            mask_digits < "$raw_response" > "$sanitized_response"
-            resp_hex=$(xxd -p "$sanitized_response" | tr -d '\n') || {
-                rm -rf "$work"
-                echo "failed to encode fixture response: $file" >&2
-                exit 1
-            }
-            jq --arg c "$cmd_masked" --arg h "$resp_hex" \
-                '.command=$c | .response_hex=$h | del(.response) | .sanitized=true' "$prepared" > "$work/$target_rel" || {
-                rm -rf "$work"
-                echo "failed to sanitize fixture: $file" >&2
-                exit 1
-            }
+                update_file="$work/.sanitized.$count.json"
+                jq --argjson i "$response_index" --arg h "$resp_hex" \
+                    '.responses[$i].response_hex=$h | del(.responses[$i].response)' \
+                    "$work/$target_rel" > "$update_file" || exit 1
+                mv "$update_file" "$work/$target_rel"
+                response_index=$((response_index + 1))
+            done
             rm -f "$raw_response" "$sanitized_response"
         fi
         [ "$prepared" = "$file" ] || rm -f "$prepared"

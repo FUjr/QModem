@@ -8,20 +8,29 @@ trap 'rm -rf "$test_root"' EXIT
 
 write_fixture()
 {
-    local platform=$1 model=$2 model_dir=$3 response=$4 dir hex
+    local platform=$1 model=$2 model_dir=$3 response=$4 response2=${5:-} dir hex hex2
     dir="$test_root/testcases/quectel/$platform/$model_dir"
     mkdir -p "$dir"
     hex=$(printf '%s' "$response" | xxd -p | tr -d '\n')
-    jq -n --arg platform "$platform" --arg model "$model" --arg hex "$hex" \
-        '{vendor:"quectel",platform:$platform,model:$model,command:"AT+CGSN",
-          response_hex:$hex,tool:"at",rc:0}' > "$dir/AT_CGSN.json"
+    hex2=$(printf '%s' "$response2" | xxd -p | tr -d '\n')
+    jq -n --arg platform "$platform" --arg model "$model" --arg hex "$hex" --arg hex2 "$hex2" \
+        '{vendor:"quectel",platform:$platform,model:$model,command:"AT+CGSN",tool:"at",
+          responses:([{response_hex:$hex,rc:0,timestamp:"test"}] +
+                     (if $hex2 == "" then [] else [{response_hex:$hex2,rc:0,timestamp:"test"}] end))}' \
+        > "$dir/AT_CGSN.json"
 }
 
-write_fixture qualcomm RM500Q-AE rm500q-ae-9f94df3c $'QUALCOMM\r\nOK\r\n'
+write_fixture qualcomm RM500Q-AE rm500q-ae-9f94df3c \
+    $'AT+CGSN\r\r\n860000000000012\r\n\r\nOK\r\n' \
+    $'AT+CGSN\r\r\n860000000000013\r\n\r\nOK\r\n'
 write_fixture unisoc UDX710 udx710-861f4136 $'UNISOC\r\nOK\r\n'
+mkdir -p "$test_root/testcases/quectel/qualcomm/rm500q-ae-9f94df3c/expected"
+jq -n '{result:{},imei:"860000000000012"}' \
+    > "$test_root/testcases/quectel/qualcomm/rm500q-ae-9f94df3c/expected/get_imei.json"
 
 output=$(QMODEM_TEST_REPO_ROOT="$test_root" "$PACKAGE_DIR/tests/test_vendor_fixtures.sh")
 printf '%s\n' "$output" | grep -q 'quectel/qualcomm/rm500q-ae-9f94df3c: replay passed'
+printf '%s\n' "$output" | grep -q 'get_imei parses 7c58b773 response\[1\]'
 printf '%s\n' "$output" | grep -q 'quectel/unisoc/udx710-861f4136: replay passed'
 
 echo 'fixture profile isolation tests passed'

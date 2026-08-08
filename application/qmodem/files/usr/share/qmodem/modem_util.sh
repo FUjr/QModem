@@ -61,7 +61,7 @@ qmodem_record_testcase_file()
   local vendor_name="${vendor:-${manufacturer:-core}}"
   local platform_name="${platform:-unknown}"
   local model_name="${QMODEM_TESTCASE_MODEL:-}" dir phase=vendor
-  local slug hash file
+  local slug hash file update_file timestamp
   [ -n "$model_name" ] || model_name=$(uci -q get "qmodem.${config_section:-}.name" 2>/dev/null)
   [ -n "$model_name" ] || model_name="unknown"
   if [ "$vendor_name" = "core" ] || [ "$vendor_name" = "unknown" ] || [ "$model_name" = "unknown" ]; then
@@ -73,6 +73,24 @@ qmodem_record_testcase_file()
   hash=$(printf '%s' "$atcmd" | md5sum | cut -c1-8)
   file="${dir}/${slug}-${hash}.json"
   response_hex=$(xxd -p "$response_file" | tr -d '\n') || return 0
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  update_file=$(mktemp "${dir}/.fixture.XXXXXX") || return 0
+  if [ -f "$file" ]; then
+    jq --arg response_hex "$response_hex" --argjson rc "$rc" --arg timestamp "$timestamp" '
+      if has("responses") then .
+      else .responses=[{response_hex:(.response_hex // ""), rc:(.rc // 0), timestamp:(.timestamp // "")}]
+        | del(.response_hex, .response, .rc, .timestamp)
+      end
+      | .responses |= map(if .response == null then del(.response) else . end)
+      | if any(.responses[]; .response_hex == $response_hex and .rc == $rc) then .
+        else .responses += [{response_hex:$response_hex, rc:$rc, timestamp:$timestamp}]
+        end' "$file" > "$update_file" 2>/dev/null || {
+          rm -f "$update_file"
+          return 0
+        }
+    mv "$update_file" "$file" 2>/dev/null || rm -f "$update_file"
+    return 0
+  fi
   jq -n \
     --arg vendor "$vendor_name" \
     --arg platform "$platform_name" \
@@ -83,11 +101,11 @@ qmodem_record_testcase_file()
     --arg phase "$phase" \
     --arg config_section "${config_section:-unknown}" \
     --argjson rc "$rc" \
-    --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg timestamp "$timestamp" \
     '{vendor:$vendor, platform:$platform, model:$model, phase:$phase,
-      config_section:$config_section, command:$command,
-      response_hex:$response_hex, tool:$tool, rc:$rc, timestamp:$timestamp}' \
-    > "$file" 2>/dev/null || rm -f "$file"
+      config_section:$config_section, command:$command, tool:$tool,
+      responses:[{response_hex:$response_hex, rc:$rc, timestamp:$timestamp}]}' \
+    > "$update_file" 2>/dev/null && mv "$update_file" "$file" 2>/dev/null || rm -f "$update_file"
 }
 
 at()
