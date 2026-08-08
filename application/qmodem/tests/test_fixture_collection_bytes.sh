@@ -8,11 +8,13 @@ QMODEM_LIB_FUNCTIONS="$PACKAGE_DIR/tests/lib/functions_stub.sh"
 QMODEM_COLLECT_TESTCASE=1
 QMODEM_COLLECT_DIR=$(mktemp -d)
 vendor=quectel
+platform=qualcomm
+QMODEM_TESTCASE_MODEL=RM500Q-AE
 clear_buffer=0
 options=
 use_ubus_flag=
 export QMODEM_HOME QMODEM_LIB_FUNCTIONS QMODEM_COLLECT_TESTCASE QMODEM_COLLECT_DIR
-export vendor clear_buffer options use_ubus_flag
+export vendor platform QMODEM_TESTCASE_MODEL clear_buffer options use_ubus_flag
 
 cleanup() { rm -rf "$QMODEM_COLLECT_DIR" "$expected" "$actual" "$recorded"; }
 expected=$(mktemp)
@@ -41,6 +43,9 @@ fixture=$(find "$QMODEM_COLLECT_DIR/quectel" -name '*BYTECHECK*.json')
 fixture_hex_decode "$(jq -r '.response_hex' "$fixture")" > "$recorded"
 cmp "$expected" "$recorded"
 [ "$(jq -r '.rc' "$fixture")" -eq 7 ]
+[ "$(jq -r '.platform' "$fixture")" = qualcomm ]
+[ "$(jq -r '.model' "$fixture")" = RM500Q-AE ]
+case "$fixture" in */quectel/qualcomm/rm500q-ae-9f94df3c/*) ;; *) exit 1 ;; esac
 
 printf 'FAST\r\n\r\n\r\n' > "$expected"
 fastat /dev/ttyUSB2 'AT+FASTBYTECHECK' > "$actual"

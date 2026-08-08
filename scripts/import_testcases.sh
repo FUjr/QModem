@@ -17,8 +17,13 @@ find "$tmp" -name '*.json' -type f > "$fixture_list"
 [ -s "$fixture_list" ] || { echo "archive contains no fixtures" >&2; exit 1; }
 while IFS= read -r f; do
     case "$f" in
-        */expected/*.json) filter='type == "object"' ;;
-        *) filter='.vendor and .command and (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or (.response != null))' ;;
+        "$tmp"/*/*/*/expected/*.json) filter='type == "object"' ;;
+        "$tmp"/*/*/*/*.json) filter='.vendor and .platform and .model and .command and
+            (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or (.response != null))' ;;
+        *)
+            echo "invalid fixture path (expected vendor/platform/model): $f" >&2
+            exit 1
+            ;;
     esac
     jq -e "$filter" "$f" >/dev/null || {
         echo "invalid fixture: $f" >&2

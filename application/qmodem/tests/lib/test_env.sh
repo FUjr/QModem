@@ -3,7 +3,7 @@
 
 TESTS_DIR=$(CDPATH= cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PKG_DIR=$(CDPATH= cd "$TESTS_DIR/.." && pwd)
-REPO_ROOT=$(CDPATH= cd "$PKG_DIR/../.." && pwd)
+REPO_ROOT=${QMODEM_TEST_REPO_ROOT:-$(CDPATH= cd "$PKG_DIR/../.." && pwd)}
 
 export QMODEM_HOME="$PKG_DIR/files/usr/share/qmodem"
 export QMODEM_JSHN="$TESTS_DIR/lib/jshn_stub.sh"
@@ -23,6 +23,9 @@ uci()
 {
     case "$*" in
         *qmodem.fixture.modes*) printf '%s\n' 'qmi ecm mbim rndis ncm' ;;
+        *qmodem.fixture.manufacturer*) printf '%s\n' "${vendor:-core}" ;;
+        *qmodem.fixture.platform*) printf '%s\n' "${platform:-unknown}" ;;
+        *qmodem.fixture.name*) printf '%s\n' "${QMODEM_TESTCASE_MODEL:-unknown}" ;;
         *) return 1 ;;
     esac
 }

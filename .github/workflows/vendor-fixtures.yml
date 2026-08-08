@@ -37,6 +37,7 @@ jobs:
           sh -n application/qmodem/files/usr/sbin/qmodem_collect
           sh -n application/qmodem/tests/test_core_cmds.sh
           bash -n application/qmodem/tests/test_collect_encryption.sh
+          bash -n application/qmodem/tests/test_fixture_profiles.sh
           sh -n application/qmodem/tests/test_vendor_cmds_boundary.sh
           bash -n application/qmodem/tests/test_fixture_collection_bytes.sh
           bash -n application/qmodem/tests/test_vendor_fixtures.sh
@@ -45,6 +46,7 @@ jobs:
           application/qmodem/tests/test_vendor_cmds_boundary.sh
           application/qmodem/tests/test_core_cmds.sh
           application/qmodem/tests/test_fixture_collection_bytes.sh
+          application/qmodem/tests/test_fixture_profiles.sh
           QMODEM_TEST_SEAL_BIN=/tmp/qmodem-seal \
             application/qmodem/tests/test_collect_encryption.sh
       - name: Replay vendor fixtures

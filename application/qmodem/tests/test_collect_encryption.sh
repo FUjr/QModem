@@ -17,18 +17,20 @@ cleanup()
 }
 trap cleanup EXIT
 
-mkdir -p "$test_dir/fixtures/quectel"
+profile=quectel/qualcomm/rm500q-ae-9f94df3c
+mkdir -p "$test_dir/fixtures/$profile"
 response_hex=$(printf 'AT+CGSN\r\n861234567890123\r\nOK\r\n\r\n' | xxd -p | tr -d '\n')
 jq -n --arg h "$response_hex" \
-    '{vendor:"quectel",command:"AT+CGSN",response_hex:$h,tool:"at",rc:0}' \
-    > "$test_dir/fixtures/quectel/cgsn.json"
+    '{vendor:"quectel",platform:"qualcomm",model:"RM500Q-AE",
+      command:"AT+CGSN",response_hex:$h,tool:"at",rc:0}' \
+    > "$test_dir/fixtures/$profile/cgsn.json"
 
 plain_output=$(QMODEM_COLLECT_DIR="$test_dir/fixtures" \
     QMODEM_SEAL_BIN=/not-installed/qmodem-seal "$collect_bin" pack 2>&1)
 printf '%s\n' "$plain_output" | grep -q 'UNENCRYPTED'
 printf '%s\n' "$plain_output" | grep -q 'encryption: OFF'
 plain_file=$(printf '%s\n' "$plain_output" | sed -n 's/.* -> //p')
-tar -tzf "$plain_file" | grep -q 'quectel/cgsn.json'
+tar -tzf "$plain_file" | grep -q "$profile/cgsn.json"
 
 # Encryption tests are skipped in generic shell-only CI unless a compiled
 # qmodem-seal is explicitly supplied.
@@ -63,7 +65,7 @@ owner_review=$(printf '%s\n' "$token" | "$seal_bin" review-key --token-stdin \
 [ "$review_key" = "$owner_review" ]
 printf '%s\n' "$review_key" | "$seal_bin" decrypt --review-key --token-stdin \
     --input "$encrypted_file" --output "$test_dir/review.tar.gz"
-tar -xOzf "$test_dir/review.tar.gz" ./quectel/cgsn.json \
+tar -xOzf "$test_dir/review.tar.gz" "./$profile/cgsn.json" \
     | jq -r '.response_hex' | xxd -r -p \
     | cmp - <(printf 'AT+CGSN\r\n860000000000023\r\nOK\r\n\r\n')
 
