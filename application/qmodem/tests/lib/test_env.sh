@@ -22,7 +22,7 @@ export at_port platform define_connect config_section
 uci()
 {
     case "$*" in
-        *qmodem.fixture.modes*) printf '%s\n' 'qmi ecm mbim rndis ncm' ;;
+        *qmodem.fixture.modes*) printf '%s\n' "${QMODEM_TESTCASE_MODES:-}" ;;
         *qmodem.fixture.manufacturer*) printf '%s\n' "${vendor:-core}" ;;
         *qmodem.fixture.platform*) printf '%s\n' "${platform:-unknown}" ;;
         *qmodem.fixture.name*) printf '%s\n' "${QMODEM_TESTCASE_MODEL:-unknown}" ;;

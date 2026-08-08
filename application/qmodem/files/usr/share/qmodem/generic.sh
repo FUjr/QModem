@@ -7,7 +7,7 @@ add_plain_info_entry()
     key=$1
     value=$2
     key_full_name=$3
-    class_overwrite=$4
+    class_overwrite=${4:-}
     if [ -n "$class_overwrite" ]; then
         class="$class_overwrite"
     fi
@@ -19,11 +19,11 @@ add_plain_info_entry()
     json_add_string  value "$value"
     json_add_string "full_name" "$key_full_name"
     json_add_string "type" "plain_text"
-    if [ -n "$class" ]; then
+    if [ -n "${class:-}" ]; then
         json_add_string "class" "$class"
         json_add_string "class_origin" "$class"
     fi
-    if [ -n "$extra_info" ]; then
+    if [ -n "${extra_info:-}" ]; then
         json_add_string "extra_info" "$extra_info"
     fi
     json_close_object
@@ -34,7 +34,7 @@ add_warning_message_entry()
     key=$1
     value=$2
     key_full_name=$3
-    class_overwrite=$4
+    class_overwrite=${4:-}
     if [ -n "$class_overwrite" ]; then
         class="$class_overwrite"
     fi
@@ -48,7 +48,7 @@ add_warning_message_entry()
     json_add_string "type" "warning_message"
     json_add_string "class" "warning"
     json_add_string "class_origin" "warning"
-    if [ -n "$extra_info" ]; then
+    if [ -n "${extra_info:-}" ]; then
         json_add_string "extra_info" "$extra_info"
     fi
     json_close_object
@@ -62,7 +62,7 @@ add_bar_info_entry()
     min_value=$4
     max_value=$5
     unit=$6
-    class_overwrite=$7
+    class_overwrite=${7:-}
     if [ -n "$class_overwrite" ]; then
         class="$class_overwrite"
     fi
@@ -77,11 +77,11 @@ add_bar_info_entry()
     json_add_string "full_name" "$key_full_name"
     json_add_string "unit" "$unit"
     json_add_string "type" "progress_bar"
-    if [ -n "$class" ]; then
+    if [ -n "${class:-}" ]; then
         json_add_string "class" "$class"
         json_add_string "class_origin" "$class"
     fi
-    if [ -n "$extra_info" ]; then
+    if [ -n "${extra_info:-}" ]; then
         json_add_string "extra_info" "$extra_info"
     fi
     json_close_object
@@ -347,7 +347,13 @@ add_ca_info() {
 
 get_driver()
 {
-    for i in $(find $modem_path -name driver);do
+    local mode=""
+    local modem_root="${modem_path:-}"
+    [ -n "$modem_root" ] || {
+        echo unknown
+        return
+    }
+    for i in $(find "$modem_root" -name driver);do
         lsfile=$(ls -l $i)
         type=${lsfile:0:1}
         if [ "$type" == "l" ];then
@@ -389,7 +395,7 @@ get_driver()
             esac
         fi
     done
-    echo $mode
+    echo "${mode:-unknown}"
 }
 
 get_dns()
