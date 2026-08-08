@@ -17,6 +17,15 @@ find "$tmp" -name '*.json' -type f > "$fixture_list"
 [ -s "$fixture_list" ] || { echo "archive contains no fixtures" >&2; exit 1; }
 while IFS= read -r f; do
     case "$f" in
+        "$tmp"/recognition/pending/*)
+            echo "unresolved recognition fixture: $f" >&2
+            exit 1
+            ;;
+        "$tmp"/recognition/*/*/*/*.json)
+            filter='.phase == "recognition" and .config_section and .command and
+                (.expected_identity.vendor and .expected_identity.platform and .expected_identity.model) and
+                (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or (.response != null))'
+            ;;
         "$tmp"/*/*/*/expected/*.json) filter='type == "object"' ;;
         "$tmp"/*/*/*/*.json) filter='.vendor and .platform and .model and .command and
             (((.response_hex | type) == "string" and (.response_hex | test("^([0-9a-fA-F]{2})*$"))) or (.response != null))' ;;

@@ -6,6 +6,9 @@
 
 ```
 testcases/
+  recognition/                       # vendor/model 尚未识别时发送的探测指令
+    <resolved-vendor>/<platform>/<model-profile>/
+      ATI-9226517c.json               # 保留采集时身份并记录 expected_identity
   <vendor>/                          # 与 vendor/dynamic_load.json 的厂商名一致
     <platform>/                      # qualcomm / mediatek / unisoc / ...
       <model-slug>-<model-md5前8位>/ # 同名、空格和特殊字符不会造成目录冲突
@@ -35,6 +38,13 @@ testcases/
 - `response_hex`：模组原始 stdout 的十六进制编码，由 `xxd -p` 生成；可无损保存 CR/LF、尾部换行及任意二进制字节。
 - `tool`：`at` 或 `fastat`；`rc`：发送工具的退出码。
 - `sanitized`：`qmodem_collect pack` 默认脱敏（≥11 位数字串保留头2尾2、中间置 0，长度不变），标记为 true；`pack --raw` 可关闭脱敏（注意隐私）。
+- `capabilities.modes`：仅用于不在 `modem_support.json` 中的合成 fixture；真实型号的拨号模式由 runner 从能力表读取。
+
+识别前的指令先写入设备上的 `recognition/pending/<config-section>/`。打包时，
+采集器读取该 section 最终识别出的 vendor、platform 和 model，将记录移动到
+`recognition/<vendor>/<platform>/<model-profile>/`，并写入
+`expected_identity`。无法解析最终身份的 pending 记录会保留，但导入脚本会拒绝
+它们，避免把未归属样本误并入仓库。
 
 ## 采集与提交
 
@@ -85,6 +95,7 @@ git add testcases && git commit
 
 ```sh
 bash application/qmodem/tests/test_vendor_fixtures.sh
+bash application/qmodem/tests/test_recognition_fixtures.sh
 ```
 
 三层校验：

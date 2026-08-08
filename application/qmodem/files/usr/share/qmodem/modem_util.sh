@@ -8,11 +8,11 @@
 #env overrides (used by tests): QMODEM_COLLECT_TESTCASE / QMODEM_COLLECT_DIR
 qmodem_testcase_collect_enabled()
 {
-  if [ -n "$QMODEM_COLLECT_TESTCASE" ]; then
+  if [ -n "${QMODEM_COLLECT_TESTCASE:-}" ]; then
     [ "$QMODEM_COLLECT_TESTCASE" = "1" ]
     return
   fi
-  if [ -z "$_testcase_collect_cache" ]; then
+  if [ -z "${_testcase_collect_cache:-}" ]; then
     local switch
     switch=$(uci -q get qmodem.main.testcase_collect 2>/dev/null)
     [ "$switch" = "1" ] && _testcase_collect_cache=1 || _testcase_collect_cache=0
@@ -37,9 +37,14 @@ qmodem_testcase_profile_dir()
   local vendor_name="${vendor:-${manufacturer:-core}}"
   local platform_name="${platform:-unknown}"
   local model_name="${QMODEM_TESTCASE_MODEL:-}"
-  local vendor_slug platform_slug model_slug model_hash
-  [ -n "$model_name" ] || model_name=$(uci -q get "qmodem.$config_section.name" 2>/dev/null)
+  local vendor_slug platform_slug model_slug model_hash section_slug
+  [ -n "$model_name" ] || model_name=$(uci -q get "qmodem.${config_section:-}.name" 2>/dev/null)
   [ -n "$model_name" ] || model_name="unknown"
+  if [ "$vendor_name" = "core" ] || [ "$vendor_name" = "unknown" ] || [ "$model_name" = "unknown" ]; then
+    section_slug=$(qmodem_testcase_path_segment "${config_section:-unknown}" unknown)
+    printf '%s/recognition/pending/%s' "$collect_dir" "$section_slug"
+    return
+  fi
   vendor_slug=$(qmodem_testcase_path_segment "$vendor_name" core)
   platform_slug=$(qmodem_testcase_path_segment "$platform_name" unknown)
   model_slug=$(qmodem_testcase_path_segment "$model_name" unknown)
@@ -55,10 +60,13 @@ qmodem_record_testcase_file()
   local tool="$1" atcmd="$2" response_file="$3" rc="$4" response_hex
   local vendor_name="${vendor:-${manufacturer:-core}}"
   local platform_name="${platform:-unknown}"
-  local model_name="${QMODEM_TESTCASE_MODEL:-}" dir
+  local model_name="${QMODEM_TESTCASE_MODEL:-}" dir phase=vendor
   local slug hash file
-  [ -n "$model_name" ] || model_name=$(uci -q get "qmodem.$config_section.name" 2>/dev/null)
+  [ -n "$model_name" ] || model_name=$(uci -q get "qmodem.${config_section:-}.name" 2>/dev/null)
   [ -n "$model_name" ] || model_name="unknown"
+  if [ "$vendor_name" = "core" ] || [ "$vendor_name" = "unknown" ] || [ "$model_name" = "unknown" ]; then
+    phase=recognition
+  fi
   dir=$(qmodem_testcase_profile_dir)
   mkdir -p "$dir" 2>/dev/null || return 0
   slug=$(printf '%s' "$atcmd" | tr -c 'A-Za-z0-9' '_' | cut -c1-40)
@@ -72,9 +80,12 @@ qmodem_record_testcase_file()
     --arg command "$atcmd" \
     --arg response_hex "$response_hex" \
     --arg tool "$tool" \
+    --arg phase "$phase" \
+    --arg config_section "${config_section:-unknown}" \
     --argjson rc "$rc" \
     --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{vendor:$vendor, platform:$platform, model:$model, command:$command,
+    '{vendor:$vendor, platform:$platform, model:$model, phase:$phase,
+      config_section:$config_section, command:$command,
       response_hex:$response_hex, tool:$tool, rc:$rc, timestamp:$timestamp}' \
     > "$file" 2>/dev/null || rm -f "$file"
 }
@@ -168,9 +179,9 @@ log2sys()
 
 m_debug ()
 {
-	[ -z "$debug_subject" ] && subject="modem_util" || subject="$debug_subject"
-	[ -n "$direct_debug" ] && echo "$subject" "$1"
-	if [ -n "$log_file" ];then
+	[ -z "${debug_subject:-}" ] && subject="modem_util" || subject="$debug_subject"
+	[ -n "${direct_debug:-}" ] && echo "$subject" "$1"
+	if [ -n "${log_file:-}" ];then
 		log2file "$subject" "$1" "$log_file"
 	else
 		log2sys "$subject" "$1"
