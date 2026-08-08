@@ -22,13 +22,44 @@ qmodem_testcase_collect_enabled()
 
 #record one AT exchange as a fixture json file; never fails the caller
 #$1: tool (at/fastat)  $2: command  $3: raw response file  $4: exit code
+qmodem_testcase_path_segment()
+{
+  local value="$1" fallback="$2" slug
+  [ -n "$value" ] || value="$fallback"
+  slug=$(printf '%s' "$value" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9._-' '_' | cut -c1-40)
+  [ -n "$slug" ] || slug="$fallback"
+  printf '%s' "$slug"
+}
+
+qmodem_testcase_profile_dir()
+{
+  local collect_dir="${QMODEM_COLLECT_DIR:-/tmp/qmodem/testcases}"
+  local vendor_name="${vendor:-${manufacturer:-core}}"
+  local platform_name="${platform:-unknown}"
+  local model_name="${QMODEM_TESTCASE_MODEL:-}"
+  local vendor_slug platform_slug model_slug model_hash
+  [ -n "$model_name" ] || model_name=$(uci -q get "qmodem.$config_section.name" 2>/dev/null)
+  [ -n "$model_name" ] || model_name="unknown"
+  vendor_slug=$(qmodem_testcase_path_segment "$vendor_name" core)
+  platform_slug=$(qmodem_testcase_path_segment "$platform_name" unknown)
+  model_slug=$(qmodem_testcase_path_segment "$model_name" unknown)
+  if [ "$model_name" != "unknown" ]; then
+    model_hash=$(printf '%s' "$model_name" | md5sum | cut -c1-8)
+    model_slug="${model_slug}-${model_hash}"
+  fi
+  printf '%s/%s/%s/%s' "$collect_dir" "$vendor_slug" "$platform_slug" "$model_slug"
+}
+
 qmodem_record_testcase_file()
 {
   local tool="$1" atcmd="$2" response_file="$3" rc="$4" response_hex
   local vendor_name="${vendor:-${manufacturer:-core}}"
-  local collect_dir="${QMODEM_COLLECT_DIR:-/tmp/qmodem/testcases}"
-  local dir="$collect_dir/$vendor_name"
+  local platform_name="${platform:-unknown}"
+  local model_name="${QMODEM_TESTCASE_MODEL:-}" dir
   local slug hash file
+  [ -n "$model_name" ] || model_name=$(uci -q get "qmodem.$config_section.name" 2>/dev/null)
+  [ -n "$model_name" ] || model_name="unknown"
+  dir=$(qmodem_testcase_profile_dir)
   mkdir -p "$dir" 2>/dev/null || return 0
   slug=$(printf '%s' "$atcmd" | tr -c 'A-Za-z0-9' '_' | cut -c1-40)
   hash=$(printf '%s' "$atcmd" | md5sum | cut -c1-8)
@@ -36,12 +67,15 @@ qmodem_record_testcase_file()
   response_hex=$(xxd -p "$response_file" | tr -d '\n') || return 0
   jq -n \
     --arg vendor "$vendor_name" \
+    --arg platform "$platform_name" \
+    --arg model "$model_name" \
     --arg command "$atcmd" \
     --arg response_hex "$response_hex" \
     --arg tool "$tool" \
     --argjson rc "$rc" \
     --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{vendor:$vendor, command:$command, response_hex:$response_hex, tool:$tool, rc:$rc, timestamp:$timestamp}' \
+    '{vendor:$vendor, platform:$platform, model:$model, command:$command,
+      response_hex:$response_hex, tool:$tool, rc:$rc, timestamp:$timestamp}' \
     > "$file" 2>/dev/null || rm -f "$file"
 }
 

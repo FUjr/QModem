@@ -329,7 +329,7 @@ case $method in
 esac
 #optionally keep a golden snapshot of the final JSON for fixture tests
 if qmodem_testcase_collect_enabled; then
-    expected_dir="${QMODEM_COLLECT_DIR:-/tmp/qmodem/testcases}/${vendor:-core}/expected"
+    expected_dir="$(qmodem_testcase_profile_dir)/expected"
     mkdir -p "$expected_dir" 2>/dev/null
     json_dump | tee "$expected_dir/$method.json"
 else
