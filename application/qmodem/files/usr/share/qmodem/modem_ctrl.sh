@@ -67,13 +67,16 @@ get_sms(){
     cache_timeout=$1
     cache_file=$2
     current_time=$(date +%s)
-    file_time=$(stat -t $cache_file | awk '{print $14}')
-    [ -z "$file_time" ] && file_time=0
+    file_time=0
+    if [ -f "$cache_file" ]; then
+        file_time=$(stat -c %Y "$cache_file" 2>/dev/null)
+        [ -z "$file_time" ] && file_time=0
+    fi
     get_sms_capabilities
     if [ ! -f $cache_file ] || [ $(($current_time - $file_time)) -gt $cache_timeout ]; then
         touch $cache_file
         #sms_tool_q -d $at_port -j recv > $cache_file
-        tom_modem $use_ubus_flag  -d $at_port -o r > $cache_file
+        tom_modem $use_ubus_flag -d $at_port -t 10 -g -o r > $cache_file
         echo $(cat $cache_file ; json_dump) | jq -s 'add'
     else
         echo $(cat $cache_file ; json_dump) | jq -s 'add'
@@ -174,7 +177,7 @@ case $method in
             touch /tmp/cache_sms_$2
             if [ "$?" == 0 ]; then
                 json_add_string status "1"
-                json_add_string "index$i" "tom_modem $use_ubus_flag  -d $at_port -o d -i $i"
+                json_add_string "index$i" "tom_modem $use_ubus_flag -d $at_port -t 10 -g -o d -i $i"
             else
                 json_add_string status "0"
             fi
@@ -241,7 +244,7 @@ case $method in
         get_usage_stats
         ;;
     "get_sms")
-        get_sms 10 /tmp/cache_sms_$2
+        get_sms 20 /tmp/cache_sms_$2
         exit
         ;;
     "info")
