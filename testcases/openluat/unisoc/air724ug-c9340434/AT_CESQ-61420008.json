@@ -3,9 +3,13 @@
   "platform": "unisoc",
   "model": "air724ug",
   "command": "AT+CESQ",
-  "response_hex": "41542b434553510d0a0d0a2b434553513a2039392c39392c3235352c3235352c31392c35310d0a0d0a4f4b0d0a",
   "tool": "at",
-  "rc": 0,
-  "timestamp": "2026-08-08T10:55:17Z",
-  "sanitized": true
+  "sanitized": true,
+  "responses": [
+    {
+      "response_hex": "41542b434553510d0a0d0a2b434553513a2039392c39392c3235352c3235352c31392c35310d0a0d0a4f4b0d0a",
+      "rc": 0,
+      "timestamp": "2026-08-08T10:55:17Z"
+    }
+  ]
 }
