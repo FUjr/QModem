@@ -162,6 +162,7 @@ jobs:
   job_build_qmodem:
     name: Build QModem
     needs: [job_prepare]
+    if: ${{ always() && needs.job_prepare.result == 'success' }}
     continue-on-error: true
     strategy:
       matrix:
@@ -185,23 +186,52 @@ jobs:
       - name: Import Env
         run: cat qmodem/.github/workflows/${{ matrix.build_arch }}.env >> "$GITHUB_ENV"
 
+      - name: Resolve snapshot SDK
+        id: resolve-sdk
+        if: env.SDK_PREFIX != ''
+        run: |
+          wget -q "${SDK_URL}sha256sums" -O sdk-sha256sums
+          line=$(awk -v prefix="*${SDK_PREFIX}" -v suffix=".${SDK_EXT}" '
+            index($2, prefix) == 1 && substr($2, length($2) - length(suffix) + 1) == suffix {
+              match_line=$0
+              count++
+            }
+            END {
+              if (count != 1) {
+                print "expected one matching SDK, found " count > "/dev/stderr"
+                exit 1
+              }
+              print match_line
+            }
+          ' sdk-sha256sums)
+          sdk_sha256=${line%% *}
+          sdk_file=${line#* \*}
+          sdk_name=${sdk_file%.${SDK_EXT}}
+          echo "Resolved snapshot SDK: ${sdk_file}"
+          echo "SDK_NAME=${sdk_name}" >> "$GITHUB_ENV"
+          echo "SDK_SHA256=${sdk_sha256}" >> "$GITHUB_ENV"
+          echo "sdk_name=${sdk_name}" >> "$GITHUB_OUTPUT"
+
       - name: Cache openwrt SDK
         id: cache-sdk
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: sdk
-          key: openwrt-sdk-${{ matrix.build_arch }}
+          key: openwrt-sdk-${{ matrix.build_arch }}-${{ env.SDK_NAME }}${{ steps.resolve-sdk.outputs.sdk_name }}
 
       - name: Initialization environment
         if: steps.cache-sdk.outputs.cache-hit != 'true'
         env:
           url_sdk: ${{ env.SDK_URL }}${{ env.SDK_NAME}}.${{ env.SDK_EXT }}
         run: |
-          wget ${{ env.url_sdk }}
-          file_name=${{ env.SDK_NAME}}.${{ env.SDK_EXT }}
-          if [ "${{ env.SDK_EXT }}" == "tar.zst" ]; then
+          file_name="${SDK_NAME}.${SDK_EXT}"
+          wget "${url_sdk}"
+          if [ -n "${SDK_SHA256:-}" ]; then
+            printf '%s  %s\n' "$SDK_SHA256" "$file_name" | sha256sum -c -
+          fi
+          if [ "${SDK_EXT}" == "tar.zst" ]; then
             mkdir sdk && tar --zstd -xvf $file_name -C ./sdk --strip-components=1
-          elif [ "${{ env.SDK_EXT }}" == "tar.xz" ]; then
+          elif [ "${SDK_EXT}" == "tar.xz" ]; then
             mkdir sdk && tar -xvf $file_name -C ./sdk --strip-components=1
           fi
           cd sdk
