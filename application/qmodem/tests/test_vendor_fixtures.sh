@@ -61,6 +61,10 @@ for profile_dir in "${profile_dirs[@]}"; do
     [ -n "$fixture_model" ] || fixture_model=unknown
     fixture_vendor=$(jq -r '.vendor // empty' "$first_fixture")
     fixture_platform=$(jq -r '.platform // empty' "$first_fixture")
+    fixture_modes=$(jq -r '.capabilities.modes // [] | join(" ")' "$first_fixture")
+    [ -n "$fixture_modes" ] || fixture_modes=$(jq -r --arg model "$fixture_model" '
+        [.modem_support[] | .[$model]? | .modes[]?] | join(" ")
+    ' "$QMODEM_HOME/modem_support.json")
     profile_vendor_value=$fixture_vendor
     profile_platform_value=$fixture_platform
     if [ "$(profile_segment "$fixture_vendor" core)" != "$vendor" ] || \
@@ -119,7 +123,8 @@ for profile_dir in "${profile_dirs[@]}"; do
     vendor="$vendor"
     platform="$profile_platform"
     QMODEM_TESTCASE_MODEL="$fixture_model"
-    export vendor platform QMODEM_TESTCASE_MODEL
+    QMODEM_TESTCASE_MODES="$fixture_modes"
+    export vendor platform QMODEM_TESTCASE_MODEL QMODEM_TESTCASE_MODES
     . "$QMODEM_JSHN"
     . "$vendor_file"
     . "$cmds_file"
@@ -160,7 +165,17 @@ for profile_dir in "${profile_dirs[@]}"; do
             continue
         fi
         json_init
-        out=$("$method"; json_dump)
+        json_add_object result
+        json_close_object
+        case "$method" in
+            base_info|cell_info)
+                json_add_array modem_info
+                "$method"
+                json_close_array
+                ;;
+            *) "$method" ;;
+        esac
+        out=$(json_dump)
         rc=$?
         if [ "$rc" -ne 0 ] || ! printf '%s' "$out" | jq -e . >/dev/null 2>&1; then
             echo "FAIL: $profile_label: $method failed (rc=$rc) or emitted invalid JSON"
