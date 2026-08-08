@@ -7,6 +7,60 @@ import { cursor } from 'uci';
 const TOM_MODEM_PATH = '/usr/bin/tom_modem';
 const DEFAULT_SMS_DB_DIR = '/etc/qmodem';
 
+function shellQuote(value) {
+	value = `${value ?? ''}`;
+	let quoted = "'";
+	for (let i = 0; i < length(value); i++) {
+		let ch = substr(value, i, 1);
+		quoted += ch == "'" ? "'\\''" : ch;
+	}
+	return quoted + "'";
+}
+
+function hasOnlyChars(value, allowed) {
+	value = `${value ?? ''}`;
+	for (let i = 0; i < length(value); i++) {
+		if (index(allowed, substr(value, i, 1)) < 0)
+			return false;
+	}
+	return true;
+}
+
+function isSafeToken(value) {
+	value = `${value ?? ''}`;
+	if (!value || length(value) > 64)
+		return false;
+	return hasOnlyChars(value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-');
+}
+
+function isSafePath(value) {
+	value = `${value ?? ''}`;
+	if (!value || length(value) > 128 || substr(value, 0, 1) != '/')
+		return false;
+
+	if (index(value, '..') >= 0)
+		return false;
+	return hasOnlyChars(value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/_-.');
+}
+
+function isSafePdu(value) {
+	value = `${value ?? ''}`;
+	if (!value || length(value) > 2048)
+		return false;
+	return hasOnlyChars(value, '0123456789ABCDEFabcdef');
+}
+
+function isNonNegativeInteger(value) {
+	value = `${value ?? ''}`;
+	if (!value || length(value) > 10)
+		return false;
+	return hasOnlyChars(value, '0123456789');
+}
+
+function isSmsStorage(value) {
+	return value == 'ME' || value == 'SM' || value == 'MT';
+}
+
 // Initialize SMS database
 function initSmsDb(db_path, config_section) {
 	let db_dir = db_path;
@@ -17,7 +71,7 @@ function initSmsDb(db_path, config_section) {
 		stat(db_dir);
 	} catch (e) {
 		try {
-			system(`mkdir -p ${db_dir}`);
+			system(`mkdir -p ${shellQuote(db_dir)}`);
 		} catch (err) {
 			warn(`Failed to create directory ${db_dir}: ${err}\n`);
 			return false;
@@ -59,7 +113,7 @@ function initReceivedSmsDb(db_path, config_section) {
 		stat(db_dir);
 	} catch (e) {
 		try {
-			system(`mkdir -p ${db_dir}`);
+			system(`mkdir -p ${shellQuote(db_dir)}`);
 		} catch (err) {
 			warn(`Failed to create directory ${db_dir}: ${err}\n`);
 			return false;
@@ -185,6 +239,9 @@ function writeReceivedSmsDb(db_path, config_section, data) {
 
 // Get modem configuration from UCI
 function getModemConfig(config_section) {
+	if (!isSafeToken(config_section))
+		return null;
+
 	let ctx = cursor();
 	if (!ctx)
 		return null;
@@ -198,6 +255,9 @@ function getModemConfig(config_section) {
 	let use_ubus = cfg.use_ubus == '1';
 	let sms_db_path = cfg.sms_db_path || DEFAULT_SMS_DB_DIR;
 	let sms_auto_delete_from_sim = cfg.sms_auto_delete_from_sim != '0'; // Default to true
+
+	if (!isSafePath(at_port) || !isSafePath(sms_db_path))
+		return null;
 	
 	return {
 		at_port: at_port,
@@ -209,18 +269,30 @@ function getModemConfig(config_section) {
 
 // Execute tom_modem command
 function execTomModem(at_port, use_ubus, operation, params) {
+	if (operation != 'r' && operation != 's' && operation != 'd')
+		return null;
+
+	if (!isSafePath(at_port))
+		return null;
+
 	let cmd = TOM_MODEM_PATH;
 	
 	if (use_ubus)
 		cmd += ' -u';
 	
-	cmd += ` -d "${at_port}" -o ${operation}`;
+	cmd += ` -d ${shellQuote(at_port)} -o ${operation}`;
 	
-	if (params?.pdu)
-		cmd += ` -p "${params.pdu}"`;
+	if (params?.pdu) {
+		if (!isSafePdu(params.pdu))
+			return null;
+		cmd += ` -p ${shellQuote(params.pdu)}`;
+	}
 	
-	if (params?.index != null)
+	if (params?.index != null) {
+		if (!isNonNegativeInteger(params.index))
+			return null;
 		cmd += ` -i ${params.index}`;
+	}
 	
 	try {
 		let proc = popen(cmd, 'r');
@@ -248,23 +320,15 @@ function execTomModem(at_port, use_ubus, operation, params) {
 
 // Execute AT command directly via tom_modem
 function execAtCommand(at_port, use_ubus, at_cmd) {
+	if (!isSafePath(at_port))
+		return null;
+
 	let cmd = TOM_MODEM_PATH;
 	
 	if (use_ubus)
 		cmd += ' -u';
 	
-	// Use single quotes to wrap AT command to preserve internal double quotes
-	// Replace any single quotes in the AT command with '\'' to escape them
-	let safe_cmd = '';
-	for (let i = 0; i < length(at_cmd); i++) {
-		let ch = substr(at_cmd, i, 1);
-		if (ch == "'")
-			safe_cmd += "'\\''";
-		else
-			safe_cmd += ch;
-	}
-	
-	cmd += ` -d '${at_port}' -o a -c '${safe_cmd}'`;
+	cmd += ` -d ${shellQuote(at_port)} -o a -c ${shellQuote(at_cmd)}`;
 	
 	try {
 		let proc = popen(cmd, 'r');
@@ -737,8 +801,6 @@ return {
 				let conversations = groupByConversation(all_messages);
 				
 				return {
-					modem_config: config,
-					received_from_sim: received_from_sim,
 					conversations: conversations,
 					total: length(all_messages)
 				};
@@ -1213,6 +1275,9 @@ return {
 				
 				if (!mem1 || !mem2)
 					return { error: 'Missing mem1 or mem2 parameter' };
+
+				if (!isSmsStorage(mem1) || !isSmsStorage(mem2) || (mem3 && mem3 != 'Loading' && !isSmsStorage(mem3)))
+					return { error: 'Invalid SMS storage parameter' };
 				
 				// Build AT+CPMS command
 				let at_cmd = `AT+CPMS="${mem1}","${mem2}"`;
@@ -1274,9 +1339,9 @@ return {
 				let config = getModemConfig(config_section);
 				if (!config)
 					return { error: 'Failed to get modem configuration' };
-				
+
 				let index = request.args.index;
-				if (index == null || index < 0)
+				if (!isNonNegativeInteger(index))
 					return { error: 'Invalid SMS index' };
 				
 				// Delete SMS from SIM card

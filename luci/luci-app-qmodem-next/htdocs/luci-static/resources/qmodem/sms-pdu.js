@@ -426,8 +426,8 @@ class LuciTable{
             var left = data.left;
             var right = data.right;
             //clear the row
-            this.rows[index].left.innerHTML = "";
-            this.rows[index].right.innerHTML = "";
+            this.rows[index].left.textContent = "";
+            this.rows[index].right.textContent = "";
             //set the row
             this.rows[index].left.appendChild(left);
             this.rows[index].right.appendChild(right);
@@ -441,8 +441,8 @@ class LuciTable{
 
 
         set title(value){
-            this.legend.innerHTML = value;
-            this.title_span.innerHTML = value;
+            this.legend.textContent = value;
+            this.title_span.textContent = value;
         }
 
         set object_data(value){
@@ -476,8 +476,8 @@ class LuciTable{
             }
             var index = 0;
             for (var key in value) {
-                this.rows[index].left.innerHTML = key;
-                this.rows[index].right.innerHTML = value[key];
+                this.rows[index].left.textContent = key;
+                this.rows[index].right.textContent = value[key];
                 index++;
             }
         }

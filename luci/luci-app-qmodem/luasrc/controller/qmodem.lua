@@ -4,10 +4,61 @@ module("luci.controller.qmodem", package.seeall)
 local http = require "luci.http"
 local fs = require "nixio.fs"
 local json = require("luci.jsonc")
+local util = require "luci.util"
 uci = luci.model.uci.cursor()
 local script_path="/usr/share/qmodem/"
 local run_path="/tmp/run/qmodem/"
 local modem_ctrl = "/usr/share/qmodem/modem_ctrl.sh "
+local allowed_modem_actions = {
+	base_info = true,
+	cell_info = true,
+	clear_stats = true,
+	clear_dial_log = true,
+	delete_sms = true,
+	do_reboot = true,
+	get_at_cfg = true,
+	get_copyright = true,
+	get_current_band = true,
+	get_current_band_capabilities = true,
+	get_disabled_features = true,
+	get_dns = true,
+	get_imei = true,
+	get_lockband = true,
+	get_mode = true,
+	get_neighborcell = true,
+	get_network_prefer = true,
+	get_reboot_caps = true,
+	get_stats = true,
+	get_sms = true,
+	info = true,
+	network_info = true,
+	send_at = true,
+	send_raw_pdu = true,
+	send_sms = true,
+	set_imei = true,
+	set_lockband = true,
+	set_mode = true,
+	set_neighborcell = true,
+	set_network_prefer = true,
+	set_sms_storage = true,
+	sim_info = true,
+	get_sim_switch_capabilities = true,
+	get_sim_slot = true,
+	set_sim_slot = true
+}
+
+local function valid_token(value)
+	return value and value:match("^[A-Za-z0-9_-]+$") ~= nil
+end
+
+local function valid_path(value)
+	return value and value:match("^/[A-Za-z0-9_/%-%.]+$") ~= nil and not value:match("%.%.")
+end
+
+local function write_json_error(message)
+	luci.http.prepare_content("application/json")
+	luci.http.write_json({ error = message })
+end
 
 function index()
     if not nixio.fs.access("/etc/config/qmodem") then
@@ -72,10 +123,16 @@ function modemCtrl()
 	local cfg_id = http.formvalue("cfg")
 	local params = http.formvalue("params")
 	local translate = http.formvalue("translate")
+	if not allowed_modem_actions[action] then
+		return write_json_error("Invalid action")
+	end
+	if not valid_token(cfg_id) then
+		return write_json_error("Invalid config section")
+	end
 	if params then
-		result = shell(modem_ctrl..action.." "..cfg_id.." ".."\""..params.."\"")
+		result = shell(modem_ctrl..util.shellquote(action).." "..util.shellquote(cfg_id).." "..util.shellquote(params))
 	else 
-		result = shell(modem_ctrl..action.." "..cfg_id)
+		result = shell(modem_ctrl..util.shellquote(action).." "..util.shellquote(cfg_id))
 	end
 	if translate == "1" then
 		modem_more_info = json.parse(result)
@@ -93,7 +150,10 @@ end
 	at_command AT命令
 ]]
 function at(at_port,at_command)
-	local command="source "..script_path.."modem_util.sh && at "..at_port.." "..at_command
+	if not valid_path(at_port) then
+		return ""
+	end
+	local command="source "..util.shellquote(script_path.."modem_util.sh").." && at "..util.shellquote(at_port).." "..util.shellquote(at_command or "")
 	local result=shell(command)
 	result=string.gsub(result, "\r", "")
 	return result
@@ -116,7 +176,7 @@ function getOverviews()
 			return
 		end
 --模组信息部分
-		cmd = modem_ctrl.."base_info "..section_name
+		cmd = modem_ctrl.."base_info "..util.shellquote(section_name)
 		result = shell(cmd)
 		json_result = json.parse(result) or "{}"
 		modem_info = json_result["modem_info"]
@@ -213,7 +273,11 @@ function sendATCommand()
 
 	local response={}
     if at_port and at_command then
-		response["response"]=at(at_port,at_command)
+		if valid_path(at_port) then
+			response["response"]=at(at_port,at_command)
+		else
+			response["error"]="Invalid AT port"
+		end
 		response["time"]=os.date("%Y-%m-%d %H:%M:%S")
     end
 

@@ -426,8 +426,8 @@ class LuciTable{
             var left = data.left;
             var right = data.right;
             //clear the row
-            this.rows[index].left.innerHTML = "";
-            this.rows[index].right.innerHTML = "";
+            this.rows[index].left.textContent = "";
+            this.rows[index].right.textContent = "";
             //set the row
             this.rows[index].left.appendChild(left);
             this.rows[index].right.appendChild(right);
@@ -441,8 +441,8 @@ class LuciTable{
 
 
         set title(value){
-            this.legend.innerHTML = value;
-            this.title_span.innerHTML = value;
+            this.legend.textContent = value;
+            this.title_span.textContent = value;
         }
 
         set object_data(value){
@@ -476,8 +476,8 @@ class LuciTable{
             }
             var index = 0;
             for (var key in value) {
-                this.rows[index].left.innerHTML = key;
-                this.rows[index].right.innerHTML = value[key];
+                this.rows[index].left.textContent = key;
+                this.rows[index].right.textContent = value[key];
                 index++;
             }
         }
@@ -556,7 +556,7 @@ class ModemSMS {
     const createOption = (value, text, disabled = false, selected = false) => {
         const opt = document.createElement('option');
         opt.value = value;
-        opt.innerHTML = text;
+        opt.textContent = text;
         opt.disabled = disabled;
         opt.selected = selected;
         return opt;
@@ -618,7 +618,7 @@ class ModemSMS {
     warn_msg(msg,timeout){
         this.warn_msg_box.style.display = "";
         this.warn_msg_box.classList.add("alert-warning");
-        this.warn_msg_box.firstChild.innerHTML = msg;
+        this.warn_msg_box.firstChild.textContent = msg;
         setTimeout(()=>{
             this.warn_msg_box.style.display = "none";
             this.warn_msg_box.classList.remove("alert-warning");
@@ -628,7 +628,7 @@ class ModemSMS {
     log_msg(msg,timeout){
         this.warn_msg_box.style.display = "";
         this.warn_msg_box.classList.add("alert-info");
-        this.warn_msg_box.firstChild.innerHTML = msg;
+        this.warn_msg_box.firstChild.textContent = msg;
         setTimeout(()=>{
             this.warn_msg_box.style.display = "none";
             this.warn_msg_box.classList.remove("alert-info");
@@ -889,8 +889,8 @@ class ModemSMS {
         } else {
             storage.value = "Loading";
         }
-        this[mtOpt].innerHTML = mt + me_message_text;
-        this[smOpt].innerHTML = sm + sm_message_text;
+        this[mtOpt].textContent = mt + me_message_text;
+        this[smOpt].textContent = sm + sm_message_text;
     };
 
     const me_message_text = sms_capabilities.ME.used
@@ -917,7 +917,7 @@ class ModemSMS {
                     this.selector.appendChild(option);
                 }
                 option.value = value[i].value;
-                option.innerHTML = value[i].name;
+                option.textContent = value[i].name;
                 
             }
             else{
@@ -969,11 +969,11 @@ class ModemSMS {
                 });
             });
             sender_strong = document.createElement('strong');
-            sender_strong.innerHTML = `<%:Sender%>: ${sender}`;
+            sender_strong.textContent = `<%:Sender%>: ${sender}`;
             timestamp_strong = document.createElement('strong');
-            timestamp_strong.innerHTML = `<%:Timestamp%>: ${timestamp}`;
+            timestamp_strong.textContent = `<%:Timestamp%>: ${timestamp}`;
             content_strong = document.createElement('strong');
-            content_strong.innerHTML = `<%:Content%>: ${content}`;
+            content_strong.textContent = `<%:Content%>: ${content}`;
             left.appendChild(sender_strong);
             left.appendChild(document.createElement('br'));
             left.appendChild(timestamp_strong);
@@ -982,7 +982,7 @@ class ModemSMS {
             right.appendChild(content_strong);
             if (part != null) {
                 part_strong = document.createElement('strong');
-                part_strong.innerHTML = `(${part}/${total})`;
+                part_strong.textContent = `(${part}/${total})`;
                 right.appendChild(document.createElement('br'));
                 right.appendChild(part_strong);
             }

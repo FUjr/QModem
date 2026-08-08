@@ -1,15 +1,20 @@
 local modem_cfg = require "luci.model.cbi.qmodem.modem_cfg"
+local fs = require "nixio.fs"
+
+local function safe_dir(path)
+    return fs.dir(path) or function() return nil end
+end
 
 -- Helper function to load slot paths
 local function load_slots(path, exclude_pattern)
     local slots = {}
-    local handle = io.popen("ls " .. path)
-    for line in handle:lines() do
-        if not exclude_pattern or not line:match(exclude_pattern) then
-            table.insert(slots, line)
+    for line in safe_dir(path) do
+        if line ~= "." and line ~= ".." then
+            if not exclude_pattern or not line:match(exclude_pattern) then
+                table.insert(slots, line)
+            end
         end
     end
-    handle:close()
     return slots
 end
 
