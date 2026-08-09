@@ -4,6 +4,7 @@ _Vendor="sierra"
 _Author="Fujr"
 _Maintainer="Fujr <fjrcn@outlook.com>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/sierra.sh"
 debug_subject="quectel_ctrl"
 unlock_advance(){
     [ -z "$sierra_pass" ] && sierra_pass="A710"

@@ -4,6 +4,7 @@ _Vendor="telit"
 _Author="sfwtw"
 _Maintainer="sfwtw <sfwtw@qq.com>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/telit.sh"
 debug_subject="telit_ctrl"
 
 vendor_get_disabled_features()

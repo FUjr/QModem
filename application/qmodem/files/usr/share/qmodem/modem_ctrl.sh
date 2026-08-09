@@ -23,7 +23,6 @@ modem_slot=$(basename $modem_path)
 
 #please update dynamic_load.json to add new vendor
 vendor_script_prefix="$qmodem_home/vendor"
-cmds_script_prefix="$qmodem_home/cmds"
 dynamic_load_json="$vendor_script_prefix/dynamic_load.json"
 vendor_file="${vendor_script_prefix}/`jq -r --arg vendor $vendor '.[$vendor]' $dynamic_load_json`"
 if [ -z "$vendor" ] || [ ! -f "$vendor_file" ]; then
@@ -31,13 +30,6 @@ if [ -z "$vendor" ] || [ ! -f "$vendor_file" ]; then
     . "$qmodem_home/generic.sh"
 fi
 . $vendor_file
-#vendor scripts send AT commands only through the cmds layer
-cmds_file="$cmds_script_prefix/$(basename $vendor_file)"
-if [ -f "$cmds_file" ]; then
-    . "$cmds_file"
-else
-    logger -t modem_ctrl "cmds file for vendor $vendor not found"
-fi
 
 try_cache() {
     cache_timeout=$1

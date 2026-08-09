@@ -5,6 +5,7 @@ _Vendor="fibocom"
 _Author="Siriling Fujr"
 _Maintainer="Fujr <fjrcn@outlook.com>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/fibocom.sh"
 
 vendor_get_disabled_features(){
     json_add_string "" ""
