@@ -5,6 +5,7 @@ _Vendor="quectel"
 _Author="Siriling,Fujr"
 _Maintainer="Fujr <fjrcn@outlook.com>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/quectel.sh"
 debug_subject="quectel_ctrl"
 
 get_5g_lan()

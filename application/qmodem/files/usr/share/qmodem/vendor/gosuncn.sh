@@ -4,6 +4,7 @@ _Vendor="Gosuncn"
 _Author="Fujr"
 _Maintainer="Fujr <fjrcn@outlook.com>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/gosuncn.sh"
 debug_subject="gosuncn_ctrl"
 
 #获取LTE带宽

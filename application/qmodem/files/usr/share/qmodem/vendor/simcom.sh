@@ -4,6 +4,7 @@ _Vendor="simcom"
 _Author="sfwtw,fujr"
 _Maintainer="sfwtw <sfwtw@qq.com>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/simcom.sh"
 debug_subject="quectel_ctrl"
 #return raw data
 get_imei(){
