@@ -499,7 +499,10 @@ update_config()
     bridge_ports_selected="$slot_bridge_ports"
     [ -n "$device_bridge_ports" ] && bridge_ports_selected="$device_bridge_ports"
     config_get bridge_management_ip $modem_config bridge_management_ip
-    [ "$en_bridge" = "1" ] && bridge_enabled=1
+    if [ "$en_bridge" = "1" ]; then
+        bridge_enabled=1
+        donot_nat=1
+    fi
     driver=$(get_driver)
     update_sim_slot
     case $sim_slot in
@@ -906,8 +909,8 @@ set_if()
     if [ "$network_reload_flag" -eq 1 ] || [ "$interface_update_flag" -eq 1 ] || [ "$bridge_network_dirty" -eq 1 ];then
         uci commit network
         if [ "$bridge_network_dirty" -eq 1 ]; then
-            /etc/init.d/network reload
-            m_debug "network reload"
+            /etc/init.d/network restart
+            m_debug "network restart"
         else
             ifup ${interface_name}
             ifup ${interface6_name}
@@ -950,7 +953,7 @@ flush_if()
         /etc/init.d/firewall restart
     fi
     if [ "$network_reload_needed" -eq 1 ]; then
-        /etc/init.d/network reload
+        /etc/init.d/network restart
     fi
 }
 
