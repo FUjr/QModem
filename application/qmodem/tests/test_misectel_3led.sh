@@ -34,6 +34,26 @@ assert_level excellent -90
 assert_level excellent -30
 assert_level none -29
 
+assert_rsrp()
+{
+	local expected="$1"
+	local prefer_nr="$2"
+	local cell_info="$3"
+	local actual
+
+	actual="$(misectel_rsrp_value "$cell_info" "$prefer_nr")"
+	[ "$actual" = "$expected" ] || {
+		echo "RSRP selection: expected ${expected}, got ${actual}" >&2
+		exit 1
+	}
+}
+
+dual_rsrp='{"modem_info":[{"key":"RSRP","value":"-88","extra_info":"LTE"},{"key":"RSRP","value":"-112","extra_info":"NR5G-NSA"}]}'
+assert_rsrp -88 0 "$dual_rsrp"
+assert_rsrp -112 1 "$dual_rsrp"
+assert_rsrp -100 0 '{"modem_info":[{"key":"rsrp","value":" -99.4 dBm "}]}'
+assert_rsrp '' 0 '{"modem_info":[{"key":"RSRP","value":"unknown"}]}'
+
 grep -q 'misectel,m01k21)' "$board_script"
 grep -q 'script misectel_3led bind any' "$board_script"
 for led in \
