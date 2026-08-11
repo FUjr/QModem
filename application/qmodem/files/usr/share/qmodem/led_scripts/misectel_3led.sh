@@ -77,14 +77,7 @@ update_leds()
 
 	rsrp="$(misectel_rsrp_value "$cell_info" "$is_nr")"
 	signal_level="$(misectel_3led_signal_level "$rsrp")"
-	led_turn "$LED_SIGNAL_POOR" 0
-	led_turn "$LED_SIGNAL_GOOD" 0
-	led_turn "$LED_SIGNAL_EXCELLENT" 0
-	case "$signal_level" in
-		poor) led_turn "$LED_SIGNAL_POOR" 1 ;;
-		good) led_turn "$LED_SIGNAL_GOOD" 1 ;;
-		excellent) led_turn "$LED_SIGNAL_EXCELLENT" 1 ;;
-	esac
+	misectel_3led_update_signal_leds "$signal_level"
 }
 
 misectel_led_init || exit 1

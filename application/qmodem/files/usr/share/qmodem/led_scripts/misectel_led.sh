@@ -193,6 +193,23 @@ led_turn()
 	echo "$brightness" > "$path/brightness"
 }
 
+misectel_3led_update_signal_leds()
+{
+	local signal_level="$1"
+	local poor=0
+	local good=0
+	local excellent=0
+
+	case "$signal_level" in
+		poor) poor=1 ;;
+		good) poor=1; good=1 ;;
+		excellent) poor=1; good=1; excellent=1 ;;
+	esac
+	led_turn "$LED_SIGNAL_POOR" "$poor"
+	led_turn "$LED_SIGNAL_GOOD" "$good"
+	led_turn "$LED_SIGNAL_EXCELLENT" "$excellent"
+}
+
 led_heartbeat()
 {
 	local path="/sys/class/leds/$1"

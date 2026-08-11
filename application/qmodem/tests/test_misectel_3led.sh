@@ -34,6 +34,31 @@ assert_level excellent -90
 assert_level excellent -30
 assert_level none -29
 
+assert_led_pattern()
+{
+	local expected="$1"
+	local signal_level="$2"
+	local actual=
+
+	LED_SIGNAL_POOR=poor
+	LED_SIGNAL_GOOD=good
+	LED_SIGNAL_EXCELLENT=excellent
+	led_turn()
+	{
+		actual="${actual}${1}=${2} "
+	}
+	misectel_3led_update_signal_leds "$signal_level"
+	[ "$actual" = "$expected" ] || {
+		echo "LED pattern ${signal_level}: expected '${expected}', got '${actual}'" >&2
+		exit 1
+	}
+}
+
+assert_led_pattern 'poor=0 good=0 excellent=0 ' none
+assert_led_pattern 'poor=1 good=0 excellent=0 ' poor
+assert_led_pattern 'poor=1 good=1 excellent=0 ' good
+assert_led_pattern 'poor=1 good=1 excellent=1 ' excellent
+
 assert_rsrp()
 {
 	local expected="$1"
