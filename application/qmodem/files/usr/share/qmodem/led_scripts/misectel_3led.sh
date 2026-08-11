@@ -17,27 +17,30 @@ update_cfg()
 	[ "$USE_UBUS" != 1 ] || use_ubus_flag=-u
 }
 
-sim_inserted()
+get_sim_state()
 {
-	[ -n "$AT_PORT" ] && at "$AT_PORT" 'AT+CPIN?' | grep -q 'CPIN: READY'
+	local response
+
+	[ -n "$AT_PORT" ] || {
+		echo unknown
+		return
+	}
+	response="$(at "$AT_PORT" 'AT+CPIN?' 2>/dev/null)"
+	misectel_sim_state "$response"
 }
 
 get_mode()
 {
 	local cell_info="$1"
-	local network_mode rat_code
+	local state rat_code
 
-	network_mode="$(printf '%s\n' "$cell_info" | jq -r '.modem_info[]? | select(.key == "network_mode") | .value' | head -n 1)"
-	case "$network_mode" in
-		*EN-DC*|*NR5G*|*NR*|*5G*) echo 1; return ;;
-		*LTE*|*4G*|*WCDMA*|*3G*) echo 0; return ;;
+	state="$(misectel_cell_5g_state "$cell_info")"
+	case "$state" in
+		0|1) echo "$state"; return ;;
 	esac
 
-	rat_code="$(at "$AT_PORT" 'AT+COPS?' | grep '+COPS:' | awk -F, '{print $4}' | tr -d '"')"
-	case "$rat_code" in
-		''|*[!0-9]*) echo "$last_is_nr" ;;
-		*) [ "$rat_code" -le 7 ] && echo 0 || echo 1 ;;
-	esac
+	rat_code="$(at "$AT_PORT" 'AT+COPS?' 2>/dev/null | grep '+COPS:' | awk -F, '{print $4}' | tr -d '\r" ')"
+	misectel_cops_5g_state "$rat_code" 2>/dev/null || echo "$last_is_nr"
 }
 
 all_leds_off()
@@ -51,16 +54,23 @@ all_leds_off()
 
 update_leds()
 {
-	local cell_info is_nr rsrp signal_level
+	local cell_info is_nr rsrp signal_level sim_state
 
-	if ! sim_inserted; then
-		all_leds_off
-		last_is_nr=0
-		return
-	fi
-
-	led_turn "$LED_SIM" 1
+	sim_state="$(get_sim_state)"
+	case "$sim_state" in
+		present) led_turn "$LED_SIM" 1 ;;
+		absent)
+			all_leds_off
+			last_is_nr=0
+			return
+			;;
+		# A temporary AT failure must not blank every modem status LED.
+		unknown) ;;
+	esac
 	cell_info="$(/usr/share/qmodem/modem_ctrl.sh cell_info "$MODEM_CFG")"
+	if ! printf '%s\n' "$cell_info" | jq -e '.modem_info | type == "array"' >/dev/null 2>&1; then
+		cell_info="$(cat "/tmp/cache_cell_info_${MODEM_CFG}" 2>/dev/null)"
+	fi
 	is_nr="$(get_mode "$cell_info")"
 	last_is_nr="$is_nr"
 	led_turn "$LED_5G" "$is_nr"

@@ -74,6 +74,51 @@ misectel_rsrp_value()
 	' 2>/dev/null
 }
 
+misectel_cell_5g_state()
+{
+	local cell_info="$1"
+
+	printf '%s\n' "$cell_info" | jq -r '
+		[.modem_info[]? | {
+			key: ((.key // "") | tostring | ascii_upcase | gsub("[^A-Z0-9]"; "")),
+			value: ((.value // "") | tostring | ascii_upcase),
+			extra: ((.extra_info // "") | tostring | ascii_upcase)
+		}] as $entries
+		| if ([$entries[] | select(
+			(((.key == "NETWORKMODE") or (.key == "NETWORKTYPE") or (.key == "RAT"))
+				and (.value | test("NR|5G|EN[ -]?DC")))
+			or ((.key | test("^(NR5G|5G|ENDC)")) and (.value | test("NR|5G|EN[ -]?DC")))
+			or (.extra | test("NR|5G|EN[ -]?DC"))
+			or (((.key == "BAND") or (.key == "BANDNAME"))
+				and (.value | test("(^|[^A-Z0-9])NR([^A-Z0-9]|$)|(^|[^A-Z0-9])N[0-9]+")))
+		)] | length) > 0 then "1"
+		elif ([$entries[] | select(
+			((.key == "NETWORKMODE") or (.key == "NETWORKTYPE") or (.key == "RAT"))
+			and (.value | test("LTE|4G|WCDMA|3G|UMTS|GSM|2G"))
+		)] | length) > 0 then "0"
+		else empty
+		end
+	' 2>/dev/null
+}
+
+misectel_cops_5g_state()
+{
+	case "$1" in
+		11|12|13) echo 1 ;;
+		0|1|2|3|4|5|6|7|8|9|10) echo 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+misectel_sim_state()
+{
+	case "$1" in
+		*'SIM not inserted'*|*'SIM NOT INSERTED'*|*'NOT INSERTED'*) echo absent ;;
+		*'+CPIN:'*) echo present ;;
+		*) echo unknown ;;
+	esac
+}
+
 led_turn()
 {
 	local path="/sys/class/leds/$1"
