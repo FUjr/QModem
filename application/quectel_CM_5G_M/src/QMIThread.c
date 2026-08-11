@@ -770,6 +770,15 @@ static int requestSetEthMode(PROFILE_T *profile) {
 
         qmap_settings.ul_data_aggregation_max_datagrams = 11; //by test result, 11 can get best TPUT
         qmap_settings.ul_data_aggregation_max_size = 8*1024;
+        
+        // SDX7X on PCIe: driver sets qmap_size to 32KB
+        // Increase UL aggregation to match the larger buffer. */
+        if (profile->hardware_interface == HARDWARE_PCIE
+            && profile->qmap_size >= 32*1024) {
+            qmap_settings.ul_data_aggregation_max_datagrams = 32; // ?
+            qmap_settings.ul_data_aggregation_max_size = 32*1024;
+        }
+
         qmap_settings.dl_minimum_padding = 0; //no effect when register to real netowrk
         if(profile->qmap_version != 0x09)
             profile->qmap_version = 0x05;
