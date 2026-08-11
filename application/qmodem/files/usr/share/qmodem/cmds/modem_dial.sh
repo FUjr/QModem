@@ -6,6 +6,7 @@
 cmd_dial_command() { at "$1" "$2"; }
 cmd_dial_cpin_unlock() { at "$1" "AT+CPIN=\"$2\""; }
 cmd_dial_cpin_query() { at "$1" 'AT+CPIN?'; }
+cmd_dial_cimi_query() { at "$1" 'AT+CIMI'; }
 cmd_dial_neoway_simcross_iccid() { at "$1" 'AT+SIMCROSS=1,1;$MYCCID'; }
 cmd_dial_cfun_enable() { at "$1" 'AT+CFUN=1'; }
 cmd_dial_cgpaddr() { at "$1" "AT+CGPADDR=$2"; }
