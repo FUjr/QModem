@@ -1,0 +1,1 @@
+{ "result": { }, "current_band_capabilities": { "supported": true, "vendor": "quectel", "method": "AT+QENG=\"servingcell\"", "schema": "current_band" } }

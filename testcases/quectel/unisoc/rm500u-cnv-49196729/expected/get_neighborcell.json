@@ -1,0 +1,1 @@
+{ "result": { }, "neighborcell": { "NR": [ { "neighbourcell": "", "arfcn": "633984", "pci": "262", "rscp": "", "ecno": "", "rsrp": "-102", "rsrq": "-17" } ], "LTE": [ ], "lockcell_status": { "LTE": "unlock", "NR": "unlock" }, "lockcell_boot_hook": { "enabled": false, "delay": "15", "at_cmds": [ ] } } }

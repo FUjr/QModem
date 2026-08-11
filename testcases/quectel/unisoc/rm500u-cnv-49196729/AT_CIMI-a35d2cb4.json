@@ -1,0 +1,12 @@
+{
+  "vendor": "quectel",
+  "platform": "unisoc",
+  "model": "rm500u-cnv",
+  "phase": "vendor",
+  "config_section": "2_1",
+  "command": "AT+CIMI",
+  "response_hex": "41542b43494d490d0d0a3436303131353036383330373534380d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-11T09:36:02Z"
+}
