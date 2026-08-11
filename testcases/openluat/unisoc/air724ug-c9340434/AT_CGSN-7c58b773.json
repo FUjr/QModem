@@ -1,0 +1,11 @@
+{
+  "vendor": "openluat",
+  "platform": "unisoc",
+  "model": "air724ug",
+  "command": "AT+CGSN",
+  "response_hex": "41542b4347534e0d0a0d0a3836303030303030303030303039320d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-08T10:55:15Z",
+  "sanitized": true
+}

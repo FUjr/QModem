@@ -132,6 +132,7 @@ These settings control the data connection profile.
 | **AT Port / SMS AT Port**                        | General  | `List`    | Selects the validated AT port for data and SMS functions.                                                  |
 | **DNS** (`dns_list`)                             | General  | `List`    | A list of custom DNS servers to use. If empty, the carrier's DNS is used.                                  |
 | **Bridge Mode** (`en_bridge`)                    | Advanced | `Flag`    | Enables bridge/passthrough mode. (Note: Only available for certain Quectel 5G modems).                     |
+| **Bridge Port** (`bridge_port`)                  | Advanced | `Text`    | The passthrough bridge port. Device-level `bridge_port` overrides the slot default bridge port.            |
 | **Do Not modify resolv.conf** (`do_not_add_dns`) | Advanced | `Flag`    | Prevents`quectel-cm` from automatically adding DNS servers to `/etc/resolv.conf`.                          |
 | **RA Master** (`ra_master`)                      | Advanced | `Flag`    | If enabled, this interface becomes the IPv6 Router Advertisement master. Only one interface can be master. |
 | **Extend Prefix** (`extend_prefix`)              | Advanced | `Flag`    | If enabled, the delegated IPv6 prefix will be applied to the LAN zone.                                     |

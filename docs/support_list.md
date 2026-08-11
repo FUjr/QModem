@@ -1,3 +1,8 @@
+# openluat
+Model | Platform | USB  | PCIe 
+--- | --- | --- | ---
+air724ug | unisoc |✔ usb(ecm,rndis) | ✘
+
 # huawei
 Model | Platform | USB  | PCIe 
 --- | --- | --- | ---
@@ -17,6 +22,7 @@ ep06 | lte |✔ usb(qmi,ecm,mbim,rndis) | ✘
 em12 | lte |✔ usb(qmi,ecm,mbim,rndis) | ✘
 em120k | lte12 |✔ usb(qmi,ecm,mbim,rndis) | ✘
 em160r-gl | lte12 |✔ usb(qmi,ecm,mbim,rndis) | ✘
+ag598eeu | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
 rg200u-cn | unisoc |✔ usb(ecm,mbim,rndis,ncm) | ✘
 rg801 | hisilicon |✔ usb(ecm,rndis,ncm) | ✘
 rm500u-cn | unisoc |✔ usb(ecm,mbim,rndis,ncm) | ✘
@@ -51,6 +57,7 @@ rg530f-na | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✔ pcie(qmi,gob
 rg650v-eu | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✔ pcie(qmi,gobinet,mbim)
 ec20f | lte |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
 ec25 | lte |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
+eg25 | lte |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
 ec21 | lte |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
 ec200a | lte |✔ usb(ecm,mbim,rndis,ncm) | ✘
 
@@ -63,9 +70,10 @@ fm350-gl-00 | mediatek |✔ usb(rndis) | ✘
 fm350r-gl | mediatek |✔ usb(rndis) | ✔ pcie(mbim)
 rw350r-gl | mediatek |✔ usb(rndis) | ✔ pcie(mbim)
 fm150-ae | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✔ pcie(qmi,mbim)
-fm160-cn | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
-fm160-eau | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
-fm160-na | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✘
+fm160-cn | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✔ pcie(qmi,mbim)
+fm160-eau | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✔ pcie(qmi,mbim)
+fm160-na | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✔ pcie(qmi,mbim)
+fm170-eau | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis) | ✔ pcie(qmi,mbim)
 fm190w-gl | qualcomm |✔ usb(qmi,gobinet,ecm,mbim,rndis,ncm) | ✔ pcie(qmi)
 l610-eu | unisoc |✔ usb(ecm,rndis,ncm) | ✘
 nl668 | lte |✔ usb(ecm,rndis,ncm) | ✘
@@ -83,6 +91,7 @@ srm821 | unisoc |✔ usb(ecm,rndis,ncm) | ✘
 Model | Platform | USB  | PCIe 
 --- | --- | --- | ---
 em9190 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim,rmnet)
+em9291 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim,rmnet)
 mc7354 | lte |✔ usb(qmi) | ✘
 mc7355 | lte |✔ usb(qmi) | ✘
 

@@ -8,8 +8,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=pcie_mhi
-PKG_VERSION:=1.3.8
-PKG_RELEASE:=3
+PKG_VERSION:=1.4
+PKG_RELEASE:=1
 
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/package.mk
@@ -36,7 +36,7 @@ MAKE_OPTS:= \
 	CROSS_COMPILE="$(TARGET_CROSS)" \
 	CXXFLAGS="$(TARGET_CXXFLAGS)" \
 	M="$(PKG_BUILD_DIR)" \
-	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
+	ccflags-y="$(EXTRA_CFLAGS)" \
 	$(EXTRA_KCONFIG)
 
 define Build/Prepare

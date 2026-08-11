@@ -132,6 +132,7 @@ opkg install luci-app-qmodem.ipk --force-depends
 | **AT 端口 / 短信 AT 端口**                | 常规   | `List`    | 选择用于数据和短信功能的已验证 AT 端口。                                 |
 | **DNS** (`dns_list`)                      | 常规   | `List`    | 要使用的自定义 DNS 服务器列表。如果为空，则使用运营商的 DNS。            |
 | **桥接模式** (`en_bridge`)                | 高级   | `Flag`    | 启用桥接/透传模式。(注意：仅适用于某些 Quectel 5G 模组)。                |
+| **桥接端口** (`bridge_port`)              | 高级   | `Text`    | 透传桥接使用的端口。设备级 `bridge_port` 会覆盖槽位默认桥接端口。        |
 | **不修改 resolv.conf** (`do_not_add_dns`) | 高级   | `Flag`    | 防止`quectel-cm` 自动将 DNS 服务器添加到 `/etc/resolv.conf`。            |
 | **RA Master** (`ra_master`)               | 高级   | `Flag`    | 如果启用，此接口将成为 IPv6 路由器通告主接口。只能有一个接口作为主接口。 |
 | **扩展前缀** (`extend_prefix`)            | 高级   | `Flag`    | 如果启用，委派的 IPv6 前缀将应用于 LAN 区域。                            |

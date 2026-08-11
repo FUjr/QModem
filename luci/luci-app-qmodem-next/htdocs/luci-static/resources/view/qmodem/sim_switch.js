@@ -193,7 +193,7 @@ return view.extend({
 			// Re-enable buttons
 			(buttons || []).forEach(function(b){ b.disabled = false; b.style.opacity = ''; });
 			
-			if (result && result.result) {
+			if (result && result.success === true) {
 				dom.content(resultField, E('div', { 'class': 'alert-message success' }, [
 					E('span', {}, _('SIM slot switched to Slot %s successfully.').format(slot)),
 					E('br'),

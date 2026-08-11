@@ -1,0 +1,11 @@
+{
+  "vendor": "openluat",
+  "platform": "unisoc",
+  "model": "air724ug",
+  "command": "AT+CBC",
+  "response_hex": "41542b4342430d0a0d0a2b4342433a20312c38342c343031340d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-08T10:55:24Z",
+  "sanitized": true
+}

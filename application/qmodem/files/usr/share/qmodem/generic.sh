@@ -1,13 +1,13 @@
 #!/bin/sh
-SCRIPT_DIR="/usr/share/qmodem"
-source /usr/share/libubox/jshn.sh
+SCRIPT_DIR="${QMODEM_HOME:-/usr/share/qmodem}"
+source "${QMODEM_JSHN:-/usr/share/libubox/jshn.sh}"
 source "${SCRIPT_DIR}/modem_util.sh"
 add_plain_info_entry()
 {
     key=$1
     value=$2
     key_full_name=$3
-    class_overwrite=$4
+    class_overwrite=${4:-}
     if [ -n "$class_overwrite" ]; then
         class="$class_overwrite"
     fi
@@ -19,11 +19,11 @@ add_plain_info_entry()
     json_add_string  value "$value"
     json_add_string "full_name" "$key_full_name"
     json_add_string "type" "plain_text"
-    if [ -n "$class" ]; then
+    if [ -n "${class:-}" ]; then
         json_add_string "class" "$class"
         json_add_string "class_origin" "$class"
     fi
-    if [ -n "$extra_info" ]; then
+    if [ -n "${extra_info:-}" ]; then
         json_add_string "extra_info" "$extra_info"
     fi
     json_close_object
@@ -34,7 +34,7 @@ add_warning_message_entry()
     key=$1
     value=$2
     key_full_name=$3
-    class_overwrite=$4
+    class_overwrite=${4:-}
     if [ -n "$class_overwrite" ]; then
         class="$class_overwrite"
     fi
@@ -48,7 +48,7 @@ add_warning_message_entry()
     json_add_string "type" "warning_message"
     json_add_string "class" "warning"
     json_add_string "class_origin" "warning"
-    if [ -n "$extra_info" ]; then
+    if [ -n "${extra_info:-}" ]; then
         json_add_string "extra_info" "$extra_info"
     fi
     json_close_object
@@ -62,7 +62,7 @@ add_bar_info_entry()
     min_value=$4
     max_value=$5
     unit=$6
-    class_overwrite=$7
+    class_overwrite=${7:-}
     if [ -n "$class_overwrite" ]; then
         class="$class_overwrite"
     fi
@@ -77,11 +77,11 @@ add_bar_info_entry()
     json_add_string "full_name" "$key_full_name"
     json_add_string "unit" "$unit"
     json_add_string "type" "progress_bar"
-    if [ -n "$class" ]; then
+    if [ -n "${class:-}" ]; then
         json_add_string "class" "$class"
         json_add_string "class_origin" "$class"
     fi
-    if [ -n "$extra_info" ]; then
+    if [ -n "${extra_info:-}" ]; then
         json_add_string "extra_info" "$extra_info"
     fi
     json_close_object
@@ -89,18 +89,18 @@ add_bar_info_entry()
 
 add_speed_entry()
 {
-    rate=$1
-    type=$2
+    type=$1
+    rate=$2
     if [ -z "$rate" ]; then
         return
     fi
     rate=`rate_convert $rate`
     case $type in
         "rx")
-            add_plain_info_entry "Rx Rate" "$rate" "Transmit Rate"
+            add_plain_info_entry "Rx Rate" "$rate" "Receive Rate"
             ;;
         "tx")
-            add_plain_info_entry "Tx Rate" "$rate" "Receive Rate"
+            add_plain_info_entry "Tx Rate" "$rate" "Transmit Rate"
             ;;
         *)
             return
@@ -120,6 +120,84 @@ add_avalible_band_entry()
     json_add_string  band_id "$band_id"
     json_add_string  band_name "$band_name"
     json_add_string "type" "avalible_band"
+    json_close_object
+}
+
+qmodem_band_clean_value()
+{
+    echo "$1" | tr -d '\r" ' | sed 's/^-$//'
+}
+
+qmodem_current_band_name()
+{
+    local rat="$1"
+    local band="$2"
+
+    [ -z "$band" ] && return
+
+    case "$rat" in
+        "NR"|"NR5G-SA"|"NR5G-NSA")
+            echo "NR n$band"
+            ;;
+        "LTE"|"CAT-M"|"CAT-NB"|"eMTC"|"NB-IoT")
+            echo "LTE B$band"
+            ;;
+        "WCDMA"|"UMTS")
+            echo "WCDMA Band $band"
+            ;;
+        *)
+            echo "$band"
+            ;;
+    esac
+}
+
+qmodem_add_current_band_cell()
+{
+    local role="$1"
+    local rat="$2"
+    local band="$(qmodem_band_clean_value "$3")"
+    local channel="$(qmodem_band_clean_value "$4")"
+    local channel_type="$5"
+    local pci="$(qmodem_band_clean_value "$6")"
+    local ul_bandwidth="$(qmodem_band_clean_value "$7")"
+    local dl_bandwidth="$(qmodem_band_clean_value "$8")"
+    local scs="$(qmodem_band_clean_value "$9")"
+    local band_name="$(qmodem_current_band_name "$rat" "$band")"
+
+    [ -z "$band" ] && [ -z "$channel" ] && [ -z "$pci" ] && return
+
+    json_add_object ""
+    json_add_string "role" "$role"
+    json_add_string "rat" "$rat"
+    json_add_string "band" "$band"
+    json_add_string "band_name" "$band_name"
+    json_add_string "channel" "$channel"
+    json_add_string "channel_type" "$channel_type"
+    json_add_string "pci" "$pci"
+    json_add_string "ul_bandwidth" "$ul_bandwidth"
+    json_add_string "dl_bandwidth" "$dl_bandwidth"
+    json_add_string "scs" "$scs"
+    json_close_object
+}
+
+get_current_band()
+{
+    json_add_object "current_band"
+    json_add_string "status" "unsupported"
+    json_add_string "vendor" "$_Vendor"
+    json_add_string "network_mode" ""
+    json_add_array "cells"
+    json_close_array
+    json_close_object
+}
+
+get_current_band_capabilities()
+{
+    json_add_object "current_band_capabilities"
+    json_add_boolean "supported" 0
+    json_add_string "vendor" "$_Vendor"
+    json_add_string "method" ""
+    json_add_string "schema" "current_band"
     json_close_object
 }
 
@@ -269,7 +347,13 @@ add_ca_info() {
 
 get_driver()
 {
-    for i in $(find $modem_path -name driver);do
+    local mode=""
+    local modem_root="${modem_path:-}"
+    [ -n "$modem_root" ] || {
+        echo unknown
+        return
+    }
+    for i in $(find "$modem_root" -name driver);do
         lsfile=$(ls -l $i)
         type=${lsfile:0:1}
         if [ "$type" == "l" ];then
@@ -311,7 +395,7 @@ get_driver()
             esac
         fi
     done
-    echo $mode
+    echo "${mode:-unknown}"
 }
 
 get_dns()
@@ -326,8 +410,7 @@ get_dns()
     local public_dns2_ipv6="2402:4e00::"
 
     #获取DNS地址
-    at_command="AT+GTDNS=${pdp_index}"
-    local response=$(at ${at_port} ${at_command} | grep "+GTDNS: ")
+    local response=$(cmd_gtdns "$at_port" "$pdp_index" | grep "+GTDNS: ")
 
     local ipv4_dns1=$(echo "${response}" | awk -F'"' '{print $2}' | awk -F',' '{print $1}')
     [ -z "$ipv4_dns1" ] && {
@@ -485,9 +568,8 @@ get_connect_status()
             connect_status="Yes"
         fi
     else
-        at_cmd="AT+CGACT?"
         expect="+CGACT:"
-        result=`at  $at_port $at_cmd | grep $expect|tr '\r' '\n'`
+        result=`cmd_cgact_query "$at_port" | grep $expect|tr '\r' '\n'`
         # for fm350 pdp_index 0, GGACT will return empty,so we need to add it manually
         if [ -z "$result" ]; then
             case $vendor in
@@ -502,11 +584,8 @@ get_connect_status()
         fi
         
         for pdp_index in `echo  "$result" | tr -d "\r" | awk -F'[,:]' '$3 == 1 {print $2}'`; do
-            at_cmd="AT+CGPADDR=%s"
-            at_cmd=$(printf "$at_cmd" "$pdp_index")
             expect="+CGPADDR:"
-
-            result=$(at  $at_port $at_cmd | grep $expect)
+            result=$(cmd_cgpaddr "$at_port" "$pdp_index" | grep $expect)
             if [ -n "$result" ];then
                 ipv6=$(echo $result | grep -oE "\b([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\b")
                 ipv4=$(echo $result | grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b")
@@ -559,16 +638,18 @@ get_info()
 
 soft_reboot()
 {
-    at_command="AT+CFUN=1,1"
-    at $at_port $at_command
+    cmd_cfun_soft_reboot "$at_port"
 }
 
 hard_reboot()
 {
     #get power_gpio_pin
-    source /lib/functions.sh
+    source "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
     config_load qmodem
     config_foreach get_gpio_by_slot modem-slot
+    if [ -z "$gpio" ] || [ -z "$gpio_up" ] || [ -z "$gpio_down" ]; then
+        config_foreach get_gpio_by_device modem-device
+    fi
     gpio="/sys/class/gpio/$gpio/value"
     [ ! -f "$gpio" ] || [ -z "$gpio_up" ] || [ -z "$gpio_down" ] && {
         soft_reboot
@@ -592,11 +673,25 @@ get_gpio_by_slot()
     fi
 }
 
+get_gpio_by_device()
+{
+    local cfg="$1"
+
+    [ "$config_section" = "$cfg" ] || return
+
+    config_get gpio "$cfg" gpio
+    config_get gpio_up "$cfg" gpio_up
+    config_get gpio_down "$cfg" gpio_down
+}
+
 get_reboot_caps()
 {
-    source /lib/functions.sh
+    source "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
     config_load qmodem
     config_foreach get_gpio_by_slot modem-slot
+    if [ -z "$gpio" ] || [ -z "$gpio_up" ] || [ -z "$gpio_down" ]; then
+        config_foreach get_gpio_by_device modem-device
+    fi
     json_init
     json_add_object "reboot_caps"
     json_add_int "soft_reboot_caps" "1"
@@ -633,16 +728,33 @@ rate_convert()
     echo "$rate `echo $rate_units | cut -d ' ' -f $(($i+1))`"
 }
 
+get_5g_lan()
+{
+    json_add_boolean supported 0
+}
+
+set_5g_lan()
+{
+    json_add_boolean supported 0
+    json_add_string error "5G LAN is not supported by this modem"
+    return 1
+}
+
 get_modem_disabled_features()
 {
-    . /lib/functions.sh
+    . "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
     config_load qmodem 
     config_list_foreach $config_section disabled_features _add_disabled_features
 }
 
+vendor_get_disabled_features()
+{
+    return 0
+}
+
 get_sms_capabilities() {
     local res sms_cap
-    res=$(at $at_port "AT+CPMS?" | grep "CPMS:" | xargs)
+    res=$(cmd_cpms_query "$at_port" | grep "CPMS:" | xargs)
     [ -z "$res" ] && return
 
     sms_cap=${res##*+CPMS:}
@@ -693,9 +805,9 @@ set_sms_storage()
         return
     fi
     if [ "$mem3" == "Loading" ];then
-        res=$(at $at_port "AT+CPMS=\"$mem1\",\"$mem2\"")
+        res=$(cmd_cpms_set "$at_port" "$mem1" "$mem2")
     else
-        res=$(at $at_port "AT+CPMS=\"$mem1\",\"$mem2\",\"$mem3\"")
+        res=$(cmd_cpms_set "$at_port" "$mem1" "$mem2" "$mem3")
     fi
     
     json_select "result"
@@ -706,9 +818,27 @@ get_sim_switch_capabilities(){
     json_add_string "supportSwitch" "0"
 }
 
+get_usage_stats()
+{
+    json_add_boolean "available" 0
+    json_add_int "updated_at" 0
+    json_add_int "total_rx_bytes" 0
+    json_add_int "total_tx_bytes" 0
+}
+
+write_usage_stats()
+{
+    return 1
+}
+
+clear_usage_stats()
+{
+    json_add_boolean "result" 0
+}
+
 get_global_disabled_features()
 {
-    . /lib/functions.sh
+    . "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
     config_load qmodem 
     config_list_foreach main disabled_features _add_disabled_features
 }
@@ -726,3 +856,7 @@ _copyright()
     json_add_string "Maintainer" "${_Maintainer}"
     json_close_object
 }
+
+#generic AT command wrappers (cmds layer); vendor-specific wrappers
+#are loaded by modem_ctrl.sh from cmds/<vendor>.sh
+source "${SCRIPT_DIR}/cmds/generic.sh"

@@ -18,6 +18,11 @@ define KernelPackage/qmi_wwan_f
   SUBMENU:=WWAN Support
   TITLE:=Fibocom Linux USB QMI WWAN Driver
   DEPENDS:=+kmod-usb-net +kmod-usb-wdm
+  KCONFIG:= \
+	CONFIG_USB_SUPPORT=y \
+	CONFIG_USB_USBNET \
+	CONFIG_USB_NET_DRIVERS \
+	CONFIG_USB_WDM
   FILES:=$(PKG_BUILD_DIR)/qmi_wwan_f.ko
   AUTOLOAD:=$(call AutoLoad,82,qmi_wwan_f)
 endef
@@ -36,7 +41,7 @@ MAKE_OPTS:= \
 	CROSS_COMPILE="$(TARGET_CROSS)" \
 	CXXFLAGS="$(TARGET_CXXFLAGS)" \
 	M="$(PKG_BUILD_DIR)" \
-	EXTRA_CFLAGS="$(EXTRA_CFLAGS)" \
+	ccflags-y="$(EXTRA_CFLAGS)" \
 	$(EXTRA_KCONFIG)
 
 define Build/Prepare

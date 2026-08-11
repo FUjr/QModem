@@ -2620,3 +2620,15 @@ msgstr "加载SIM卡短信失败："
 # Source: view/qmodem/sms_sim.js
 msgid "Error deleting SMS: "
 msgstr "删除短信时出错："
+
+# Source: view/qmodem/config_advanced.js
+msgid "Boot Hook"
+msgstr "启动 Hook"
+
+# Source: view/qmodem/config_advanced.js
+msgid "Reapply lock cell command after modem initialization"
+msgstr "模组初始化后重新发送锁小区命令"
+
+# Source: view/qmodem/config_advanced.js
+msgid "Delay"
+msgstr "延迟"

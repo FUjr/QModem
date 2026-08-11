@@ -78,6 +78,15 @@ bridge_mode = s:taboption("advanced", Flag, "en_bridge", translate("Bridge Mode"
 bridge_mode.description = translate("Caution: Only avalible for quectel sdx 5G Modem.")
 bridge_mode.default = "0"
 
+bridge_port = s:taboption("advanced", Value, "bridge_port", translate("Bridge Port"))
+bridge_port.description = translate("Device-level bridge port for passthrough. If set, it overrides the slot default bridge port.")
+bridge_port.rmempty = true
+local bridge_ports = io.popen("ls /sys/class/net/")
+for line in bridge_ports:lines() do
+    bridge_port:value(line, line)
+end
+bridge_ports:close()
+
 do_not_add_dns = s:taboption("advanced", Flag, "do_not_add_dns", translate("Do Not modify resolv.conf"))
 do_not_add_dns.description = translate("quectel-CM will append the DNS server to the resolv.conf file by default.if you do not want to modify the resolv.conf file, please check this option.")
 do_not_add_dns.default = "0"
@@ -105,6 +114,7 @@ pdp_type.rmempty = false
 pdp_type:value("ip", translate("IPv4"))
 pdp_type:value("ipv6", translate("IPv6"))
 pdp_type:value("ipv4v6", translate("IPv4/IPv6"))
+pdp_type:value("ethernet", translate("Ethernet"))
 
 
 -- 接入点

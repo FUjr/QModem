@@ -40,7 +40,9 @@
 					"delete_sms",
 					"delete_sim_sms",
 					"mark_read",
+					"mark_forwarded",
 					"clear_sent_history",
+					"clear_received_history",
 					"set_sms_storage"
 				],
 				"uci": [ "qmodem", "sms_forwarder" ]

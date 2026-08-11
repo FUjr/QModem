@@ -713,6 +713,9 @@ return {
 				let config = getModemConfig(config_section);
 				if (!config)
 					return { error: 'Failed to get modem configuration' };
+
+				if (!config.at_port)
+					return { error: 'Missing SMS AT port configuration' };
 				
 				// Read SMS from SIM card
 				let received_from_sim = execTomModem(config.at_port, config.use_ubus, 'r', null);
@@ -807,6 +810,11 @@ return {
 					warn("send_sms: Failed to get modem configuration\n");
 					return { error: 'Failed to get modem configuration' };
 				}
+
+				if (!config.at_port) {
+					warn("send_sms: Missing SMS AT port configuration\n");
+					return { error: 'Missing SMS AT port configuration' };
+				}
 				
 				if (!request.args.pdu) {
 					warn("send_sms: Missing PDU parameter\n");
@@ -830,11 +838,11 @@ return {
 					pdu: request.args.pdu
 				});
 				
-			warn(`send_sms: Result: ${sprintf('%J', result)}\n`);
-			
-			// Check status field from tom_modem output
-			// tom_modem returns {"status":"success"} on success or {"status":"failed","reason":"..."} on failure
-			let is_success = (result?.status === 'success');				// Read sent database
+				warn(`send_sms: Result: ${sprintf('%J', result)}\n`);
+
+				// Check status field from tom_modem output
+				// tom_modem returns {"status":"success"} on success or {"status":"failed","reason":"..."} on failure
+				let is_success = (result?.status === 'success' || result?.result?.status === '1');
 				let db = readSmsDb(config.sms_db_path, config_section);
 				if (!db.sent)
 					db.sent = [];
@@ -863,12 +871,13 @@ return {
 				
 				// Return error if send failed
 				if (!is_success) {
-					if (result?.error) {
-						warn(`send_sms: Modem error: ${result.error}\n`);
-						return { error: 'Modem error: ' + result.error, id: msg_id };
+					let reason = result?.error || result?.reason || result?.raw || sprintf('%J', result);
+					if (reason) {
+						warn(`send_sms: Modem error: ${reason}\n`);
+						return { error: 'Modem error: ' + reason, id: msg_id, result: result };
 					} else {
-						warn(`send_sms: tom_modem failed with code: ${ret_code}\n`);
-						return { error: 'Failed to send SMS - modem returned error code ' + ret_code, id: msg_id };
+						warn("send_sms: tom_modem returned no success status\n");
+						return { error: 'Failed to send SMS - modem returned no success status', id: msg_id, result: result };
 					}
 				}
 				
@@ -917,7 +926,7 @@ return {
 					let db = readReceivedSmsDb(config.sms_db_path, config_section);
 					if (!db.received)
 						db.received = [];
-					
+
 					original_count = length(db.received);
 					warn(`delete_sms: received DB has ${original_count} messages\n`);
 					

@@ -757,7 +757,7 @@ return view.extend({
 			'type': 'text',
 			'class': 'cbi-input-text',
 			'id': 'band_input_' + modem.id,
-			'placeholder': _('NR Band')
+			'placeholder': _('NR Band') + ' (N41/41/5041)'
 		});
 		bandField.appendChild(bandInput);
 		bandRow.appendChild(bandField);
@@ -780,6 +780,20 @@ return view.extend({
 		scsRow.appendChild(scsField);
 		settingsSection.appendChild(scsRow);
 
+		// Boot hook option
+		var bootHookSection = E('div', { 'class': 'cbi-value' });
+		bootHookSection.appendChild(E('label', { 'class': 'cbi-value-title' }, _('Boot Hook')));
+		var bootHookField = E('div', { 'class': 'cbi-value-field' });
+		var bootHookCheckbox = E('input', {
+			'type': 'checkbox',
+			'id': 'boot_hook_lockcell_' + modem.id
+		});
+		bootHookField.appendChild(bootHookCheckbox);
+		bootHookField.appendChild(E('span', { 'style': 'margin-left: 6px;' },
+			_('Reapply lock cell command after modem initialization')));
+		bootHookSection.appendChild(bootHookField);
+		settingsSection.appendChild(bootHookSection);
+
 		// Submit Button
 		var buttonSection = E('div', { 'class': 'cbi-value' });
 		buttonSection.appendChild(E('label', { 'class': 'cbi-value-title' }, ''));
@@ -799,7 +813,8 @@ return view.extend({
 					pci: '',
 					arfcn: '',
 					band: '',
-					scs: ''
+					scs: '',
+					en_boot_hook: '0'
 				}).then(function(result) {
 					if (result) {
 						ui.addNotification(null, E('p', _('Cell unlocked successfully')), 'success');
@@ -828,7 +843,8 @@ return view.extend({
 					pci: pciInput.value.trim(),
 					arfcn: arfcnInput.value.trim(),
 					band: bandInput.value.trim(),
-					scs: scsSelect.value
+					scs: scsSelect.value,
+					en_boot_hook: bootHookCheckbox.checked ? '1' : '0'
 				};
 
 				if (!config.pci || !config.arfcn) {
@@ -875,9 +891,12 @@ return view.extend({
 			arfcn: arfcnInput,
 			band: bandInput,
 			scs: scsSelect,
+			bootHook: bootHookCheckbox,
 			bandRow: bandRow,
 			scsRow: scsRow
 		};
+
+		self.updateLockCellStatus(modem, statusContent);
 
 		return container;
 	},
@@ -897,11 +916,12 @@ return view.extend({
 			var nrCells = result.NR || [];
 			var lteCells = result.LTE || [];
 			var lockcellStatus = result.lockcell_status || {};
+			var bootHookStatus = result.lockcell_boot_hook || {};
 
 			// Update status section
 			var statusContent = document.getElementById('lockcell_status_' + modem.id);
 			if (statusContent) {
-				self.updateLockCellStatus(modem, statusContent, lockcellStatus);
+				self.updateLockCellStatus(modem, statusContent, lockcellStatus, bootHookStatus);
 			}
 
 			if (nrCells.length === 0 && lteCells.length === 0) {
@@ -1044,13 +1064,14 @@ return view.extend({
 		return row;
 	},
 
-	updateLockCellStatus: function(modem, statusContent, lockcellStatus) {
+	updateLockCellStatus: function(modem, statusContent, lockcellStatus, bootHookStatus) {
+		var self = this;
 		if (!lockcellStatus) {
 			// Try to get fresh status
 			qmodem.getNeighborCell(modem.id).then(function(result) {
-				result = result.neighborcell;
+				result = result && result.neighborcell;
 				if (result && result.lockcell_status) {
-					renderStatus(result.lockcell_status);
+					renderStatus(result.lockcell_status, result.lockcell_boot_hook || {});
 				} else {
 					dom.content(statusContent, E('em', {}, _('No status information available')));
 				}
@@ -1060,12 +1081,21 @@ return view.extend({
 			return;
 		}
 
-		function renderStatus(status) {
+		function renderStatus(status, bootHookStatus) {
+			var inputs = self.neighborCellInputs && self.neighborCellInputs[modem.id];
+			if (inputs && inputs.bootHook && bootHookStatus) {
+				inputs.bootHook.checked = !!bootHookStatus.enabled;
+			}
+
 			var statusItems = [];
 			for (var key in status) {
 				if (status[key] !== '' && status[key] !== null && status[key] !== undefined) {
 					statusItems.push(key + ': ' + status[key].toString().toUpperCase());
 				}
+			}
+			if (bootHookStatus && bootHookStatus.enabled) {
+				statusItems.push(_('Boot Hook') + ': ' + _('Enabled') + ' (' +
+					_('Delay') + ': ' + (bootHookStatus.delay || '15') + 's)');
 			}
 
 			if (statusItems.length === 0) {
@@ -1081,7 +1111,7 @@ return view.extend({
 			}
 		}
 
-		renderStatus(lockcellStatus);
+		renderStatus(lockcellStatus, bootHookStatus || {});
 	},
 
 	createLockBandTab: function(modem) {

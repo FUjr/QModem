@@ -1,0 +1,1 @@
+{ "result": { "status": "1", "index3": "tom_modem -u -d \/dev\/ttyUSB2 -t 10 -g -o d -i 3", "index2": "tom_modem -u -d \/dev\/ttyUSB2 -t 10 -g -o d -i 2", "index1": "tom_modem -u -d \/dev\/ttyUSB2 -t 10 -g -o d -i 1" } }

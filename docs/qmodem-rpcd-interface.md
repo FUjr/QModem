@@ -103,10 +103,98 @@ Get network preference settings.
 ubus call qmodem get_network_prefer '{"config_section":"modem1"}'
 ```
 
+#### get_current_band_capabilities
+Check whether `get_current_band` is supported by the current modem vendor implementation.
+```bash
+ubus call qmodem get_current_band_capabilities '{"config_section":"modem1"}'
+```
+
+Response example:
+```json
+{
+  "current_band_capabilities": {
+    "supported": true,
+    "vendor": "fibocom",
+    "method": "AT+GTCCINFO?",
+    "schema": "current_band"
+  }
+}
+```
+
+#### get_current_band
+Get the currently connected serving band. The response schema is vendor-neutral; Quectel and Fibocom are supported in the first version.
+```bash
+ubus call qmodem get_current_band '{"config_section":"modem1"}'
+```
+
+Response example:
+```json
+{
+  "current_band": {
+    "status": "ok",
+    "vendor": "quectel",
+    "network_mode": "EN-DC",
+    "cells": [
+      {
+        "role": "pcc",
+        "rat": "LTE",
+        "band": "3",
+        "band_name": "LTE B3",
+        "channel": "1300",
+        "channel_type": "EARFCN",
+        "pci": "123",
+        "ul_bandwidth": "20",
+        "dl_bandwidth": "20",
+        "scs": ""
+      },
+      {
+        "role": "nsa",
+        "rat": "NR",
+        "band": "78",
+        "band_name": "NR n78",
+        "channel": "627264",
+        "channel_type": "NR-ARFCN",
+        "pci": "293",
+        "ul_bandwidth": "",
+        "dl_bandwidth": "100",
+        "scs": "30kHz"
+      }
+    ]
+  }
+}
+```
+
+Return fields:
+- `status`: `ok`, `not_registered`, or `unsupported`.
+- `vendor`: modem vendor implementation that produced the result.
+- `network_mode`: normalized mode such as `LTE`, `WCDMA`, `NR5G-SA`, or `EN-DC`.
+- `cells`: serving cells using the same schema for all vendors.
+- `role`: `pcc` for primary serving cell, `scc` for carrier aggregation secondary cells, or `nsa` for the NR leg in EN-DC.
+- `rat`: radio access technology, currently `WCDMA`, `LTE`, or `NR`.
+- `band` / `band_name`: normalized band number and display name.
+- `channel` / `channel_type`: channel number and its type, for example `EARFCN`, `UARFCN`, or `NR-ARFCN`.
+- `pci`, `ul_bandwidth`, `dl_bandwidth`, `scs`: optional values; empty string means the vendor command did not expose the value.
+
 #### get_reboot_caps
 Get available reboot methods (hard/soft).
 ```bash
 ubus call qmodem get_reboot_caps '{"config_section":"modem1"}'
+```
+
+#### get_stats
+Get modem traffic statistics. This is currently only available for Quectel modems. Unsupported vendors return `available: false` and zeroed counters.
+```bash
+ubus call qmodem get_stats '{"config_section":"modem1"}'
+```
+
+Response example:
+```json
+{
+  "available": true,
+  "updated_at": 1710000000,
+  "total_rx_bytes": 4618,
+  "total_tx_bytes": 3832
+}
 ```
 
 #### get_sms
@@ -115,12 +203,43 @@ Get SMS messages.
 ubus call qmodem get_sms '{"config_section":"modem1"}'
 ```
 
+#### get_traffic_reset_schedule
+Read the automatic traffic reset schedule. If no schedule is configured yet, the method returns a complete default structure.
+```bash
+ubus call qmodem get_traffic_reset_schedule '{"config_section":"modem1"}'
+```
+
+Response example:
+```json
+{
+  "enabled": false,
+  "reset_type": "monthly",
+  "hour": 0,
+  "day": 1,
+  "minute": 0,
+  "line": null
+}
+```
+
 ### Control Methods (Write)
 
 #### clear_dial_log
 Clear the dial log.
 ```bash
 ubus call qmodem clear_dial_log '{"config_section":"modem1"}'
+```
+
+#### clear_stats
+Clear modem traffic statistics. This is currently only available for Quectel modems.
+```bash
+ubus call qmodem clear_stats '{"config_section":"modem1"}'
+```
+
+Response example:
+```json
+{
+  "result": true
+}
 ```
 
 #### delete_sms
@@ -137,6 +256,32 @@ ubus call qmodem do_reboot '{"config_section":"modem1","params":{"method":"hard"
 
 # Soft reboot
 ubus call qmodem do_reboot '{"config_section":"modem1","params":{"method":"soft"}}'
+```
+
+#### set_traffic_reset_schedule
+Set the automatic traffic reset schedule. The backend removes the old schedule first, then updates both UCI and cron with the latest values. If `enabled` is `false`, the old schedule is removed without creating a new one.
+```bash
+ubus call qmodem set_traffic_reset_schedule '{
+  "config_section":"modem1",
+  "enabled":true,
+  "reset_type":"monthly",
+  "hour":3,
+  "day":1
+}'
+```
+
+Response example:
+```json
+{
+  "result": true,
+  "config_section": "modem1",
+  "enabled": true,
+  "reset_type": "monthly",
+  "hour": 3,
+  "day": 1,
+  "minute": 0,
+  "line": "0 3 1 * * QMODEM_TRAFFIC_RESET_SECTION='modem1' ubus call qmodem clear_stats '{\"config_section\":\"modem1\"}' >/dev/null 2>&1"
+}
 ```
 
 #### send_at
@@ -247,6 +392,26 @@ config modem 'modem1'
     option path '1-1.4'
     ...
 ```
+
+### Usage Stats Persistence
+The optional usage stats persistence service is managed by `/etc/init.d/qmodem_usage_stats`.
+
+UCI options:
+
+```uci
+config main 'main'
+    option usage_stats_nvram_save '0'
+    option usage_stats_nvram_interval '300'
+
+config modem-device 'modem1'
+    option usage_stats_nvram_save '1'
+    option usage_stats_nvram_interval '600'
+```
+
+Notes:
+- Only Quectel modems support `get_stats`, `clear_stats`, and NVM persistence.
+- The persistence service is enabled by default, but actual NVM writes are disabled by default until `usage_stats_nvram_save` is set to `1`.
+- Intervals below 60 seconds are clamped to 60 seconds to reduce module flash wear.
 
 ### ACL Permissions
 Edit `/usr/share/rpcd/acl.d/qmodem.json` to configure access control for different user groups.
