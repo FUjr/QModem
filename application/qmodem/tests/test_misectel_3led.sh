@@ -52,6 +52,7 @@ dual_rsrp='{"modem_info":[{"key":"RSRP","value":"-88","extra_info":"LTE"},{"key"
 assert_rsrp -88 0 "$dual_rsrp"
 assert_rsrp -112 1 "$dual_rsrp"
 assert_rsrp -100 0 '{"modem_info":[{"key":"rsrp","value":" -99.4 dBm "}]}'
+assert_rsrp -90 0 '{"modem_info":[{"key":"RSRP","value":"-89.01dBm"}]}'
 assert_rsrp '' 0 '{"modem_info":[{"key":"RSRP","value":"unknown"}]}'
 
 assert_5g_state()
@@ -73,6 +74,7 @@ assert_5g_state 1 '{"modem_info":[{"key":"Network Type","value":"5G NSA"}]}'
 assert_5g_state 1 '{"modem_info":[{"key":"NR5G-NSA","value":"NR5G-NSA"}]}'
 assert_5g_state 1 '{"modem_info":[{"key":"RSRP","value":"-101","extra_info":"NR5G-NSA"}]}'
 assert_5g_state 1 '{"modem_info":[{"key":"Band","value":"NR n78"}]}'
+assert_5g_state 1 '{"modem_info":[{"key":"Band Name","value":"N78"}]}'
 assert_5g_state 0 '{"modem_info":[{"key":"Network Type","value":"FDD LTE"}]}'
 assert_5g_state '' '{"modem_info":[{"key":"RSRP","value":"-101"}]}'
 

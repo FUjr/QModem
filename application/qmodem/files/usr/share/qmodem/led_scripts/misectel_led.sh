@@ -54,51 +54,109 @@ misectel_3led_signal_level()
 	fi
 }
 
+misectel_cell_entries()
+{
+	local cell_info="$1"
+
+	# The M01K21 jq 1.8.1 build aborts in regex filters. Keep jq limited to
+	# structural JSON extraction and normalize the resulting fields with awk.
+	printf '%s\n' "$cell_info" | jq -r '
+		.modem_info[]?
+		| [
+			((.key // "") | tostring),
+			((.value // "") | tostring),
+			((.extra_info // "") | tostring)
+		]
+		| @tsv
+	' 2>/dev/null
+}
+
 misectel_rsrp_value()
 {
 	local cell_info="$1"
 	local prefer_nr="$2"
+	local entries
 
-	printf '%s\n' "$cell_info" | jq -r --arg prefer_nr "$prefer_nr" '
-		[.modem_info[]?
-			| select((.key | tostring | ascii_upcase) == "RSRP")
-			| (.value | tostring
-				| gsub("[[:space:]]"; "")
-				| sub("[dD][bB][mM]$"; "")
-				| tonumber?)] as $values
-		| if ($values | length) == 0 then empty
-		  elif $prefer_nr == "1" then $values[-1]
-		  else $values[0]
-		  end
-		| floor
-	' 2>/dev/null
+	entries="$(misectel_cell_entries "$cell_info")" || return
+	printf '%s\n' "$entries" | awk -F '\t' -v prefer_nr="$prefer_nr" '
+		toupper($1) == "RSRP" {
+			value = $2
+			gsub(/[[:space:]]/, "", value)
+			sub(/[dD][bB][mM]$/, "", value)
+			if (value ~ /^-?[0-9]+([.][0-9]+)?$/)
+				values[++count] = value + 0
+		}
+		END {
+			if (!count)
+				exit
+			value = prefer_nr == "1" ? values[count] : values[1]
+			integer = int(value)
+			if (value < integer)
+				integer--
+			printf "%d\n", integer
+		}
+	'
 }
 
 misectel_cell_5g_state()
 {
 	local cell_info="$1"
+	local entries
 
-	printf '%s\n' "$cell_info" | jq -r '
-		[.modem_info[]? | {
-			key: ((.key // "") | tostring | ascii_upcase | gsub("[^A-Z0-9]"; "")),
-			value: ((.value // "") | tostring | ascii_upcase),
-			extra: ((.extra_info // "") | tostring | ascii_upcase)
-		}] as $entries
-		| if ([$entries[] | select(
-			(((.key == "NETWORKMODE") or (.key == "NETWORKTYPE") or (.key == "RAT"))
-				and (.value | test("NR|5G|EN[ -]?DC")))
-			or ((.key | test("^(NR5G|5G|ENDC)")) and (.value | test("NR|5G|EN[ -]?DC")))
-			or (.extra | test("NR|5G|EN[ -]?DC"))
-			or (((.key == "BAND") or (.key == "BANDNAME"))
-				and (.value | test("(^|[^A-Z0-9])NR([^A-Z0-9]|$)|(^|[^A-Z0-9])N[0-9]+")))
-		)] | length) > 0 then "1"
-		elif ([$entries[] | select(
-			((.key == "NETWORKMODE") or (.key == "NETWORKTYPE") or (.key == "RAT"))
-			and (.value | test("LTE|4G|WCDMA|3G|UMTS|GSM|2G"))
-		)] | length) > 0 then "0"
-		else empty
-		end
-	' 2>/dev/null
+	entries="$(misectel_cell_entries "$cell_info")" || return
+	printf '%s\n' "$entries" | awk -F '\t' '
+		function compact(value, normalized) {
+			normalized = toupper(value)
+			gsub(/[^A-Z0-9]/, "", normalized)
+			return normalized
+		}
+		function contains_5g(value, normalized) {
+			normalized = compact(value)
+			return index(normalized, "NR") || index(normalized, "5G") || index(normalized, "ENDC")
+		}
+		function contains_legacy(value, normalized) {
+			normalized = compact(value)
+			return index(normalized, "LTE") || index(normalized, "4G") ||
+				index(normalized, "WCDMA") || index(normalized, "3G") ||
+				index(normalized, "UMTS") || index(normalized, "GSM") ||
+				index(normalized, "2G")
+		}
+		function contains_nr_band(value, normalized) {
+			normalized = compact(value)
+			return index(normalized, "NR") || normalized ~ /^N[0-9]+$/
+		}
+		{
+			key = compact($1)
+			value = $2
+			extra = $3
+			if (contains_5g(extra)) {
+				found_5g = 1
+				exit
+			}
+			if (key == "NETWORKMODE" || key == "NETWORKTYPE" || key == "RAT") {
+				if (contains_5g(value)) {
+					found_5g = 1
+					exit
+				}
+				if (contains_legacy(value))
+					found_legacy = 1
+			}
+			if (key ~ /^(NR5G|5G|ENDC)/ && contains_5g(value)) {
+				found_5g = 1
+				exit
+			}
+			if ((key == "BAND" || key == "BANDNAME") && contains_nr_band(value)) {
+				found_5g = 1
+				exit
+			}
+		}
+		END {
+			if (found_5g)
+				print "1"
+			else if (found_legacy)
+				print "0"
+		}
+	'
 }
 
 misectel_cops_5g_state()
