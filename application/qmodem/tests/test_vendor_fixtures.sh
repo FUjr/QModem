@@ -65,8 +65,16 @@ for profile_dir in "${profile_dirs[@]}"; do
     [ -n "$fixture_modes" ] || fixture_modes=$(jq -r --arg model "$fixture_model" '
         [.modem_support[] | .[$model]? | .modes[]?] | join(" ")
     ' "$QMODEM_HOME/modem_support.json")
+    fixture_bands=$(jq -r --arg model "$fixture_model" '
+        [.modem_support[] | .[$model]?] | first // {} |
+        [.wcdma_band // "", .lte_band // "", .nsa_band // "", .sa_band // ""] | @tsv
+    ' "$QMODEM_HOME/modem_support.json")
+    IFS=$'\t' read -r fixture_wcdma_band fixture_lte_band fixture_nsa_band fixture_sa_band <<< "$fixture_bands"
     profile_vendor_value=$fixture_vendor
     profile_platform_value=$fixture_platform
+    profile_at_port=$(jq -r '
+        [.modem_info[]? | select(.key == "at_port") | .value][0] // empty
+    ' "$profile_dir/expected/base_info.json" 2>/dev/null)
     if [ "$(profile_segment "$fixture_vendor" core)" != "$vendor" ] || \
        [ "$(profile_segment "$fixture_platform" unknown)" != "$profile_platform" ] || \
        [ "$(model_segment "$fixture_model")" != "$profile_model" ]; then
@@ -120,11 +128,21 @@ for profile_dir in "${profile_dirs[@]}"; do
 
     (
     . "$TESTS_DIR/lib/test_env.sh"
+    if [ -n "$profile_at_port" ]; then
+        at_port=$profile_at_port
+        export at_port
+    fi
     vendor="$vendor"
     platform="$profile_platform"
     QMODEM_TESTCASE_MODEL="$fixture_model"
     QMODEM_TESTCASE_MODES="$fixture_modes"
+    QMODEM_TESTCASE_WCDMA_BAND="$fixture_wcdma_band"
+    QMODEM_TESTCASE_LTE_BAND="$fixture_lte_band"
+    QMODEM_TESTCASE_NSA_BAND="$fixture_nsa_band"
+    QMODEM_TESTCASE_SA_BAND="$fixture_sa_band"
     export vendor platform QMODEM_TESTCASE_MODEL QMODEM_TESTCASE_MODES
+    export QMODEM_TESTCASE_WCDMA_BAND QMODEM_TESTCASE_LTE_BAND
+    export QMODEM_TESTCASE_NSA_BAND QMODEM_TESTCASE_SA_BAND
     . "$QMODEM_JSHN"
     . "$vendor_file"
     FIXTURE_LOOKUP="$LOOKUP"

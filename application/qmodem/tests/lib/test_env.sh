@@ -23,6 +23,10 @@ uci()
 {
     case "$*" in
         *qmodem.fixture.modes*) printf '%s\n' "${QMODEM_TESTCASE_MODES:-}" ;;
+        *qmodem.fixture.wcdma_band*) printf '%s\n' "${QMODEM_TESTCASE_WCDMA_BAND:-}" ;;
+        *qmodem.fixture.lte_band*) printf '%s\n' "${QMODEM_TESTCASE_LTE_BAND:-}" ;;
+        *qmodem.fixture.nsa_band*) printf '%s\n' "${QMODEM_TESTCASE_NSA_BAND:-}" ;;
+        *qmodem.fixture.sa_band*) printf '%s\n' "${QMODEM_TESTCASE_SA_BAND:-}" ;;
         *qmodem.fixture.manufacturer*) printf '%s\n' "${vendor:-core}" ;;
         *qmodem.fixture.platform*) printf '%s\n' "${platform:-unknown}" ;;
         *qmodem.fixture.name*) printf '%s\n' "${QMODEM_TESTCASE_MODEL:-unknown}" ;;
