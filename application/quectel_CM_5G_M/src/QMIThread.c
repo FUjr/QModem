@@ -770,6 +770,15 @@ static int requestSetEthMode(PROFILE_T *profile) {
 
         qmap_settings.ul_data_aggregation_max_datagrams = 11; //by test result, 11 can get best TPUT
         qmap_settings.ul_data_aggregation_max_size = 8*1024;
+        
+        // SDX7X on PCIe: driver sets qmap_size to 32KB
+        // Increase UL aggregation to match the larger buffer. */
+        if (profile->hardware_interface == HARDWARE_PCIE
+            && profile->qmap_size >= 32*1024) {
+            qmap_settings.ul_data_aggregation_max_datagrams = 32; // ?
+            qmap_settings.ul_data_aggregation_max_size = 32*1024;
+        }
+
         qmap_settings.dl_minimum_padding = 0; //no effect when register to real netowrk
         if(profile->qmap_version != 0x09)
             profile->qmap_version = 0x05;
@@ -855,6 +864,14 @@ skip_WdaSetDataFormat:
     	pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS, QMIWDS_SET_CLIENT_IP_FAMILY_PREF_REQ, WdsSetClientIPFamilyPref, (void *)&IpPreference);
     	err = QmiThreadSendQMI(pRequest, &pResponse);
     	if (pResponse) free(pResponse);
+    } else if (profile->enable_ipv6 && profile->qmapnet_adapter[0]) {
+        // IPv6-only mode: still bind the primary WDS MUX port
+        // so the modem firmware doesn't reject secondary client operations
+        pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS, QMIWDS_BIND_MUX_DATA_PORT_REQ,
+                                  WdsSetQMUXBindMuxDataPort, (void *)&qmap_settings);
+        err = QmiThreadSendQMI(pRequest, &pResponse);
+        if (pResponse) free(pResponse);
+        // Do NOT set IPv4 family pref — just bind the port
     }
 
     if (profile->enable_ipv6) {

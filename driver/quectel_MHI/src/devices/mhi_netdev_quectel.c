@@ -3296,6 +3296,11 @@ static int mhi_netdev_probe(struct mhi_device *mhi_dev,
 	else if (mhi_netdev->net_type == MHI_NET_ETHER) {
 		mhi_netdev->mru = 8*1024;
 		mhi_netdev->max_mtu = mhi_netdev->mru;
+		// SDX7X (Snapdragon X75) supports 32KB data aggregation size
+		if (mhi_dev->vendor == 0x17cb && mhi_dev->dev_id == 0x0309) {
+			mhi_netdev->mru = 32*1024;
+			mhi_netdev->max_mtu = mhi_netdev->mru;
+		}
 	}
 	mhi_netdev->qmap_size = mhi_netdev->mru;
 
