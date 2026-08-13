@@ -536,7 +536,7 @@ update_config()
     modem_net=$(find $modem_path -name net |tail -1)
     modem_netcard=$(ls $modem_net)
     interface_name=$modem_config
-    [ -n "$alias" ] && interface_name=$alias
+    [ -n "$alias" ] && [ "$alias" != "-" ] && interface_name=$alias
     interface6_name=${interface_name}v6
     if [ "$use_ubus" = "1" ]; then
         use_ubus_flag="-u"
