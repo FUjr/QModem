@@ -10,6 +10,7 @@ log_file="${MODEM_RUNDIR}/${modem_config}_dir/dial_log"
 debug_subject="modem_dial"
 source "${SCRIPT_DIR}/generic.sh"
 source "${SCRIPT_DIR}/cmds/modem_dial.sh"
+source "${SCRIPT_DIR}/auto_apn.sh"
 touch $log_file
 
 exec_pre_dial()
@@ -1115,6 +1116,14 @@ mhi_dial()
 
 qmi_dial()
 {
+    if qmodem_apn_is_auto "${apn:-}"; then
+        if qmodem_resolve_auto_apn "$at_port"; then
+            m_debug "automatic APN selected: $apn"
+        else
+            m_debug "automatic APN selection unavailable, continuing with original dial flow"
+        fi
+    fi
+
     cmd_line="quectel-CM"
     [ -e "/usr/bin/quectel-CM-M" ] && cmd_line="quectel-CM-M" && tom_modified=1
     case $pdp_type in
