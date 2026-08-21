@@ -54,6 +54,7 @@ get_sms() {
 load_vendor_script() {
     local vendor="$1"
     local vendor_script_prefix="/usr/share/qmodem/vendor"
+    local cmds_script_prefix="/usr/share/qmodem/cmds"
     local dynamic_load_json="$vendor_script_prefix/dynamic_load.json"
     local vendor_file="${vendor_script_prefix}/$(jq -r --arg vendor "$vendor" '.[$vendor]' "$dynamic_load_json" 2>/dev/null)"
     
@@ -61,6 +62,10 @@ load_vendor_script() {
         . /usr/share/qmodem/generic.sh
     else
         . "$vendor_file"
+        local cmds_file="$cmds_script_prefix/$(basename "$vendor_file")"
+        if [ -f "$cmds_file" ]; then
+            . "$cmds_file"
+        fi
     fi
 }
 
