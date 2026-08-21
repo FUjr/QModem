@@ -349,8 +349,8 @@ sim_info()
     [ -n "$imei" ] && add_plain_info_entry "IMEI" "$imei" "IMEI"
 
     # Operator
-    at_command="AT+COPS?"
-    isp=$(at $at_port $at_command | sed -n '2p' | awk -F'"' '{print $2}')
+    cmd_cops_numeric "$at_port" > /dev/null 2>&1
+    isp=$(cmd_cops_query "$at_port" | sed -n '2p' | awk -F'"' '{print $2}')
     if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ] || [ "$isp" = "46000" ]; then
         isp="中国移动"
     elif [ "$isp" = "CHN-UNICOM" ] || [ "$isp" = "CUCC" ] || [ "$isp" = "46001" ]; then

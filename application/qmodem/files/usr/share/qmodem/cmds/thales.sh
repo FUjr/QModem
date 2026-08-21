@@ -43,6 +43,12 @@ cmd_cpin_query()
     at "$1" "AT+CPIN?"
 }
 
+#set COPS numeric format
+cmd_cops_numeric()
+{
+    at "$1" "AT+COPS=3,2"
+}
+
 #query operator selection
 cmd_cops_query()
 {
