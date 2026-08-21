@@ -536,7 +536,7 @@ update_config()
     modem_net=$(find $modem_path -name net |tail -1)
     modem_netcard=$(ls $modem_net)
     interface_name=$modem_config
-    [ -n "$alias" ] && interface_name=$alias
+    [ -n "$alias" ] && [ "$alias" != "-" ] && interface_name=$alias
     interface6_name=${interface_name}v6
     if [ "$use_ubus" = "1" ]; then
         use_ubus_flag="-u"
@@ -630,7 +630,7 @@ check_ip()
 
         if [ -n "$ipaddr" ];then
             ipv6=$(echo $ipaddr | grep -oE "\b([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\b")
-            ipv4=$(echo $ipaddr | grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b")
+            ipv4=$(get_cgpaddr_ipv4 "$ipaddr")
             if [ "$manufacturer" = "simcom" ];then
                 ipv4=$(echo $ipaddr | grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b" | grep -v "0\.0\.0\.0" | head -n 1)
                 ipv6=$(echo $ipaddr | grep -oE "\b([0-9a-fA-F]{0,4}.){2,7}[0-9a-fA-F]{0,4}\b")
@@ -1512,7 +1512,7 @@ ip_change_fm350()
     else
         at_command="AT+CGPADDR=$pdp_index"
         response=$(cmd_dial_cgpaddr "$at_port" "$pdp_index")
-        ipv4_config=$(echo "$response" | grep "+CGPADDR:" | grep -o '"[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+"' | head -1 | tr -d '"')
+        ipv4_config=$(get_cgpaddr_ipv4 "$response")
         gateway="${ipv4_config%.*}.1"
 
         response=$(cmd_dial_gtdns "$at_port" "$pdp_index")

@@ -114,6 +114,12 @@ cmd_cops_query()
     at "$1" "AT+COPS?"
 }
 
+#query current carrier (MediaTek)
+cmd_gtcurcar_query()
+{
+    at "$1" "AT+GTCURCAR?"
+}
+
 #query subscriber number
 cmd_cnum()
 {

@@ -1,0 +1,12 @@
+{
+  "vendor": "quectel",
+  "platform": "unisoc",
+  "model": "rm500u-cnv",
+  "phase": "vendor",
+  "config_section": "2_1",
+  "command": "AT+QNWPREFCFG=\"lte_band\"",
+  "response_hex": "41542b514e57505245464346473d226c74655f62616e64220d0d0a2b514e57505245464346473a20226c74655f62616e64222c313a333a353a383a33343a33383a33393a34303a34310d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-11T09:36:08Z"
+}

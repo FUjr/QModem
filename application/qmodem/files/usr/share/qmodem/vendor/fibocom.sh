@@ -757,6 +757,19 @@ base_info()
 # $1:SIM卡状态标志
 
 
+fibocom_get_carrier()
+{
+    local carrier
+
+    case "$platform" in
+        "mediatek")
+            carrier=$(cmd_gtcurcar_query "$at_port" | awk -F'"' '/^\+GTCURCAR:/ {print $2; exit}')
+            ;;
+    esac
+    [ -n "$carrier" ] || carrier=$(cmd_cops_query "$at_port" | grep "+COPS" | awk -F'"' '{print $2}')
+    echo "$carrier"
+}
+
 #SIM卡信息
 sim_info()
 {
@@ -780,7 +793,7 @@ sim_info()
     fi
 
     #ISP（互联网服务提供商）
-    isp=$(cmd_cops_query "$at_port" | grep "+COPS" | awk -F'"' '{print $2}')
+    isp=$(fibocom_get_carrier)
     # if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ]|| [ "$isp" = "46000" ]; then
     #     isp="中国移动"
     # elif [ "$isp" = "CHN-UNICOM" ] || [ "$isp" = "UNICOM" ] || [ "$isp" = "46001" ]; then

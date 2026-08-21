@@ -551,6 +551,14 @@ get_rat()
     echo "${rat}"
 }
 
+# Return the first usable quoted IPv4 address from AT+CGPADDR output.
+# FM350 reports IPv6 in dotted decimal notation after the IPv4 address.
+get_cgpaddr_ipv4()
+{
+    echo "$1" | grep -oE '"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"' | tr -d '"' \
+        | grep -v '^0\.0\.0\.0$' | head -n 1
+}
+
 #获取连接状态
 #return raw data
 get_connect_status()
@@ -588,12 +596,7 @@ get_connect_status()
             result=$(cmd_cgpaddr "$at_port" "$pdp_index" | grep $expect)
             if [ -n "$result" ];then
                 ipv6=$(echo $result | grep -oE "\b([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\b")
-                ipv4=$(echo $result | grep -oE "\b([0-9]{1,3}\.){3}[0-9]{1,3}\b")
-                disallow_ipv4="0.0.0.0"
-                #remove the disallow ip
-                if [ "$ipv4" == "$disallow_ipv4" ];then
-                    ipv4=""
-                fi
+                ipv4=$(get_cgpaddr_ipv4 "$result")
             fi
             if [ -n "$ipv4" ] || [ -n "$ipv6" ];then
                 connect_status="Yes"

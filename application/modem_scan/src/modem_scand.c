@@ -1094,7 +1094,7 @@ static int add_modem(const char *slot, const char *slot_type)
 		snprintf(modem_count_s, sizeof(modem_count_s), "%d", modem_count);
 		uci_set("qmodem.main.modem_count", modem_count_s);
 		snprintf(key, sizeof(key), "qmodem.%s", section); uci_set(key, "modem-device");
-		if (default_alias[0]) { snprintf(key, sizeof(key), "qmodem.%s.alias", section); uci_set(key, default_alias); }
+		if (default_alias[0] && strcmp(default_alias, "-")) { snprintf(key, sizeof(key), "qmodem.%s.alias", section); uci_set(key, default_alias); }
 		snprintf(metric, sizeof(metric), "%d", modem_count + 10);
 		if (default_metric[0])
 			snprintf(metric, sizeof(metric), "%s", default_metric);

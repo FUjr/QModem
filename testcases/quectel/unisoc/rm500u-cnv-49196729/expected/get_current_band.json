@@ -1,0 +1,1 @@
+{"result":{},"current_band":{"vendor":"quectel","status":"ok","network_mode":"NR5G-SA","cells":[{"role":"pcc","rat":"NR","band":"78","band_name":"NR n78","channel":"633984","channel_type":"NR-ARFCN","pci":"702","ul_bandwidth":"","dl_bandwidth":"","scs":"3932160"}]}}

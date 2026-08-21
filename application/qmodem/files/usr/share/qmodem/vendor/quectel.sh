@@ -1138,6 +1138,8 @@ get_neighborcell_lte(){
 }
 
 get_neighborcell_unisoc(){
+    lte_lock_status=""
+    nr_lock_status=""
     lte_status=$(cmd_qnwlock_query "$at_port" "common/lte" | grep "+QNWLOCK:")
     lte_lock_freq=$(echo $lte_status | awk -F',' '{print $2}')
     lte_lock_pci=$(echo $lte_status | awk -F',' '{print $3}')
@@ -1171,6 +1173,14 @@ get_neighborcell_unisoc(){
     json_close_object
     while read line; do
         if [ -n "$(echo $line | grep "+QENG:")" ]; then
+            type=""
+            neighbourcell=""
+            arfcn=""
+            pci=""
+            rscp=""
+            ecno=""
+            rsrp=""
+            rsrq=""
             # +QENG: "neighbourcell intra","LTE",<earfcn>,<PCID>,<
             # RSRQ>,<RSRP>,<RSSI>,<SINR>,<srxlev>,<cell_resel_pri
             # ority>,<s_non_intra_search>,<thresh_serving_low>,<s_i
@@ -1436,7 +1446,7 @@ get_bandwidth()
     local network_type="$1"
     local bandwidth_num="$2"
 
-    local bandwidth
+    local bandwidth=""
     case $network_type in
 		"LTE")
             case $bandwidth_num in
@@ -1565,13 +1575,13 @@ cell_info()
                 network_mode="NR5G-SA Mode"
                 ca_response=$(cmd_qcainfo "$at_port")
                 ca_scc_info=$(echo "$ca_response" | grep "+QCAINFO:" | grep "SCC")
+                ca_scc_arfcn=""
+                scc_nr_dl_bandwidth=""
+                ca_scc_band_num=""
+                ca_scc_pci=""
 
                 if [ -n "$ca_scc_info" ]; then
                     scc_count=1
-                    ca_scc_arfcn=""
-                    scc_nr_dl_bandwidth=""
-                    ca_scc_band_num=""
-                    ca_scc_pci=""
 
                     while IFS= read -r scc_line; do
                         [ -z "$scc_line" ] && continue
