@@ -449,7 +449,7 @@ msgstr ""
 msgid "Cell ID"
 msgstr ""
 
-#: vendor/fibocom.sh:1671
+#: vendor/fibocom.sh:1684
 #: vendor/foxconn.sh:538
 #: vendor/gosuncn.sh:577
 #: vendor/gosuncn.sh:656
@@ -486,8 +486,8 @@ msgstr ""
 msgid "Channel (optional)"
 msgstr ""
 
-#: vendor/fibocom.sh:1696
-#: vendor/fibocom.sh:1713
+#: vendor/fibocom.sh:1709
+#: vendor/fibocom.sh:1726
 #: vendor/foxconn.sh:577
 #: vendor/huawei.sh:527
 #: vendor/huawei.sh:558
@@ -555,7 +555,7 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: vendor/fibocom.sh:1727
+#: vendor/fibocom.sh:1740
 #: vendor/huawei.sh:579
 #: vendor/neoway.sh:748
 #: vendor/quectel.sh:1739
@@ -626,7 +626,7 @@ msgstr ""
 msgid "Confirm Delete All"
 msgstr ""
 
-#: generic.sh:606
+#: generic.sh:609
 msgid "Connect Status"
 msgstr ""
 
@@ -930,7 +930,7 @@ msgstr ""
 msgid "Ec/Io"
 msgstr ""
 
-#: vendor/fibocom.sh:1722
+#: vendor/fibocom.sh:1735
 #: vendor/huawei.sh:574
 #: vendor/quectel.sh:1734
 msgid "Ec/No"
@@ -1491,8 +1491,8 @@ msgstr ""
 msgid "Information"
 msgstr ""
 
-#: vendor/fibocom.sh:818
-#: vendor/fibocom.sh:832
+#: vendor/fibocom.sh:831
+#: vendor/fibocom.sh:845
 #: vendor/foxconn.sh:269
 #: vendor/foxconn.sh:283
 #: vendor/gosuncn.sh:456
@@ -1510,9 +1510,9 @@ msgstr ""
 msgid "Integrate Circuit Card Identity"
 msgstr ""
 
-#: vendor/fibocom.sh:816
-#: vendor/fibocom.sh:822
-#: vendor/fibocom.sh:830
+#: vendor/fibocom.sh:829
+#: vendor/fibocom.sh:835
+#: vendor/fibocom.sh:843
 #: vendor/foxconn.sh:267
 #: vendor/foxconn.sh:273
 #: vendor/foxconn.sh:281
@@ -1538,8 +1538,8 @@ msgstr ""
 msgid "International Mobile Equipment Identity"
 msgstr ""
 
-#: vendor/fibocom.sh:817
-#: vendor/fibocom.sh:831
+#: vendor/fibocom.sh:830
+#: vendor/fibocom.sh:844
 #: vendor/foxconn.sh:268
 #: vendor/foxconn.sh:282
 #: vendor/gosuncn.sh:455
@@ -1558,7 +1558,7 @@ msgstr ""
 msgid "International Mobile Subscriber Identity"
 msgstr ""
 
-#: vendor/fibocom.sh:813
+#: vendor/fibocom.sh:826
 #: vendor/foxconn.sh:264
 #: vendor/gosuncn.sh:451
 #: vendor/meig.sh:267
@@ -1915,7 +1915,7 @@ msgstr ""
 msgid "Modem Name"
 msgstr ""
 
-#: generic.sh:622
+#: generic.sh:625
 msgid "Modem Offline"
 msgstr ""
 
@@ -1993,7 +1993,7 @@ msgstr ""
 msgid "Neighbor Cell List"
 msgstr ""
 
-#: vendor/fibocom.sh:869
+#: vendor/fibocom.sh:882
 #: vendor/foxconn.sh:306
 #: vendor/gosuncn.sh:496
 #: vendor/meig.sh:359
@@ -2010,7 +2010,7 @@ msgstr ""
 msgid "Network LED"
 msgstr ""
 
-#: vendor/fibocom.sh:1672
+#: vendor/fibocom.sh:1685
 #: vendor/foxconn.sh:541
 #: vendor/foxconn.sh:614
 #: vendor/gosuncn.sh:581
@@ -2040,7 +2040,7 @@ msgstr ""
 msgid "Network Preference Configuration"
 msgstr ""
 
-#: vendor/fibocom.sh:877
+#: vendor/fibocom.sh:890
 #: vendor/foxconn.sh:314
 #: vendor/gosuncn.sh:497
 #: vendor/meig.sh:360
@@ -2316,7 +2316,7 @@ msgstr ""
 msgid "Physical Cell ID (CA)"
 msgstr ""
 
-#: vendor/fibocom.sh:1723
+#: vendor/fibocom.sh:1736
 #: vendor/huawei.sh:575
 #: vendor/neoway.sh:745
 #: vendor/quectel.sh:1735
@@ -2529,7 +2529,7 @@ msgstr ""
 msgid "Received Signal Level"
 msgstr ""
 
-#: vendor/fibocom.sh:1712
+#: vendor/fibocom.sh:1725
 #: vendor/foxconn.sh:573
 #: vendor/gosuncn.sh:583
 #: vendor/gosuncn.sh:592
@@ -2672,8 +2672,8 @@ msgstr ""
 msgid "SA Band"
 msgstr ""
 
-#: vendor/fibocom.sh:1680
-#: vendor/fibocom.sh:1705
+#: vendor/fibocom.sh:1693
+#: vendor/fibocom.sh:1718
 #: vendor/huawei.sh:512
 #: vendor/meig.sh:552
 #: vendor/meig.sh:579
@@ -2696,11 +2696,11 @@ msgstr ""
 msgid "SIM Card SMS Management"
 msgstr ""
 
-#: generic.sh:621
+#: generic.sh:624
 msgid "SIM Error,Error code:"
 msgstr ""
 
-#: vendor/fibocom.sh:809
+#: vendor/fibocom.sh:822
 #: vendor/foxconn.sh:226
 #: vendor/gosuncn.sh:422
 #: vendor/huawei.sh:226
@@ -2718,7 +2718,7 @@ msgstr ""
 msgid "SIM LED"
 msgstr ""
 
-#: vendor/fibocom.sh:815
+#: vendor/fibocom.sh:828
 #: vendor/foxconn.sh:266
 #: vendor/gosuncn.sh:453
 #: vendor/huawei.sh:254
@@ -2730,8 +2730,8 @@ msgstr ""
 msgid "SIM Number"
 msgstr ""
 
-#: vendor/fibocom.sh:814
-#: vendor/fibocom.sh:829
+#: vendor/fibocom.sh:827
+#: vendor/fibocom.sh:842
 #: vendor/foxconn.sh:265
 #: vendor/foxconn.sh:280
 #: vendor/gosuncn.sh:452
@@ -2750,10 +2750,10 @@ msgstr ""
 msgid "SIM Slot"
 msgstr ""
 
-#: vendor/fibocom.sh:812
-#: vendor/fibocom.sh:821
 #: vendor/fibocom.sh:825
-#: vendor/fibocom.sh:828
+#: vendor/fibocom.sh:834
+#: vendor/fibocom.sh:838
+#: vendor/fibocom.sh:841
 #: vendor/foxconn.sh:263
 #: vendor/foxconn.sh:272
 #: vendor/foxconn.sh:276
@@ -2981,9 +2981,9 @@ msgstr ""
 msgid "ServerChan API token from https://sctapi.ftqq.com"
 msgstr ""
 
-#: vendor/fibocom.sh:1681
-#: vendor/fibocom.sh:1698
-#: vendor/fibocom.sh:1715
+#: vendor/fibocom.sh:1694
+#: vendor/fibocom.sh:1711
+#: vendor/fibocom.sh:1728
 #: vendor/foxconn.sh:579
 #: vendor/huawei.sh:513
 #: vendor/huawei.sh:529
@@ -3048,7 +3048,7 @@ msgstr ""
 msgid "Skytone (CN)"
 msgstr ""
 
-#: vendor/fibocom.sh:1725
+#: vendor/fibocom.sh:1738
 #: vendor/huawei.sh:577
 #: vendor/neoway.sh:747
 #: vendor/quectel.sh:1737
@@ -3086,13 +3086,13 @@ msgstr ""
 msgid "Soft reboot initiated successfully. The modem is restarting..."
 msgstr ""
 
-#: vendor/fibocom.sh:1726
+#: vendor/fibocom.sh:1739
 #: vendor/huawei.sh:578
 #: vendor/quectel.sh:1738
 msgid "Speech Code"
 msgstr ""
 
-#: vendor/fibocom.sh:1724
+#: vendor/fibocom.sh:1737
 #: vendor/huawei.sh:576
 #: vendor/neoway.sh:746
 #: vendor/quectel.sh:1736
@@ -3160,8 +3160,8 @@ msgstr ""
 msgid "T-mobile (RU)"
 msgstr ""
 
-#: vendor/fibocom.sh:1697
-#: vendor/fibocom.sh:1714
+#: vendor/fibocom.sh:1710
+#: vendor/fibocom.sh:1727
 #: vendor/foxconn.sh:578
 #: vendor/foxconn.sh:628
 #: vendor/huawei.sh:528
@@ -3313,7 +3313,7 @@ msgstr ""
 msgid "UL Bandwidth (CA)"
 msgstr ""
 
-#: vendor/fibocom.sh:1685
+#: vendor/fibocom.sh:1698
 msgid "UL CA"
 msgstr ""
 
