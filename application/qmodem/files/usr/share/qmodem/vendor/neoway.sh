@@ -4,6 +4,7 @@ _Vendor="neoway"
 _Author="sfwtw"
 _Maintainer="sfwtw <unknown>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/neoway.sh"
 debug_subject="neoway_ctrl"
 
 vendor_get_disabled_features(){

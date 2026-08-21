@@ -127,7 +127,6 @@ for profile_dir in "${profile_dirs[@]}"; do
     export vendor platform QMODEM_TESTCASE_MODEL QMODEM_TESTCASE_MODES
     . "$QMODEM_JSHN"
     . "$vendor_file"
-    . "$cmds_file"
     FIXTURE_LOOKUP="$LOOKUP"
     export FIXTURE_LOOKUP
     . "$TESTS_DIR/lib/at_fixture.sh"

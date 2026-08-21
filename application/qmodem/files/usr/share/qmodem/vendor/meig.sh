@@ -5,6 +5,7 @@ _Vendor="meig"
 _Author="Siriling,sfwtw"
 _Maintainer="sfwtw <unkown>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/meig.sh"
 debug_subject="meig_ctrl"
 
 vendor_get_disabled_features(){

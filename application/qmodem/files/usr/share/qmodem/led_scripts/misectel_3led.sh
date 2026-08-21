@@ -40,14 +40,6 @@ get_mode()
 	esac
 }
 
-get_rsrp()
-{
-	local cell_info="$1"
-
-	printf '%s\n' "$cell_info" | \
-		jq -r '.modem_info[]? | select(.key == "RSRP") | .value' | head -n 1
-}
-
 all_leds_off()
 {
 	led_turn "$LED_SIGNAL_POOR" 0
@@ -73,7 +65,7 @@ update_leds()
 	last_is_nr="$is_nr"
 	led_turn "$LED_5G" "$is_nr"
 
-	rsrp="$(get_rsrp "$cell_info")"
+	rsrp="$(misectel_rsrp_value "$cell_info" "$is_nr")"
 	signal_level="$(misectel_3led_signal_level "$rsrp")"
 	led_turn "$LED_SIGNAL_POOR" 0
 	led_turn "$LED_SIGNAL_GOOD" 0

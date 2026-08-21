@@ -4,6 +4,7 @@ _Vendor="openluat"
 _Author="QModem contributors"
 _Maintainer="QModem contributors"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/openluat.sh"
 
 debug_subject="openluat_ctrl"
 

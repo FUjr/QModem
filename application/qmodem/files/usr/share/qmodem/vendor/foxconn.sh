@@ -4,6 +4,7 @@ _Vendor="foxconn"
 _Author="x-shark"
 _Maintainer="x-shark <unknown>"
 source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/foxconn.sh"
 debug_subject="foxconn_ctrl"
 
 name=$(uci -q get qmodem.$config_section.name)

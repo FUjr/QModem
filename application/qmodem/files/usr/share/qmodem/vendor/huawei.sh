@@ -4,6 +4,7 @@ _Vendor="huawei"
 _Author="Lean"
 _Maintainer="Lean <coolsnowwolf@gmail.com>"
 . "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+. "${QMODEM_HOME:-/usr/share/qmodem}/cmds/huawei.sh"
 debug_subject="huawei_ctrl"
 
 vendor_get_disabled_features(){

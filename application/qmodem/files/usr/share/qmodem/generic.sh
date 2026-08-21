@@ -857,6 +857,6 @@ _copyright()
     json_close_object
 }
 
-#generic AT command wrappers (cmds layer); vendor-specific wrappers
-#are loaded by modem_ctrl.sh from cmds/<vendor>.sh
+#generic AT command wrappers (cmds layer); each vendor script loads its
+#vendor-specific wrappers from cmds/<vendor>.sh
 source "${SCRIPT_DIR}/cmds/generic.sh"

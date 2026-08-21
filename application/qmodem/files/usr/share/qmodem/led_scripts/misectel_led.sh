@@ -54,6 +54,26 @@ misectel_3led_signal_level()
 	fi
 }
 
+misectel_rsrp_value()
+{
+	local cell_info="$1"
+	local prefer_nr="$2"
+
+	printf '%s\n' "$cell_info" | jq -r --arg prefer_nr "$prefer_nr" '
+		[.modem_info[]?
+			| select((.key | tostring | ascii_upcase) == "RSRP")
+			| (.value | tostring
+				| gsub("[[:space:]]"; "")
+				| sub("[dD][bB][mM]$"; "")
+				| tonumber?)] as $values
+		| if ($values | length) == 0 then empty
+		  elif $prefer_nr == "1" then $values[-1]
+		  else $values[0]
+		  end
+		| floor
+	' 2>/dev/null
+}
+
 led_turn()
 {
 	local path="/sys/class/leds/$1"

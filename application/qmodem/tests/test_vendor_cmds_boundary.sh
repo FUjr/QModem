@@ -11,6 +11,9 @@ for vendor_file in "$QMODEM_DIR"/vendor/*.sh; do
     if [ ! -f "$QMODEM_DIR/cmds/$vendor.sh" ]; then
         echo "missing command layer: cmds/$vendor.sh" >&2
         failed=1
+    elif ! grep -qE "^[[:space:]]*(source|\.)[[:space:]]+\"?\\\$\{QMODEM_HOME:-/usr/share/qmodem\}/cmds/$vendor\\.sh\"?" "$vendor_file"; then
+        echo "vendor does not load command layer: vendor/$vendor.sh" >&2
+        failed=1
     fi
 done
 
