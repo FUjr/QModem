@@ -12,6 +12,9 @@ case "$name" in
     "t99w640")
         at_pre="AT+"
     ;;
+    "t99w368")
+        at_pre="AT+"
+    ;;
     *)
         at_pre="AT^"
     ;;
@@ -240,6 +243,7 @@ sim_info()
         return
     fi
     
+    cmd_cops_numeric "$at_port" > /dev/null 2>&1
     isp=$(cmd_cops_query "$at_port" | sed -n '2p' | awk -F'"' '{print $2}')
     if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ]|| [ "$isp" = "46000" ]; then
          isp="中国移动"
