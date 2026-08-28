@@ -35,6 +35,7 @@ config_get()
 	modem0:path) value='/tmp/qmodem-test' ;;
 	modem0:en_bridge) value="$TEST_BRIDGE" ;;
 	modem0:donot_nat) value="$TEST_DONOT_NAT" ;;
+	modem0:do_not_add_dns) value="${TEST_DNS-$value}" ;;
 	main:enable_dial) value='1' ;;
 	esac
 
@@ -47,6 +48,12 @@ TEST_BRIDGE=1
 TEST_DONOT_NAT=0
 update_config
 [ "$bridge_enabled:$donot_nat" = '1:1' ]
+[ "$do_not_add_dns" = '1' ]
+
+TEST_DNS=0
+update_config
+[ "$do_not_add_dns" = '0' ]
+unset TEST_DNS
 
 TEST_BRIDGE=0
 TEST_DONOT_NAT=0
