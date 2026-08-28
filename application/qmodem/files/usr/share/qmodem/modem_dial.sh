@@ -481,7 +481,7 @@ update_config()
     config_get ra_master $modem_config ra_master
     config_get extend_prefix $modem_config extend_prefix
     config_get en_bridge $modem_config en_bridge
-    config_get do_not_add_dns $modem_config do_not_add_dns
+    config_get do_not_add_dns $modem_config do_not_add_dns 1
     config_get dns_list $modem_config dns_list
     config_get huawei_dial_mode $modem_config huawei_dial_mode
     config_get donot_nat $modem_config donot_nat 0
