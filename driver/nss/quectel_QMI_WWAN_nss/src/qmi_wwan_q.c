@@ -872,24 +872,11 @@ static struct rtnl_link_stats64 *rmnet_vnd_get_stats64(struct net_device *net, s
 #endif
 
 #if defined(QUECTEL_UL_DATA_AGG)
-static void usbnet_bh(unsigned long data) {
-	sQmiWwanQmap *pQmapDev = (sQmiWwanQmap *)data;
-	struct tasklet_struct *t = &pQmapDev->usbnet_bh;
-	bool use_callback = false;
-
-#if (LINUX_VERSION_CODE > KERNEL_VERSION( 5,8,0 )) //c955e329bb9d44fab75cf2116542fcc0de0473c5
-	use_callback = t->use_callback;
-	if (use_callback)
-		t->callback(&pQmapDev->mpNetDev->bh);
-#endif
-
-	if (!use_callback)
-		t->func(t->data);
-
-	if (!netif_queue_stopped(pQmapDev->mpNetDev->net)) {
-		qmap_wake_queue((sQmiWwanQmap *)data);
-	}
-}
+/* usbnet_bh(): removed. Newer kernels replaced usbnet's tasklet-based
+ * bh with a private workqueue (bh_work), so this driver can no longer
+ * intercept dev->bh. The qmap_wake_queue() call that used to run here
+ * on every bh cycle now runs from rmnet_usb_rx_fixup() instead, which
+ * usbnet already calls on every completed RX -- equivalent timing. */
 
 static void rmnet_usb_tx_wake_queue(unsigned long data) {
 	qmap_wake_queue((sQmiWwanQmap *)data);
@@ -1349,8 +1336,7 @@ static int qmap_register_device(sQmiWwanQmap * pDev, u8 offset_id)
 #endif
 	priv->agg_skb = NULL;
 	priv->agg_count = 0;
-	hrtimer_init(&priv->agg_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	priv->agg_hrtimer.function = rmnet_usb_tx_agg_timer_cb;
+	hrtimer_setup(&priv->agg_hrtimer, rmnet_usb_tx_agg_timer_cb, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	INIT_WORK(&priv->agg_wq, rmnet_usb_tx_agg_work);
 	ktime_get_ts64(&priv->agg_time);
 	spin_lock_init(&priv->agg_lock);
@@ -2246,10 +2232,8 @@ static int qmi_wwan_bind(struct usbnet *dev, struct usb_interface *intf)
 					dev->driver_info = &pQmapDev->driver_info;
 				}
 
-				if (pQmapDev->use_rmnet_usb && !one_card_mode) {
-					pQmapDev->usbnet_bh = dev->bh;
-					tasklet_init(&dev->bh, usbnet_bh, (unsigned long)pQmapDev);
-				}
+				/* dev->bh hijack removed: no longer possible on this kernel.
+			 * qmap_wake_queue() now runs from rmnet_usb_rx_fixup() instead. */
 			}
 		}
 
@@ -2378,6 +2362,11 @@ static int rmnet_usb_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
 {
 	struct net_device	*net = dev->net;
 	unsigned headroom = skb_headroom(skb);
+	struct qmi_wwan_state *info = (void *)&dev->data;
+	sQmiWwanQmap *pQmapDev = (sQmiWwanQmap *)info->unused;
+
+	if (pQmapDev && !netif_queue_stopped(dev->net))
+		qmap_wake_queue(pQmapDev);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION( 3,3,1 )) //7bdd402706cf26bfef9050dfee3f229b7f33ee4f
 //some customers port to v3.2
