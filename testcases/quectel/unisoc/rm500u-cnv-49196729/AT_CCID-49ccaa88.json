@@ -1,0 +1,12 @@
+{
+  "vendor": "quectel",
+  "platform": "unisoc",
+  "model": "rm500u-cnv",
+  "phase": "vendor",
+  "config_section": "2_1",
+  "command": "AT+CCID",
+  "response_hex": "41542b434349440d0d0a2b434349443a2038393836303332353136373535303430303838370d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-11T09:36:03Z"
+}

@@ -1,0 +1,12 @@
+{
+  "vendor": "quectel",
+  "platform": "unisoc",
+  "model": "rm500u-cnv",
+  "phase": "vendor",
+  "config_section": "2_1",
+  "command": "AT+QENG=\"neighbourcell\"",
+  "response_hex": "41542b51454e473d226e65696768626f757263656c6c220d0d0a2b51454e473a20226e65696768626f757263656c6c222c224e52222c3633333938342c3236322c2d3130322c2d31372c2d362c2d2c33320d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-11T09:36:09Z"
+}

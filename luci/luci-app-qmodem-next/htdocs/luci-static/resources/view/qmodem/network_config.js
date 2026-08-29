@@ -373,6 +373,7 @@ return view.extend({
 	o.value('ip', _('IPv4'));
 	o.value('ipv6', _('IPv6'));
 	o.value('ipv4v6', _('IPv4/IPv6'));
+	o.value('ethernet', _('Ethernet'));
 	o.default = 'ipv4v6';
 	o.rmempty = false;
 	o.modalonly = true;

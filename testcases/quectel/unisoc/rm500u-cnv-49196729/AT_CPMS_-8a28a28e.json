@@ -1,0 +1,12 @@
+{
+  "vendor": "quectel",
+  "platform": "unisoc",
+  "model": "rm500u-cnv",
+  "phase": "vendor",
+  "config_section": "2_1",
+  "command": "AT+CPMS?",
+  "response_hex": "41542b43504d533f0d0d0a2b43504d533a2022534d222c332c34302c22534d222c332c34302c22534d222c332c34300d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-11T09:36:49Z"
+}

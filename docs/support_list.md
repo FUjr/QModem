@@ -1,10 +1,15 @@
+# openluat
+Model | Platform | USB  | PCIe 
+--- | --- | --- | ---
+air724ug | unisoc |✔ usb(ecm,rndis) | ✘
+
 # huawei
 Model | Platform | USB  | PCIe 
 --- | --- | --- | ---
 s10 | hisilicon |✔ usb(rndis) | ✘
 mt5700m-cn | hisilicon |✔ usb(ecm,ncm) | ✘
 mt5710_cn | hisilicon |✔ usb(ecm,ncm) | ✘
-mh5000-31 | hisilicon |✔ usb(ecm) | ✘
+mh5000-31 | hisilicon |✔ usb(ecm,ncm) | ✘
 mh5000-82 | unisoc |✔ usb(ecm,ncm,rndis) | ✘
 mh5000-82m | unisoc |✔ usb(ecm,ncm,rndis) | ✘
 
@@ -112,7 +117,14 @@ Model | Platform | USB  | PCIe
 t77w968 | qualcomm |✔ usb(qmi,mbim) | ✘
 t99w175 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
 t99w373 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
+t99w368 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
 t99w640 | qualcomm |✘ | ✔ pcie(mbim)
+
+# thales
+Model | Platform | USB  | PCIe 
+--- | --- | --- | ---
+mv32-w-a | qualcomm |✔ usb(mbim) | ✘
+mv32-w-b | qualcomm |✔ usb(mbim,rmnet) | ✘
 
 # neoway
 Model | Platform | USB  | PCIe 

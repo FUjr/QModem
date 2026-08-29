@@ -1,0 +1,11 @@
+{
+  "vendor": "openluat",
+  "platform": "unisoc",
+  "model": "air724ug",
+  "command": "AT+CGPADDR=5",
+  "response_hex": "41542b434750414444523d350d0a0d0a2b434750414444523a20352c22495056343a31302e33322e3134302e31323220202020495056363a3a3a313843393a434533333a393742373a37354244220d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-08T10:55:24Z",
+  "sanitized": true
+}

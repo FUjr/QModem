@@ -1,0 +1,17 @@
+{
+  "vendor": "core",
+  "platform": "unknown",
+  "model": "rm500u-cnv",
+  "phase": "recognition",
+  "config_section": "2_1",
+  "command": "AT+CGMM",
+  "response_hex": "41542b43474d4d0d0d0a524d353030552d434e560d0a0d0a4f4b0d0a",
+  "tool": "at",
+  "rc": 0,
+  "timestamp": "2026-08-11T09:35:51Z",
+  "expected_identity": {
+    "vendor": "quectel",
+    "platform": "unisoc",
+    "model": "rm500u-cnv"
+  }
+}
