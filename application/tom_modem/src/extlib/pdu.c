@@ -136,10 +136,10 @@ static const unsigned char gsm7bits_extend_to_latin1[128] = {
     0,   0,   0,   0, '^',   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0, '{', '}',   0,   0,   0,   0,   0,'\\',
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, '[', '~', ']',   0,
-  '|',   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+  '|',   0,   0, 0xC7,   0,   0,   0, 0xD0,   0, 0xDD,   0,   0,   0,   0,   0,   0,
+    0,   0,   0, 0xDE,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0, 0xE7,   0,   0,   0, 0xF0,   0, 0xFD,   0,   0,   0,   0,   0,   0,
+    0,   0,   0, 0xFE,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 };
 
 static int
@@ -147,14 +147,21 @@ G7bitToAscii(char* buffer, int buffer_length)
 {
 	int i;
 
-	for (i = 0; i<buffer_length; i++) {
+	for (i = 0; i < buffer_length; i++) {
 		if (buffer[i] < 128) {
 			if (buffer[i] == GSM_7BITS_ESCAPE) {
-				buffer[i] = gsm7bits_extend_to_latin1[buffer[i + 1]];
-				memmove(&buffer[i + 1], &buffer[i + 2], buffer_length - i - 1);
+				if (i + 1 >= buffer_length) {
+					// Bozuk veri: ESCAPE tamponun son baytı, genişletilecek
+					// karakter yok. Bu baytı at ve döngüyü sonlandır.
+					buffer_length--;
+					break;
+				}
+				buffer[i] = gsm7bits_extend_to_latin1[(unsigned char)buffer[i + 1]];
+				if (i + 2 < buffer_length)
+					memmove(&buffer[i + 1], &buffer[i + 2], buffer_length - i - 2);
 				buffer_length--;
 			} else {
-				buffer[i] = gsm7bits_to_latin1[buffer[i]];
+				buffer[i] = gsm7bits_to_latin1[(unsigned char)buffer[i]];
 			}
 		}
 	}
@@ -376,6 +383,11 @@ int pdu_decode(const unsigned char* buffer, int buffer_length,
 		*ref_number = 0x000000FF&buffer[sms_start + tmp - 2];
 		*total_parts = 0x000000FF&buffer[sms_start + tmp - 1];
 		*part_number = 0x000000FF&buffer[sms_start + tmp];
+		if (*total_parts <= 1) {
+			*ref_number = 0;
+			*total_parts = 0;
+			*part_number = 0;
+		}
 	} else {
 		tmp = 0;
 		*skip_bytes = tmp;
@@ -398,7 +410,10 @@ int pdu_decode(const unsigned char* buffer, int buffer_length,
 				int decoded_sms_text_size = DecodePDUMessage_GSM_7bit(buffer + sms_start + 1, buffer_length - (sms_start + 1),
 							   output_sms_text, output_sms_text_length);
 				if (decoded_sms_text_size != output_sms_text_length) return -1;  // Decoder length is not as expected.
-				output_sms_text_length = G7bitToAscii(output_sms_text, output_sms_text_length);
+				int skip_septets = 0;
+				if (*skip_bytes > 0)
+					skip_septets = (*skip_bytes * 8 + 6) / 7;
+				output_sms_text_length = skip_septets + G7bitToAscii(output_sms_text + skip_septets, output_sms_text_length - skip_septets);
 				break;
 			}
 		case 2:

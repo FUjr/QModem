@@ -94,6 +94,57 @@ int decode_pdu(SMS_T *sms)
     }
     sms->sms_lenght = sms_len;
 
+    // Convert sender to UTF-8 in place
+    {
+        char temp_sender[64];
+        int s_offset = 0;
+        for (int i = 0; sms->sender[i] != '\0'; i++)
+        {
+            unsigned char c = (unsigned char)sms->sender[i];
+            if (c < 128)
+            {
+                temp_sender[s_offset++] = c;
+            }
+            else if (c == 0xD0) { // Ğ
+                temp_sender[s_offset++] = 0xC4;
+                temp_sender[s_offset++] = 0x9E;
+            }
+            else if (c == 0xF0) { // ğ
+                temp_sender[s_offset++] = 0xC4;
+                temp_sender[s_offset++] = 0x9F;
+            }
+            else if (c == 0xDD) { // İ
+                temp_sender[s_offset++] = 0xC4;
+                temp_sender[s_offset++] = 0xB0;
+            }
+            else if (c == 0xFD) { // ı
+                temp_sender[s_offset++] = 0xC4;
+                temp_sender[s_offset++] = 0xB1;
+            }
+            else if (c == 0xDE) { // Ş
+                temp_sender[s_offset++] = 0xC5;
+                temp_sender[s_offset++] = 0x9E;
+            }
+            else if (c == 0xFE) { // ş
+                temp_sender[s_offset++] = 0xC5;
+                temp_sender[s_offset++] = 0x9F;
+            }
+            else
+            {
+                temp_sender[s_offset++] = 0xC0 | (c >> 6);
+                temp_sender[s_offset++] = 0x80 | (c & 0x3F);
+            }
+            if (s_offset >= 62) break; // prevent temp_sender overflow
+        }
+        temp_sender[s_offset] = '\0';
+
+        // sms->sender, operations.c'de PHONE_NUMBER_SIZE ile ayrilmistir.
+        // strcpy YERINE strncpy + garantili null-terminate kullaniliyor ki
+        // temp_sender (64 byte'a kadar) hedef tamponu tasirmasin.
+        strncpy(sms->sender, temp_sender, PHONE_NUMBER_SIZE - 1);
+        sms->sender[PHONE_NUMBER_SIZE - 1] = '\0';
+    }
+
     switch ((tp_dcs / 4) % 4)
     {
     case 0:
@@ -101,15 +152,55 @@ int decode_pdu(SMS_T *sms)
             // GSM 7 bit
             sms->type = SMS_CHARSET_7BIT;
             int i;
+            int offset = 0;
             i = skip_bytes;
             if (skip_bytes > 0)
                 i = (skip_bytes * 8 + 6) / 7;
-            for (; i < strlen(sms_text); i++)
+            for (; i < sms_len; i++)
             {
-                sprintf(sms->sms_text + i, "%c", sms_text[i]);
+                if (offset >= SMS_TEXT_SIZE - 2)
+                {
+                    dbg_msg("SMS text truncated to fit buffer (SMS_TEXT_SIZE=%d)", SMS_TEXT_SIZE);
+                    break;
+                }
+                unsigned char c = (unsigned char)sms_text[i];
+                if (c < 128)
+                {
+                    sms->sms_text[offset++] = c;
+                }
+                else if (c == 0xD0) { // Ğ
+                    sms->sms_text[offset++] = 0xC4;
+                    sms->sms_text[offset++] = 0x9E;
+                }
+                else if (c == 0xF0) { // ğ
+                    sms->sms_text[offset++] = 0xC4;
+                    sms->sms_text[offset++] = 0x9F;
+                }
+                else if (c == 0xDD) { // İ
+                    sms->sms_text[offset++] = 0xC4;
+                    sms->sms_text[offset++] = 0xB0;
+                }
+                else if (c == 0xFD) { // ı
+                    sms->sms_text[offset++] = 0xC4;
+                    sms->sms_text[offset++] = 0xB1;
+                }
+                else if (c == 0xDE) { // Ş
+                    sms->sms_text[offset++] = 0xC5;
+                    sms->sms_text[offset++] = 0x9E;
+                }
+                else if (c == 0xFE) { // ş
+                    sms->sms_text[offset++] = 0xC5;
+                    sms->sms_text[offset++] = 0x9F;
+                }
+                else
+                {
+                    // Latin-1'den UTF-8'e Donusum
+                    sms->sms_text[offset++] = 0xC0 | (c >> 6);
+                    sms->sms_text[offset++] = 0x80 | (c & 0x3F);
+                }
             }
-            i++;
-            sprintf(sms->sms_text + i, "%c", '\0');
+            if (offset >= SMS_TEXT_SIZE) offset = SMS_TEXT_SIZE - 1;
+            sms->sms_text[offset] = '\0';
             break;
         }
     case 2:
