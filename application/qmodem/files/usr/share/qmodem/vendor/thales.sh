@@ -18,12 +18,13 @@ _Maintainer="arlong2693@gmail.com"
 #     AT+ICCID       15.10  ICCID
 # - IMEI modification is NOT supported (only AT+GSN/AT+CGSN/AT+GETIMEI read).
 # - No voltage query command is exposed by this module.
-source /usr/share/qmodem/generic.sh
+source "${QMODEM_HOME:-/usr/share/qmodem}/generic.sh"
+source "${QMODEM_HOME:-/usr/share/qmodem}/cmds/thales.sh"
 debug_subject="thales_ctrl"
 
 get_imei()
 {
-    imei=$(at $at_port "ATI" | awk -F': ' '/^IMEI:/ {print $2}' | xargs)
+    imei=$(cmd_ati "$at_port" | awk -F': ' '/^IMEI:/ {print $2}' | xargs)
     json_add_string imei $imei
 }
 
@@ -33,8 +34,7 @@ get_imei()
 #   Revision: FDE.F0.0.0.1.3.GC.001  1  [Sep 05 2022 08:00:00]
 base_info()
 {
-    at_command="ATI"
-    baseinfos=$(at $at_port $at_command)
+    baseinfos=$(cmd_ati "$at_port")
     manufacturer=$(echo "$baseinfos" | awk -F': ' '/^Manufacturer:/ {print $2}' | xargs)
     name=$(echo "$baseinfos" | awk -F': ' '/^Model:/ {print $2}' | xargs)
     revision=$(echo "$baseinfos" | awk -F': ' '/^Revision:/ {print $2}' | xargs)
@@ -54,7 +54,7 @@ get_mode()
 {
     local mode_num
     local mode
-    ucfg=$(at $at_port "AT+SETCONFIG?")
+    ucfg=$(cmd_setconfig_query "$at_port")
     config_type=$(echo "$ucfg" | grep -o '+SETCONFIG: *[0-9]' | grep -o '[0-9]' | xargs)
     if [ "$config_type" = "0" ]; then
         mode_num="0"
@@ -101,8 +101,7 @@ set_mode()
         ;;
     esac
     #set modem
-    at_command="AT+SETCONFIG=${mode_num}"
-    res=$(at "${at_port}" "${at_command}")
+    res=$(cmd_setconfig_set "$at_port" "$mode_num")
     json_select "result"
     json_add_string "set_mode" "$res"
     json_close_object
@@ -114,7 +113,7 @@ set_mode()
 #                5 WCDMA+NR5G, 6 LTE+NR5G, 7 WCDMA+LTE+NR5G
 get_network_prefer()
 {
-    res=$(at $at_port "AT^SLMODE?" | grep -o '[0-9]\+' | tr -d '\n' | tr -d ' ')
+    res=$(cmd_slmode_query "$at_port" | grep -o '[0-9]\+' | tr -d '\n' | tr -d ' ')
     local network_prefer_3g="0"
     local network_prefer_4g="0"
     local network_prefer_5g="0"
@@ -155,7 +154,7 @@ get_network_prefer()
     json_add_string 3G $network_prefer_3g
     json_add_string 4G $network_prefer_4g
     json_add_string 5G $network_prefer_5g
-    json_close_array
+    json_close_object
 }
 
 set_network_prefer()
@@ -187,7 +186,7 @@ set_network_prefer()
             code="7"
             ;;
     esac
-    res=$(at $at_port "AT^SLMODE=1,$code")
+    res=$(cmd_slmode_set "$at_port" "$code")
     json_add_string "code" "$code"
     json_add_string "result" "$res"
 }
@@ -209,8 +208,7 @@ get_lockband()
 
 get_lockband_nr()
 {
-    bands_command="AT+BAND_PREF?"
-    get_lockbans=$(at $at_port $bands_command)
+    get_lockbans=$(cmd_band_pref_query "$at_port")
 
     # WCDMA
     wcdma_enable=$(echo "$get_lockbans" | grep "WCDMA,Enable Bands" | cut -d':' -f2 | tr -d ' ' | tr ',' ' ')
@@ -239,6 +237,10 @@ get_lockband_nr()
     nr_sa_enable=$(echo "$nr_sa_enable" | tr ' ' '\n' | grep -v '^$')
     nr_sa_disable=$(echo "$nr_sa_disable" | tr ' ' '\n' | grep -v '^$')
     nr_sa_all=$(echo "$nr_sa_enable $nr_sa_disable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
+    # AT+BAND_PREF can only set a single NR5G RAT, so merge the NR5G_NSA and
+    # NR5G_SA band lists into one NR class that set_lockband() can actually lock.
+    nr_enable=$(echo "$nr_nsa_enable $nr_sa_enable" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
+    nr_all=$(echo "$nr_nsa_all $nr_sa_all" | tr ' ' '\n' | grep -v '^$' | sort -n | uniq)
 
     # UMTS
     json_add_object "UMTS"
@@ -268,29 +270,15 @@ get_lockband_nr()
     json_close_array
     json_close_object
 
-    # NR_NSA
-    json_add_object "NR_NSA"
+    # NR
+    json_add_object "NR"
     json_add_array "available_band"
-    for i in $nr_nsa_all; do
-        echo "$i" | grep -Eq '^[0-9]+$' && add_avalible_band_entry "$i" "NR_NSA_N$i"
+    for i in $nr_all; do
+        echo "$i" | grep -Eq '^[0-9]+$' && add_avalible_band_entry "$i" "NR_N$i"
     done
     json_close_array
     json_add_array "lock_band"
-    for i in $nr_nsa_enable; do
-        echo "$i" | grep -Eq '^[0-9]+$' && json_add_string "" "$i"
-    done
-    json_close_array
-    json_close_object
-
-    # NR_SA
-    json_add_object "NR_SA"
-    json_add_array "available_band"
-    for i in $nr_sa_all; do
-        echo "$i" | grep -Eq '^[0-9]+$' && add_avalible_band_entry "$i" "NR_SA_N$i"
-    done
-    json_close_array
-    json_add_array "lock_band"
-    for i in $nr_sa_enable; do
+    for i in $nr_enable; do
         echo "$i" | grep -Eq '^[0-9]+$' && json_add_string "" "$i"
     done
     json_close_array
@@ -304,16 +292,18 @@ set_lockband()
     lock_band=$(echo $config | jq -r '.lock_band')
     case "$band_class" in
         "UMTS")
-            at_command="AT+BAND_PREF=WCDMA,2,$lock_band"
+            res=$(cmd_band_pref_lock "$at_port" WCDMA "$lock_band")
             ;;
         "LTE")
-            at_command="AT+BAND_PREF=LTE,2,$lock_band"
+            res=$(cmd_band_pref_lock "$at_port" LTE "$lock_band")
             ;;
         "NR")
-            at_command="AT+BAND_PREF=NR5G,2,$lock_band"
+            res=$(cmd_band_pref_lock "$at_port" NR5G "$lock_band")
+            ;;
+        *)
+            res="ERROR: unsupported band_class $band_class"
             ;;
     esac
-    res=$(at $at_port $at_command)
     json_select "result"
     json_add_string "set_lockband" "$res"
     json_add_string "config" "$config"
@@ -327,15 +317,13 @@ sim_info()
     class="SIM Information"
 
     # SIM Status
-    at_command="AT+CPIN?"
-    sim_status=$(at $at_port $at_command | grep "+CPIN:")
+    sim_status=$(cmd_cpin_query "$at_port" | grep "+CPIN:")
     sim_status=${sim_status:7:-1}
     #lowercase
     sim_status=$(echo $sim_status | tr A-Z a-z)
 
     # SIM Slot
-    at_command="AT+SWITCH_SLOT?"
-    sim_slot=$(at $at_port $at_command | grep ENABLE | grep -o 'SIM[0-9]' | grep -o '[0-9]')
+    sim_slot=$(cmd_switch_slot_query "$at_port" | grep ENABLE | grep -o 'SIM[0-9]' | grep -o '[0-9]')
 
     if [ "$sim_status" != "ready" ]; then
         return
@@ -345,7 +333,7 @@ sim_info()
     [ -n "$sim_slot" ] && add_plain_info_entry "SIM Slot" "$sim_slot" "SIM Slot"
 
     # IMEI
-    imei=$(at $at_port "ATI" | awk -F': ' '/^IMEI:/ {print $2}' | xargs)
+    imei=$(cmd_ati "$at_port" | awk -F': ' '/^IMEI:/ {print $2}' | xargs)
     [ -n "$imei" ] && add_plain_info_entry "IMEI" "$imei" "IMEI"
 
     # Operator
@@ -361,13 +349,11 @@ sim_info()
     [ -n "$isp" ] && add_plain_info_entry "ISP" "$isp" "ISP"
 
     # ICCID
-    at_command="AT+ICCID"
-    iccid=$(at $at_port $at_command | grep "ICCID:" | grep -o '[0-9]\{19,20\}' | head -n 1)
+    iccid=$(cmd_iccid "$at_port" | grep "ICCID:" | grep -o '[0-9]\{19,20\}' | head -n 1)
     [ -n "$iccid" ] && add_plain_info_entry "ICCID" "$iccid" "Integrate Circuit Card Identity"
 
     # Phone Number
-    at_command="AT+CNUM"
-    sim_number=$(at $at_port $at_command | awk -F'"' '{print $2}' | head -n 1)
+    sim_number=$(cmd_cnum "$at_port" | awk -F'"' '{print $2}' | head -n 1)
     [ -n "$sim_number" ] && add_plain_info_entry "Phone Number" "$sim_number" "Phone Number"
 }
 
@@ -375,8 +361,7 @@ network_info()
 {
     class="Network Information"
     [ -z "$network_type" ] && {
-        at_command="AT+COPS?"
-        local rat_num=$(at ${at_port} ${at_command} | grep "+COPS:" | awk -F',' '{print $4}' | sed 's/\r//g')
+        local rat_num=$(cmd_cops_query "$at_port" | grep "+COPS:" | awk -F',' '{print $4}' | sed 's/\r//g')
         network_type=$(get_rat ${rat_num})
     }
     add_plain_info_entry "Network Type" "$network_type" "Network Type"
@@ -387,7 +372,7 @@ network_info()
 cell_info()
 {
     class="Cell Information"
-    response=$(at $at_port "AT^DEBUG?")
+    response=$(cmd_debug_query "$at_port")
     network_mode=$(echo "$response" | awk -F'RAT:' '{print $2}' | xargs)
 
     case $network_mode in
@@ -494,7 +479,7 @@ process_signal_value()
 # Temperature via AT^TEMP (manual 15.13): "TSENS: 33C"
 _get_temperature()
 {
-    temperature=$(at $at_port "AT^TEMP?" | sed -n 's/.*TSENS: \([0-9]*\)C.*/\1/p')
+    temperature=$(cmd_temp_query "$at_port" | sed -n 's/.*TSENS: \([0-9]*\)C.*/\1/p')
     [ -n "$temperature" ] && {
         add_plain_info_entry "temperature" "$temperature C" "Temperature"
     }
@@ -510,7 +495,7 @@ get_sim_switch_capabilities()
 
 get_sim_slot()
 {
-    sim_slot=$(at $at_port "AT+SWITCH_SLOT?" | grep ENABLE | grep -o 'SIM[0-9]' | grep -o '[0-9]')
+    sim_slot=$(cmd_switch_slot_query "$at_port" | grep ENABLE | grep -o 'SIM[0-9]' | grep -o '[0-9]')
     json_add_string "sim_slot" "$sim_slot"
 }
 
@@ -525,7 +510,7 @@ set_sim_slot()
             return 1
             ;;
     esac
-    response=$(at "$at_port" "AT+SWITCH_SLOT=$mode")
+    response=$(cmd_switch_slot_set "$at_port" "$mode")
     json_add_string "result" "$response"
     printf '%s\n' "$response" | grep -q '^OK' || return 1
 }

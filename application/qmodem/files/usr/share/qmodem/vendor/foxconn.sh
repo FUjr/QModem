@@ -243,7 +243,14 @@ sim_info()
         return
     fi
     
-    cmd_cops_numeric "$at_port" > /dev/null 2>&1
+    # Only T99W368 returns unreadable text operator names; force numeric COPS
+    # format just for that model so existing Foxconn models keep their current
+    # behaviour.
+    case "$name" in
+        "t99w368")
+            cmd_cops_numeric "$at_port" > /dev/null 2>&1
+            ;;
+    esac
     isp=$(cmd_cops_query "$at_port" | sed -n '2p' | awk -F'"' '{print $2}')
     if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ]|| [ "$isp" = "46000" ]; then
          isp="中国移动"
