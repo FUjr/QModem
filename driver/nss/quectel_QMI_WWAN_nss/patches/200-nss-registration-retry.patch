@@ -1,0 +1,83 @@
+--- a/qmi_wwan_q.c
++++ b/qmi_wwan_q.c
+@@ -200,6 +200,8 @@
+ 	struct usbnet *dev;
+ 	struct net_device *real_dev;
+ 	struct net_device *self_dev;
++	struct delayed_work nss_retry_work;
++	unsigned int nss_retry_count;
+ 	u8 offset_id;
+ 	u8 mux_id;
+ 	u8 qmap_version; // 5~v1, 9~v5
+@@ -1297,6 +1299,43 @@
+ 	return RX_HANDLER_PASS;
+ }
+ 
++/* QMI_WWAN_Q_NSS_RETRY: NSS firmware, USB probe'undan sonra boot ediyor.
++ * Ilk nss_create() -1 donuyor; arka planda tekrar deniyoruz. */
++#define QMAP_NSS_RETRY_MAX 90
++#define QMAP_NSS_RETRY_DELAY_MS 1000
++
++static void qmap_nss_retry_work(struct work_struct *work)
++{
++	struct qmap_priv *priv = container_of(to_delayed_work(work),
++					struct qmap_priv, nss_retry_work);
++	struct net_device *qmap_net = priv->self_dev;
++	int rc;
++
++	if (!nss_cb || priv->use_qca_nss || !qmap_net)
++		return;
++
++	rc = nss_cb->nss_create(qmap_net);
++	if (rc) {
++		priv->nss_retry_count++;
++		if (priv->nss_retry_count < QMAP_NSS_RETRY_MAX) {
++			schedule_delayed_work(&priv->nss_retry_work,
++					msecs_to_jiffies(QMAP_NSS_RETRY_DELAY_MS));
++		} else {
++			netdev_err(qmap_net, "NSS registration gave up after %u attempts: %d\n",
++					priv->nss_retry_count, rc);
++		}
++		return;
++	}
++
++	priv->use_qca_nss = 1;
++	netdev_info(qmap_net, "NSS context created (after %u retries)\n",
++			priv->nss_retry_count);
++	rtnl_lock();
++	netdev_rx_handler_register(qmap_net, qca_nss_rx_handler, NULL);
++	rtnl_unlock();
++}
++
++
+ static int qmap_register_device(sQmiWwanQmap * pDev, u8 offset_id)
+ {
+ 	struct net_device *real_dev = pDev->mpNetDev->net;
+@@ -1322,6 +1361,8 @@
+     priv->offset_id = offset_id;
+     priv->real_dev = real_dev;
+     priv->self_dev = qmap_net;
++    INIT_DELAYED_WORK(&priv->nss_retry_work, qmap_nss_retry_work);
++    priv->nss_retry_count = 0;
+     priv->dev = pDev->mpNetDev;
+     priv->qmap_version = pDev->qmap_version;
+     priv->mux_id = QUECTEL_QMAP_MUX_ID + offset_id;
+@@ -1376,7 +1417,9 @@
+ 		int rc = nss_cb->nss_create(qmap_net);
+ 		if (rc) {
+ 			/* Log, but don't fail the device creation */
+-			netdev_err(qmap_net, "Device will not use NSS path: %d\n", rc);
++			netdev_warn(qmap_net, "NSS not ready yet (%d), retrying in background\n", rc);
++			schedule_delayed_work(&priv->nss_retry_work,
++					msecs_to_jiffies(QMAP_NSS_RETRY_DELAY_MS));
+ 		} else {
+ 			priv->use_qca_nss = 1;
+ 			netdev_info(qmap_net, "NSS context created\n");
+@@ -1412,6 +1455,7 @@
+ 		netif_carrier_off( qmap_net );
+ 		netif_stop_queue( qmap_net );
+ 
++		cancel_delayed_work_sync(&priv->nss_retry_work);
+ 		hrtimer_cancel(&priv->agg_hrtimer);
+ 		cancel_work_sync(&priv->agg_wq);
+ 		spin_lock_irqsave(&priv->agg_lock, flags);

@@ -1,0 +1,70 @@
+--- a/qmi_wwan_q.c
++++ b/qmi_wwan_q.c
+@@ -178,7 +178,9 @@
+ #if defined(QUECTEL_UL_DATA_AGG)
+ 	struct tx_agg_ctx tx_ctx;
+ 	struct tasklet_struct	txq;
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
+ 	struct tasklet_struct usbnet_bh;
++#endif
+ #endif
+ 
+ #ifdef QUECTEL_BRIDGE_MODE
+@@ -872,6 +874,21 @@
+ #endif
+ 
+ #if defined(QUECTEL_UL_DATA_AGG)
++/* QMI_WWAN_Q_K618: 6.10+ usbnet tasklet -> BH workqueue */
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,10,0)
++static sQmiWwanQmap *usbnet_bh_qmapdev;
++static work_func_t usbnet_orig_bh_func;
++static void usbnet_bh(struct work_struct *work) {
++	sQmiWwanQmap *pQmapDev = usbnet_bh_qmapdev;
++
++	if (usbnet_orig_bh_func)
++		usbnet_orig_bh_func(work);
++
++	if (pQmapDev && pQmapDev->mpNetDev && !netif_queue_stopped(pQmapDev->mpNetDev->net)) {
++		qmap_wake_queue(pQmapDev);
++	}
++}
++#else
+ static void usbnet_bh(unsigned long data) {
+ 	sQmiWwanQmap *pQmapDev = (sQmiWwanQmap *)data;
+ 	struct tasklet_struct *t = &pQmapDev->usbnet_bh;
+@@ -890,6 +907,7 @@
+ 		qmap_wake_queue((sQmiWwanQmap *)data);
+ 	}
+ }
++#endif
+ 
+ static void rmnet_usb_tx_wake_queue(unsigned long data) {
+ 	qmap_wake_queue((sQmiWwanQmap *)data);
+@@ -1349,8 +1367,12 @@
+ #endif
+ 	priv->agg_skb = NULL;
+ 	priv->agg_count = 0;
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6,13,0)
+ 	hrtimer_init(&priv->agg_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+ 	priv->agg_hrtimer.function = rmnet_usb_tx_agg_timer_cb;
++#else
++	hrtimer_setup(&priv->agg_hrtimer, rmnet_usb_tx_agg_timer_cb, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
++#endif
+ 	INIT_WORK(&priv->agg_wq, rmnet_usb_tx_agg_work);
+ 	ktime_get_ts64(&priv->agg_time);
+ 	spin_lock_init(&priv->agg_lock);
+@@ -2247,8 +2269,14 @@
+ 				}
+ 
+ 				if (pQmapDev->use_rmnet_usb && !one_card_mode) {
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,10,0)
++					usbnet_bh_qmapdev = pQmapDev;
++					usbnet_orig_bh_func = dev->bh_work.func;
++					INIT_WORK(&dev->bh_work, usbnet_bh);
++#else
+ 					pQmapDev->usbnet_bh = dev->bh;
+ 					tasklet_init(&dev->bh, usbnet_bh, (unsigned long)pQmapDev);
++#endif
+ 				}
+ 			}
+ 		}
