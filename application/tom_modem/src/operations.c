@@ -160,6 +160,10 @@ int sms_send(PROFILE_T *profile, void *transport_ptr)
     }
 
     int pdu_len = strlen(profile->sms_pdu);
+    if (pdu_len <= 0 || pdu_len > 255) {
+        dbg_msg("SMS PDU length invalid or too large for buffer (len=%d)", pdu_len);
+        return INVALID_PARAM;
+    }
     int pdu_expected_len = (pdu_len) / 2 - 1;
     char send_sms_cmd[32];
     char pdu_hex[512];

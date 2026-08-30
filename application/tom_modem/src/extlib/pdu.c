@@ -136,16 +136,64 @@ static const unsigned char gsm7bits_extend_to_latin1[128] = {
     0,   0,   0,   0, '^',   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0,   0,   0,   0,   0,   0, '{', '}',   0,   0,   0,   0,   0,'\\',
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, '[', '~', ']',   0,
+  '|',   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+};
+
+/* 3GPP TS 23.038 Turkish National Language Single Shift table.
+ * Only used when the PDU's UDH explicitly selects it (IEI 0x24/0x25,
+ * language identifier 0x01 = Turkish) -- see udh_has_turkish_shift().
+ * Non-Turkish messages must never be decoded through this table. */
+static const unsigned char turkish_extend_to_latin1[128] = {
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,'\f',   0,   0,   0,   0,   0,
+    0,   0,   0,   0, '^',   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0, '{', '}',   0,   0,   0,   0,   0,'\\',
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, '[', '~', ']',   0,
   '|',   0,   0, 0xC7,   0,   0,   0, 0xD0,   0, 0xDD,   0,   0,   0,   0,   0,   0,
     0,   0,   0, 0xDE,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     0,   0,   0, 0xE7,   0,   0,   0, 0xF0,   0, 0xFD,   0,   0,   0,   0,   0,   0,
     0,   0,   0, 0xFE,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
 };
 
+/* Walks the PDU's User Data Header looking for a National Language
+ * Locking Shift (IEI 0x24) or Single Shift (IEI 0x25) IE whose data
+ * byte selects Turkish (0x01, per 3GPP TS 23.038 table 6.2.1.2.5).
+ * Returns 1 only if such an IE is present; every other message keeps
+ * using the standard extension table. */
 static int
-G7bitToAscii(char* buffer, int buffer_length)
+udh_has_turkish_shift(const unsigned char* buffer, int buffer_length,
+                       int sms_start, int user_data_header_length)
+{
+	if ((user_data_header_length & 0x04) != 0x04)
+		return 0;
+	if (sms_start + 1 >= buffer_length)
+		return 0;
+
+	const int udhl = buffer[sms_start + 1];
+	int pos = sms_start + 2;
+	const int ie_end = pos + udhl;
+	if (udhl <= 0 || ie_end > buffer_length)
+		return 0;
+
+	while (pos + 1 < ie_end) {
+		const unsigned char iei = buffer[pos];
+		const unsigned char iedl = buffer[pos + 1];
+		if (pos + 2 + iedl > ie_end)
+			break;
+		if ((iei == 0x24 || iei == 0x25) && iedl >= 1 && buffer[pos + 2] == 0x01)
+			return 1;
+		pos += 2 + iedl;
+	}
+	return 0;
+}
+
+static int
+G7bitToAscii(char* buffer, int buffer_length, int use_turkish)
 {
 	int i;
+	const unsigned char *ext_table = use_turkish ? turkish_extend_to_latin1 : gsm7bits_extend_to_latin1;
 
 	for (i = 0; i < buffer_length; i++) {
 		if (buffer[i] < 128) {
@@ -156,7 +204,7 @@ G7bitToAscii(char* buffer, int buffer_length)
 					buffer_length--;
 					break;
 				}
-				buffer[i] = gsm7bits_extend_to_latin1[(unsigned char)buffer[i + 1]];
+				buffer[i] = ext_table[(unsigned char)buffer[i + 1]];
 				if (i + 2 < buffer_length)
 					memmove(&buffer[i + 1], &buffer[i + 2], buffer_length - i - 2);
 				buffer_length--;
@@ -355,7 +403,7 @@ int pdu_decode(const unsigned char* buffer, int buffer_length,
 	const int sender_type_of_address = buffer[sms_deliver_start + 2];
 	if (sender_type_of_address == TYPE_OF_ADDRESS_ALPHANUMERIC) {
 		int sender_len1 = DecodePDUMessage_GSM_7bit(buffer + sms_deliver_start + 3, (sender_number_length + 1) / 2, output_sender_phone_number, sender_number_length);
-		int sender_len2 = G7bitToAscii(output_sender_phone_number, sender_len1 - 1);
+		int sender_len2 = G7bitToAscii(output_sender_phone_number, sender_len1 - 1, 0);
 		output_sender_phone_number[sender_len2] = 0;
 	} else {
 		DecodePhoneNumber(buffer + sms_deliver_start + 3, sender_number_length, output_sender_phone_number);
@@ -413,7 +461,8 @@ int pdu_decode(const unsigned char* buffer, int buffer_length,
 				int skip_septets = 0;
 				if (*skip_bytes > 0)
 					skip_septets = (*skip_bytes * 8 + 6) / 7;
-				output_sms_text_length = skip_septets + G7bitToAscii(output_sms_text + skip_septets, output_sms_text_length - skip_septets);
+				const int use_turkish = udh_has_turkish_shift(buffer, buffer_length, sms_start, user_data_header_length);
+				output_sms_text_length = skip_septets + G7bitToAscii(output_sms_text + skip_septets, output_sms_text_length - skip_septets, use_turkish);
 				break;
 			}
 		case 2:
