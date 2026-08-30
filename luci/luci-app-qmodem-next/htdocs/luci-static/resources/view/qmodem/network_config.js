@@ -1018,15 +1018,5 @@ return view.extend({
 				}, _('Confirm'))
 			])
 		]);
-	},
-
-	handleSaveApply: function(ev, mode) {
-		return this.handleSave(ev).then(function() {
-			return callInitAction('qmodem_network', 'reload');
-		});
-	},
-
-	handleSave: function(ev) {
-		return this.super('handleSave', arguments);
 	}
 });
