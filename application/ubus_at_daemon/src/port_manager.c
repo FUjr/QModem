@@ -155,8 +155,22 @@ static void mark_port_closed(at_port_instance_t *port)
 
 int open_at_port(at_port_instance_t *port, int baudrate, int databits, int parity, int stopbits) {
     int fd;
+    int already_open;
 
     pthread_mutex_lock(&port->lifecycle_mutex);
+    pthread_mutex_lock(&port->state_mutex);
+    already_open = port->is_open && port->fd >= 0 &&
+                   port->reader_thread_valid &&
+                   port->configured_baudrate == baudrate &&
+                   port->configured_databits == databits &&
+                   port->configured_parity == parity &&
+                   port->configured_stopbits == stopbits &&
+                   fcntl(port->fd, F_GETFL) != -1;
+    pthread_mutex_unlock(&port->state_mutex);
+    if (already_open) {
+        pthread_mutex_unlock(&port->lifecycle_mutex);
+        return 0;
+    }
     if (stop_reader(port)) {
         pthread_mutex_unlock(&port->lifecycle_mutex);
         return -1;

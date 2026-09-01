@@ -59,12 +59,18 @@ int main(void)
     uint64_t second_daemon_epoch = 9000;
     uint64_t second_open_epoch;
     uint64_t sequence;
+    pthread_t first_reader;
 
     assert(openpty(&master_fd, &slave_fd, slave_name, NULL, NULL) == 0);
     assert(pthread_mutex_init(&g_daemon_ctx.ports_mutex, NULL) == 0);
 
     port = create_and_open(slave_name, 4000);
     at_port_event_state_snapshot(port, &first_open_epoch, &sequence);
+    first_reader = port->reader_thread;
+    assert(open_at_port(port, 115200, 8, 0, 1) == 0);
+    at_port_event_state_snapshot(port, &reopened_epoch, &sequence);
+    assert(reopened_epoch == first_open_epoch);
+    assert(pthread_equal(port->reader_thread, first_reader));
     close_at_port(port);
     pthread_mutex_lock(&port->state_mutex);
     assert(!port->is_open);
