@@ -603,6 +603,34 @@
 			}
 		]
 	},
+	"thales": {
+		"qualcomm": [
+			{
+				"切换USB数据模式(MBIM/RMNET) > AT+SETCONFIG=0/1": "AT+SETCONFIG?"
+			},
+			{
+				"切换USB/PCIe模式 > AT+MODESWITCH?": "AT+MODESWITCH?"
+			},
+			{
+				"获取SIM卡卡槽状态 > AT+SWITCH_SLOT?": "AT+SWITCH_SLOT?"
+			},
+			{
+				"设置当前使用的为卡1 > at+switch_slot=0": "at+switch_slot=0"
+			},
+			{
+				"设置当前使用的为卡2 > at+switch_slot=1": "at+switch_slot=1"
+			},
+			{
+				"查询网络及载波信息 > AT^DEBUG?": "AT^DEBUG?"
+			},
+			{
+				"获取模组温度 > AT^TEMP?": "AT^TEMP?"
+			},
+			{
+				"重启模组 > AT+RESET": "AT+RESET"
+			}
+		]
+	},
 	"huawei": {
 		"hisilicon": [
 			{

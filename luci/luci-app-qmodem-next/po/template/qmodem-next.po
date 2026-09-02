@@ -90,7 +90,7 @@ msgid "AT Debug"
 msgstr ""
 
 #: vendor/fibocom.sh:750
-#: vendor/foxconn.sh:299
+#: vendor/foxconn.sh:310
 #: vendor/gosuncn.sh:477
 #: vendor/huawei.sh:272
 #: vendor/meig.sh:229
@@ -100,6 +100,7 @@ msgstr ""
 #: vendor/sierra.sh:211
 #: vendor/simcom.sh:257
 #: vendor/telit.sh:156
+#: vendor/thales.sh:45
 #: view/qmodem/settings.js:348
 msgid "AT Port"
 msgstr ""
@@ -306,8 +307,8 @@ msgstr ""
 #: generic.sh:228
 #: generic.sh:264
 #: generic.sh:300
-#: vendor/foxconn.sh:568
-#: vendor/foxconn.sh:615
+#: vendor/foxconn.sh:579
+#: vendor/foxconn.sh:626
 #: vendor/gosuncn.sh:591
 #: vendor/gosuncn.sh:600
 #: vendor/gosuncn.sh:670
@@ -331,6 +332,9 @@ msgstr ""
 #: vendor/simcom.sh:1173
 #: vendor/simcom.sh:1191
 #: vendor/telit.sh:739
+#: vendor/thales.sh:393
+#: vendor/thales.sh:420
+#: vendor/thales.sh:451
 #: view/qmodem/config_advanced.js:754
 msgid "Band"
 msgstr ""
@@ -344,11 +348,13 @@ msgid "Band is required for NR"
 msgstr ""
 
 #: vendor/telit.sh:740
+#: vendor/thales.sh:421
+#: vendor/thales.sh:452
 msgid "Bandwidth"
 msgstr ""
 
 #: vendor/fibocom.sh:746
-#: vendor/foxconn.sh:296
+#: vendor/foxconn.sh:307
 #: vendor/gosuncn.sh:463
 #: vendor/huawei.sh:268
 #: vendor/meig.sh:225
@@ -358,6 +364,7 @@ msgstr ""
 #: vendor/sierra.sh:207
 #: vendor/simcom.sh:253
 #: vendor/telit.sh:152
+#: vendor/thales.sh:41
 msgid "Base Information"
 msgstr ""
 
@@ -422,8 +429,8 @@ msgstr ""
 #: generic.sh:225
 #: generic.sh:261
 #: generic.sh:297
-#: vendor/foxconn.sh:564
-#: vendor/foxconn.sh:620
+#: vendor/foxconn.sh:575
+#: vendor/foxconn.sh:631
 #: vendor/gosuncn.sh:589
 #: vendor/gosuncn.sh:598
 #: vendor/gosuncn.sh:668
@@ -446,11 +453,14 @@ msgstr ""
 #: vendor/simcom.sh:1169
 #: vendor/simcom.sh:1202
 #: vendor/simcom.sh:1221
+#: vendor/thales.sh:390
+#: vendor/thales.sh:417
+#: vendor/thales.sh:448
 msgid "Cell ID"
 msgstr ""
 
 #: vendor/fibocom.sh:1684
-#: vendor/foxconn.sh:538
+#: vendor/foxconn.sh:549
 #: vendor/gosuncn.sh:577
 #: vendor/gosuncn.sh:656
 #: vendor/huawei.sh:365
@@ -461,6 +471,7 @@ msgstr ""
 #: vendor/quectel.sh:1684
 #: vendor/simcom.sh:1140
 #: vendor/telit.sh:737
+#: vendor/thales.sh:374
 #: view/qmodem/config_advanced.js:947
 #: view/qmodem/config_advanced.js:972
 msgid "Cell Information"
@@ -488,7 +499,7 @@ msgstr ""
 
 #: vendor/fibocom.sh:1709
 #: vendor/fibocom.sh:1726
-#: vendor/foxconn.sh:577
+#: vendor/foxconn.sh:588
 #: vendor/huawei.sh:527
 #: vendor/huawei.sh:558
 #: vendor/neoway.sh:723
@@ -702,8 +713,8 @@ msgstr ""
 #: generic.sh:230
 #: generic.sh:266
 #: generic.sh:302
-#: vendor/foxconn.sh:570
-#: vendor/foxconn.sh:616
+#: vendor/foxconn.sh:581
+#: vendor/foxconn.sh:627
 #: vendor/huawei.sh:376
 #: vendor/huawei.sh:507
 #: vendor/huawei.sh:526
@@ -886,8 +897,8 @@ msgstr ""
 msgid "Drei (AT)"
 msgstr ""
 
-#: vendor/foxconn.sh:563
-#: vendor/foxconn.sh:619
+#: vendor/foxconn.sh:574
+#: vendor/foxconn.sh:630
 #: vendor/huawei.sh:370
 #: vendor/huawei.sh:501
 #: vendor/huawei.sh:519
@@ -911,14 +922,15 @@ msgid "E-Plus (DE)"
 msgstr ""
 
 #: generic.sh:263
-#: vendor/foxconn.sh:566
-#: vendor/foxconn.sh:622
+#: vendor/foxconn.sh:577
+#: vendor/foxconn.sh:633
 #: vendor/huawei.sh:522
 #: vendor/huawei.sh:547
 #: vendor/neoway.sh:712
 #: vendor/openluat.sh:1114
 #: vendor/simcom.sh:1171
 #: vendor/simcom.sh:1204
+#: vendor/thales.sh:419
 msgid "E-UTRA Absolute Radio Frequency Channel Number"
 msgstr ""
 
@@ -1327,8 +1339,8 @@ msgstr ""
 msgid "Forward Instances"
 msgstr ""
 
-#: vendor/foxconn.sh:567
-#: vendor/foxconn.sh:623
+#: vendor/foxconn.sh:578
+#: vendor/foxconn.sh:634
 #: vendor/huawei.sh:523
 #: vendor/huawei.sh:548
 #: vendor/simcom.sh:1172
@@ -1418,6 +1430,10 @@ msgstr ""
 msgid "Hotplug Add Delay"
 msgstr ""
 
+#: vendor/thales.sh:337
+msgid "IMEI"
+msgstr ""
+
 #: view/qmodem/config_advanced.js:482
 msgid "IMEI Configuration"
 msgstr ""
@@ -1444,6 +1460,10 @@ msgstr ""
 
 #: view/qmodem/network_config.js:374
 msgid "IPv6"
+msgstr ""
+
+#: vendor/thales.sh:349
+msgid "ISP"
 msgstr ""
 
 #: view/qmodem/network_config.js:323
@@ -1493,8 +1513,8 @@ msgstr ""
 
 #: vendor/fibocom.sh:831
 #: vendor/fibocom.sh:845
-#: vendor/foxconn.sh:269
-#: vendor/foxconn.sh:283
+#: vendor/foxconn.sh:280
+#: vendor/foxconn.sh:294
 #: vendor/gosuncn.sh:456
 #: vendor/meig.sh:272
 #: vendor/meig.sh:286
@@ -1507,15 +1527,16 @@ msgstr ""
 #: vendor/simcom.sh:326
 #: vendor/telit.sh:209
 #: vendor/telit.sh:223
+#: vendor/thales.sh:353
 msgid "Integrate Circuit Card Identity"
 msgstr ""
 
 #: vendor/fibocom.sh:829
 #: vendor/fibocom.sh:835
 #: vendor/fibocom.sh:843
-#: vendor/foxconn.sh:267
-#: vendor/foxconn.sh:273
-#: vendor/foxconn.sh:281
+#: vendor/foxconn.sh:278
+#: vendor/foxconn.sh:284
+#: vendor/foxconn.sh:292
 #: vendor/gosuncn.sh:433
 #: vendor/gosuncn.sh:454
 #: vendor/huawei.sh:255
@@ -1540,8 +1561,8 @@ msgstr ""
 
 #: vendor/fibocom.sh:830
 #: vendor/fibocom.sh:844
-#: vendor/foxconn.sh:268
-#: vendor/foxconn.sh:282
+#: vendor/foxconn.sh:279
+#: vendor/foxconn.sh:293
 #: vendor/gosuncn.sh:455
 #: vendor/huawei.sh:256
 #: vendor/meig.sh:271
@@ -1559,7 +1580,7 @@ msgid "International Mobile Subscriber Identity"
 msgstr ""
 
 #: vendor/fibocom.sh:826
-#: vendor/foxconn.sh:264
+#: vendor/foxconn.sh:275
 #: vendor/gosuncn.sh:451
 #: vendor/meig.sh:267
 #: vendor/neoway.sh:201
@@ -1687,6 +1708,7 @@ msgstr ""
 #: vendor/neoway.sh:733
 #: vendor/openluat.sh:1130
 #: vendor/simcom.sh:1220
+#: vendor/thales.sh:391
 msgid "Location Area Code"
 msgstr ""
 
@@ -1745,7 +1767,7 @@ msgid "Magenta (AT)"
 msgstr ""
 
 #: vendor/fibocom.sh:748
-#: vendor/foxconn.sh:297
+#: vendor/foxconn.sh:308
 #: vendor/gosuncn.sh:475
 #: vendor/huawei.sh:270
 #: vendor/meig.sh:227
@@ -1755,6 +1777,7 @@ msgstr ""
 #: vendor/sierra.sh:209
 #: vendor/simcom.sh:255
 #: vendor/telit.sh:154
+#: vendor/thales.sh:42
 msgid "Manufacturer"
 msgstr ""
 
@@ -1806,8 +1829,8 @@ msgstr ""
 #: generic.sh:222
 #: generic.sh:258
 #: generic.sh:294
-#: vendor/foxconn.sh:561
-#: vendor/foxconn.sh:617
+#: vendor/foxconn.sh:572
+#: vendor/foxconn.sh:628
 #: vendor/huawei.sh:368
 #: vendor/huawei.sh:499
 #: vendor/huawei.sh:517
@@ -1829,6 +1852,9 @@ msgstr ""
 #: vendor/simcom.sh:1187
 #: vendor/simcom.sh:1199
 #: vendor/simcom.sh:1218
+#: vendor/thales.sh:388
+#: vendor/thales.sh:415
+#: vendor/thales.sh:446
 msgid "Mobile Country Code"
 msgstr ""
 
@@ -1842,8 +1868,8 @@ msgstr ""
 #: generic.sh:223
 #: generic.sh:259
 #: generic.sh:295
-#: vendor/foxconn.sh:562
-#: vendor/foxconn.sh:618
+#: vendor/foxconn.sh:573
+#: vendor/foxconn.sh:629
 #: vendor/huawei.sh:369
 #: vendor/huawei.sh:500
 #: vendor/huawei.sh:518
@@ -1865,11 +1891,18 @@ msgstr ""
 #: vendor/simcom.sh:1188
 #: vendor/simcom.sh:1200
 #: vendor/simcom.sh:1219
+#: vendor/thales.sh:389
+#: vendor/thales.sh:416
+#: vendor/thales.sh:447
 msgid "Mobile Network Code"
 msgstr ""
 
 #: view/qmodem/config_advanced.js:256
 msgid "Mode set successfully. Please reboot the modem."
+msgstr ""
+
+#: vendor/thales.sh:43
+msgid "Model"
 msgstr ""
 
 #: view/qmodem/settings.js:142
@@ -1959,6 +1992,10 @@ msgstr ""
 msgid "NR (5G) Cells"
 msgstr ""
 
+#: vendor/thales.sh:450
+msgid "NR Absolute Radio Frequency Channel Number"
+msgstr ""
+
 #: vendor/huawei.sh:397
 #: view/qmodem/config_advanced.js:760
 msgid "NR Band"
@@ -1994,7 +2031,7 @@ msgid "Neighbor Cell List"
 msgstr ""
 
 #: vendor/fibocom.sh:882
-#: vendor/foxconn.sh:306
+#: vendor/foxconn.sh:317
 #: vendor/gosuncn.sh:496
 #: vendor/meig.sh:359
 #: vendor/neoway.sh:273
@@ -2003,6 +2040,7 @@ msgstr ""
 #: vendor/sierra.sh:218
 #: vendor/simcom.sh:343
 #: vendor/telit.sh:242
+#: vendor/thales.sh:362
 msgid "Network Information"
 msgstr ""
 
@@ -2011,8 +2049,8 @@ msgid "Network LED"
 msgstr ""
 
 #: vendor/fibocom.sh:1685
-#: vendor/foxconn.sh:541
-#: vendor/foxconn.sh:614
+#: vendor/foxconn.sh:552
+#: vendor/foxconn.sh:625
 #: vendor/gosuncn.sh:581
 #: vendor/gosuncn.sh:587
 #: vendor/gosuncn.sh:596
@@ -2029,6 +2067,9 @@ msgstr ""
 #: vendor/quectel.sh:1685
 #: vendor/simcom.sh:1141
 #: vendor/telit.sh:738
+#: vendor/thales.sh:387
+#: vendor/thales.sh:414
+#: vendor/thales.sh:445
 msgid "Network Mode"
 msgstr ""
 
@@ -2041,7 +2082,7 @@ msgid "Network Preference Configuration"
 msgstr ""
 
 #: vendor/fibocom.sh:890
-#: vendor/foxconn.sh:314
+#: vendor/foxconn.sh:325
 #: vendor/gosuncn.sh:497
 #: vendor/meig.sh:360
 #: vendor/neoway.sh:753
@@ -2049,6 +2090,7 @@ msgstr ""
 #: vendor/quectel.sh:540
 #: vendor/simcom.sh:344
 #: vendor/telit.sh:243
+#: vendor/thales.sh:367
 msgid "Network Type"
 msgstr ""
 
@@ -2282,14 +2324,15 @@ msgstr ""
 msgid "Path to custom forwarding script. Script receives SMS_SENDER, SMS_TIME, SMS_CONTENT environment variables"
 msgstr ""
 
+#: vendor/thales.sh:357
 #: view/qmodem/sms.js:507
 msgid "Phone Number"
 msgstr ""
 
 #: generic.sh:262
 #: generic.sh:298
-#: vendor/foxconn.sh:565
-#: vendor/foxconn.sh:621
+#: vendor/foxconn.sh:576
+#: vendor/foxconn.sh:632
 #: vendor/gosuncn.sh:599
 #: vendor/gosuncn.sh:678
 #: vendor/huawei.sh:372
@@ -2308,6 +2351,8 @@ msgstr ""
 #: vendor/simcom.sh:1189
 #: vendor/simcom.sh:1203
 #: vendor/telit.sh:742
+#: vendor/thales.sh:418
+#: vendor/thales.sh:449
 #: view/qmodem/config_advanced.js:729
 msgid "Physical Cell ID"
 msgstr ""
@@ -2464,7 +2509,7 @@ msgstr ""
 
 #: generic.sh:270
 #: generic.sh:306
-#: vendor/foxconn.sh:576
+#: vendor/foxconn.sh:587
 #: vendor/huawei.sh:535
 #: vendor/huawei.sh:557
 #: vendor/simcom.sh:1182
@@ -2517,7 +2562,7 @@ msgstr ""
 #: generic.sh:234
 #: generic.sh:271
 #: generic.sh:307
-#: vendor/foxconn.sh:575
+#: vendor/foxconn.sh:586
 #: vendor/huawei.sh:382
 #: vendor/huawei.sh:392
 #: vendor/huawei.sh:511
@@ -2530,7 +2575,7 @@ msgid "Received Signal Level"
 msgstr ""
 
 #: vendor/fibocom.sh:1725
-#: vendor/foxconn.sh:573
+#: vendor/foxconn.sh:584
 #: vendor/gosuncn.sh:583
 #: vendor/gosuncn.sh:592
 #: vendor/gosuncn.sh:601
@@ -2548,6 +2593,8 @@ msgstr ""
 #: vendor/simcom.sh:1179
 #: vendor/simcom.sh:1211
 #: vendor/telit.sh:748
+#: vendor/thales.sh:394
+#: vendor/thales.sh:425
 msgid "Received Signal Strength Indicator"
 msgstr ""
 
@@ -2557,7 +2604,7 @@ msgstr ""
 
 #: generic.sh:267
 #: generic.sh:303
-#: vendor/foxconn.sh:626
+#: vendor/foxconn.sh:637
 #: vendor/huawei.sh:389
 #: vendor/huawei.sh:400
 #: vendor/huawei.sh:404
@@ -2577,14 +2624,16 @@ msgstr ""
 #: vendor/simcom.sh:1193
 #: vendor/simcom.sh:1209
 #: vendor/telit.sh:746
+#: vendor/thales.sh:424
+#: vendor/thales.sh:455
 msgid "Reference Signal Received Power"
 msgstr ""
 
 #: generic.sh:232
 #: generic.sh:268
 #: generic.sh:304
-#: vendor/foxconn.sh:572
-#: vendor/foxconn.sh:625
+#: vendor/foxconn.sh:583
+#: vendor/foxconn.sh:636
 #: vendor/huawei.sh:390
 #: vendor/huawei.sh:401
 #: vendor/huawei.sh:405
@@ -2605,6 +2654,8 @@ msgstr ""
 #: vendor/simcom.sh:1194
 #: vendor/simcom.sh:1210
 #: vendor/telit.sh:747
+#: vendor/thales.sh:423
+#: vendor/thales.sh:454
 msgid "Reference Signal Received Quality"
 msgstr ""
 
@@ -2635,7 +2686,7 @@ msgid "Result"
 msgstr ""
 
 #: vendor/fibocom.sh:749
-#: vendor/foxconn.sh:298
+#: vendor/foxconn.sh:309
 #: vendor/gosuncn.sh:476
 #: vendor/huawei.sh:271
 #: vendor/meig.sh:228
@@ -2645,6 +2696,7 @@ msgstr ""
 #: vendor/sierra.sh:210
 #: vendor/simcom.sh:256
 #: vendor/telit.sh:155
+#: vendor/thales.sh:44
 msgid "Revision"
 msgstr ""
 
@@ -2701,7 +2753,7 @@ msgid "SIM Error,Error code:"
 msgstr ""
 
 #: vendor/fibocom.sh:822
-#: vendor/foxconn.sh:226
+#: vendor/foxconn.sh:229
 #: vendor/gosuncn.sh:422
 #: vendor/huawei.sh:226
 #: vendor/meig.sh:263
@@ -2711,6 +2763,7 @@ msgstr ""
 #: vendor/sierra.sh:184
 #: vendor/simcom.sh:303
 #: vendor/telit.sh:201
+#: vendor/thales.sh:317
 msgid "SIM Information"
 msgstr ""
 
@@ -2719,7 +2772,7 @@ msgid "SIM LED"
 msgstr ""
 
 #: vendor/fibocom.sh:828
-#: vendor/foxconn.sh:266
+#: vendor/foxconn.sh:277
 #: vendor/gosuncn.sh:453
 #: vendor/huawei.sh:254
 #: vendor/meig.sh:269
@@ -2732,8 +2785,8 @@ msgstr ""
 
 #: vendor/fibocom.sh:827
 #: vendor/fibocom.sh:842
-#: vendor/foxconn.sh:265
-#: vendor/foxconn.sh:280
+#: vendor/foxconn.sh:276
+#: vendor/foxconn.sh:291
 #: vendor/gosuncn.sh:452
 #: vendor/huawei.sh:253
 #: vendor/meig.sh:268
@@ -2747,6 +2800,7 @@ msgstr ""
 #: vendor/simcom.sh:323
 #: vendor/telit.sh:206
 #: vendor/telit.sh:220
+#: vendor/thales.sh:333
 msgid "SIM Slot"
 msgstr ""
 
@@ -2754,10 +2808,10 @@ msgstr ""
 #: vendor/fibocom.sh:834
 #: vendor/fibocom.sh:838
 #: vendor/fibocom.sh:841
-#: vendor/foxconn.sh:263
-#: vendor/foxconn.sh:272
-#: vendor/foxconn.sh:276
-#: vendor/foxconn.sh:279
+#: vendor/foxconn.sh:274
+#: vendor/foxconn.sh:283
+#: vendor/foxconn.sh:287
+#: vendor/foxconn.sh:290
 #: vendor/gosuncn.sh:432
 #: vendor/gosuncn.sh:450
 #: vendor/huawei.sh:252
@@ -2783,6 +2837,7 @@ msgstr ""
 #: vendor/telit.sh:212
 #: vendor/telit.sh:216
 #: vendor/telit.sh:219
+#: vendor/thales.sh:332
 msgid "SIM Status"
 msgstr ""
 
@@ -2984,7 +3039,7 @@ msgstr ""
 #: vendor/fibocom.sh:1694
 #: vendor/fibocom.sh:1711
 #: vendor/fibocom.sh:1728
-#: vendor/foxconn.sh:579
+#: vendor/foxconn.sh:590
 #: vendor/huawei.sh:513
 #: vendor/huawei.sh:529
 #: vendor/huawei.sh:560
@@ -3022,8 +3077,8 @@ msgstr ""
 msgid "Signal to Interference plus Noise Ratio"
 msgstr ""
 
-#: vendor/foxconn.sh:574
-#: vendor/foxconn.sh:627
+#: vendor/foxconn.sh:585
+#: vendor/foxconn.sh:638
 #: vendor/huawei.sh:391
 #: vendor/huawei.sh:402
 #: vendor/huawei.sh:406
@@ -3036,6 +3091,8 @@ msgstr ""
 #: vendor/simcom.sh:1195
 #: vendor/simcom.sh:1212
 #: vendor/telit.sh:749
+#: vendor/thales.sh:426
+#: vendor/thales.sh:456
 msgid "Signal to Interference plus Noise Ratio Bandwidth"
 msgstr ""
 
@@ -3162,8 +3219,8 @@ msgstr ""
 
 #: vendor/fibocom.sh:1710
 #: vendor/fibocom.sh:1727
-#: vendor/foxconn.sh:578
-#: vendor/foxconn.sh:628
+#: vendor/foxconn.sh:589
+#: vendor/foxconn.sh:639
 #: vendor/huawei.sh:528
 #: vendor/huawei.sh:559
 #: vendor/meig.sh:568
@@ -3175,6 +3232,8 @@ msgstr ""
 #: vendor/simcom.sh:1184
 #: vendor/simcom.sh:1214
 #: vendor/telit.sh:745
+#: vendor/thales.sh:427
+#: vendor/thales.sh:457
 msgid "TX Power"
 msgstr ""
 
@@ -3198,13 +3257,14 @@ msgid "Telekom (DE)"
 msgstr ""
 
 #: vendor/fibocom.sh:729
-#: vendor/foxconn.sh:457
+#: vendor/foxconn.sh:468
 #: vendor/gosuncn.sh:274
 #: vendor/meig.sh:214
 #: vendor/quectel.sh:368
 #: vendor/sierra.sh:334
 #: vendor/simcom.sh:235
 #: vendor/telit.sh:139
+#: vendor/thales.sh:484
 msgid "Temperature"
 msgstr ""
 
@@ -3253,8 +3313,8 @@ msgstr ""
 msgid "Tracking area code"
 msgstr ""
 
-#: vendor/foxconn.sh:571
-#: vendor/foxconn.sh:624
+#: vendor/foxconn.sh:582
+#: vendor/foxconn.sh:635
 #: vendor/huawei.sh:373
 #: vendor/huawei.sh:504
 #: vendor/huawei.sh:530
@@ -3262,6 +3322,8 @@ msgstr ""
 #: vendor/simcom.sh:1149
 #: vendor/simcom.sh:1176
 #: vendor/simcom.sh:1208
+#: vendor/thales.sh:422
+#: vendor/thales.sh:453
 msgid "Tracking area code of cell served by neighbor Enb"
 msgstr ""
 
@@ -3297,7 +3359,7 @@ msgstr ""
 #: generic.sh:229
 #: generic.sh:265
 #: generic.sh:301
-#: vendor/foxconn.sh:569
+#: vendor/foxconn.sh:580
 #: vendor/huawei.sh:525
 #: vendor/huawei.sh:550
 #: vendor/meig.sh:563
@@ -3341,6 +3403,7 @@ msgstr ""
 #: generic.sh:226
 #: vendor/huawei.sh:568
 #: vendor/neoway.sh:735
+#: vendor/thales.sh:392
 msgid "UTRA Absolute Radio Frequency Channel Number"
 msgstr ""
 
@@ -3413,7 +3476,7 @@ msgid "Vodafone (DE)"
 msgstr ""
 
 #: vendor/fibocom.sh:697
-#: vendor/foxconn.sh:450
+#: vendor/foxconn.sh:461
 #: vendor/meig.sh:182
 #: vendor/openluat.sh:907
 #: vendor/quectel.sh:344

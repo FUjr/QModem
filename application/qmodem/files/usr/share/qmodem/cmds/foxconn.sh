@@ -73,6 +73,12 @@ cmd_cops_query()
     at "$1" "AT+COPS?"
 }
 
+#set COPS numeric format
+cmd_cops_numeric()
+{
+    at "$1" "AT+COPS=3,2"
+}
+
 #query subscriber number
 cmd_cnum()
 {

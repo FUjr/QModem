@@ -117,7 +117,14 @@ Model | Platform | USB  | PCIe
 t77w968 | qualcomm |✔ usb(qmi,mbim) | ✘
 t99w175 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
 t99w373 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
+t99w368 | qualcomm |✔ usb(mbim,rmnet) | ✔ pcie(mbim)
 t99w640 | qualcomm |✘ | ✔ pcie(mbim)
+
+# thales
+Model | Platform | USB  | PCIe 
+--- | --- | --- | ---
+mv32-w-a | qualcomm |✔ usb(mbim) | ✘
+mv32-w-b | qualcomm |✔ usb(mbim,rmnet) | ✘
 
 # neoway
 Model | Platform | USB  | PCIe 
