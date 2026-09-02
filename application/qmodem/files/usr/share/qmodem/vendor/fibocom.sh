@@ -29,7 +29,6 @@ fibocom_uses_empty_gtact_fields()
 {
     local model="${QMODEM_TESTCASE_MODEL:-}"
 
-    [ "$platform" = "mediatek" ] && return 0
     [ "$platform" = "qualcomm" ] || return 1
     [ -z "$model" ] && model=$(uci -q get "qmodem.${config_section}.name" 2>/dev/null)
     case "$(echo "$model" | tr '[:upper:]' '[:lower:]')" in
@@ -352,6 +351,15 @@ fibocom_gtact_params()
 fibocom_gtact_lock_params()
 {
     local network_prefer_num bands_str
+
+    if [ "$platform" = "mediatek" ] && { [ "$band_class" = "LTE" ] || [ "$band_class" = "NR" ]; }; then
+        umts_bands=""
+        [ -n "$lte_bands" ] || lte_bands="$ALL_LTE_CODES"
+        [ -n "$nr_bands" ] || nr_bands="$ALL_NR_CODES"
+        bands_str=$(fibocom_normalize_band_list "$lte_bands,$nr_bands")
+        echo "17,6,6,$bands_str"
+        return
+    fi
 
     if fibocom_uses_empty_gtact_fields && { [ "$band_class" = "LTE" ] || [ "$band_class" = "NR" ]; }; then
         umts_bands=""
