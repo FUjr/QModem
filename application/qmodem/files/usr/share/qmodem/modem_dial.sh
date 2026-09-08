@@ -44,6 +44,26 @@ get_slot_network_config()
     fi
 }
 
+external_bridge_manager()
+{
+    local action="$1"
+    local endpoint="$2"
+    local hook="${QMODEM_BRIDGE_MANAGER_HOOK:-/usr/libexec/qmodem-bridge-manager}"
+
+    [ "$bridge_manager" = "misectel-interface-v1" ] || return 2
+    if [ ! -x "$hook" ]; then
+        m_debug "configured bridge manager hook is unavailable: $hook"
+        return 1
+    fi
+    bridge_device_name=$(resolve_bridge_device_name) || return 1
+    if ! "$hook" "$action" "$modem_config" "$endpoint" "$bridge_device_name" "$bridge_management_ip" >/dev/null; then
+        m_debug "external bridge manager failed: action=$action modem=$modem_config"
+        return 1
+    fi
+    m_debug "external bridge manager completed: action=$action bridge=$bridge_device_name"
+    return 0
+}
+
 sanitize_bridge_id()
 {
     local value="$1"
@@ -481,6 +501,7 @@ update_config()
     config_get ra_master $modem_config ra_master
     config_get extend_prefix $modem_config extend_prefix
     config_get en_bridge $modem_config en_bridge
+    config_get bridge_manager $modem_config bridge_manager
     config_get do_not_add_dns $modem_config do_not_add_dns 1
     config_get dns_list $modem_config dns_list
     config_get huawei_dial_mode $modem_config huawei_dial_mode
@@ -867,7 +888,22 @@ set_if()
     if [ -n "$ethernet_check" ] && [ -n "/sys/class/net/$ethernet_5g" ] && [ -n "$ethernet_5g" ];then
         set_modem_netcard=$ethernet_5g
     fi
-    if [ "$bridge_enabled" = "1" ]; then
+    if [ "$bridge_manager" = "misectel-interface-v1" ]; then
+        if [ "$bridge_enabled" = "1" ]; then
+            if ! external_bridge_manager apply "$set_modem_netcard"; then
+                ifdown "${interface_name}" >/dev/null 2>&1
+                m_debug "managed bridge setup failed; interface remains down"
+                return 1
+            fi
+            target_netcard="$bridge_device_name"
+        else
+            if ! external_bridge_manager release "$set_modem_netcard"; then
+                m_debug "managed bridge release failed"
+                return 1
+            fi
+            target_netcard="$set_modem_netcard"
+        fi
+    elif [ "$bridge_enabled" = "1" ]; then
         ensure_bridge_passthrough "$set_modem_netcard"
         if ! ensure_bridge_management_interface; then
             m_debug "invalid bridge management IP: $bridge_management_ip"
@@ -939,9 +975,13 @@ flush_if()
     config_load network
     remove_target="$modem_config"
     config_foreach flush_ip_cb "interface"
-    cleanup_bridge_passthrough
-    [ "$bridge_network_dirty" -eq 1 ] && network_reload_needed=1
-    [ "$bridge_qmodem_dirty" -eq 1 ] && qmodem_reload_needed=1
+    if [ "$bridge_manager" = "misectel-interface-v1" ]; then
+        external_bridge_manager release "" || m_debug "managed bridge release failed during flush"
+    else
+        cleanup_bridge_passthrough
+        [ "$bridge_network_dirty" -eq 1 ] && network_reload_needed=1
+        [ "$bridge_qmodem_dirty" -eq 1 ] && qmodem_reload_needed=1
+    fi
     set_led "net" $modem_config
     set_led "sim" $modem_config 0
     m_debug "delete interface $interface_name"
