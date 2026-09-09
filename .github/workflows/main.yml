@@ -156,20 +156,17 @@ jobs:
           git init tag-check
           cd tag-check
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
-          git fetch --no-tags --depth=1 origin main stable "${GITHUB_SHA}"
-          tag_commit="${GITHUB_SHA}"
+          git fetch --no-tags origin main stable \
+            "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          tag_commit="$(git rev-list -n 1 "refs/tags/${GITHUB_REF_NAME}")"
           case "${GITHUB_REF_NAME}" in
             *-rc.*|*-beta.*)
-              git merge-base --is-ancestor "$tag_commit" FETCH_HEAD 2>/dev/null || {
-                git fetch --no-tags origin main
-                git merge-base --is-ancestor "$tag_commit" origin/main || {
-                  echo "pre-release tags must point to main" >&2
-                  exit 1
-                }
+              git merge-base --is-ancestor "$tag_commit" origin/main || {
+                echo "pre-release tags must point to main" >&2
+                exit 1
               }
               ;;
             v[0-9]*.[0-9]*.[0-9]*)
-              git fetch --no-tags origin stable
               git merge-base --is-ancestor "$tag_commit" origin/stable || {
                 echo "stable tags must point to stable" >&2
                 exit 1
