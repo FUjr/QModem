@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - '*'    
+      - '*'
     tags:
       - 'v*'
     paths-ignore:
@@ -27,8 +27,8 @@ env:
 jobs:
   job_auto_tag:
     runs-on: ubuntu-latest
-    # 只在 main 分支推送且包含 version.mk 文件变更时运行
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # main owns pre-release tags; stable owns final release tags.
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable') && github.event_name == 'push'
     outputs:
       new_tag: ${{ steps.create_tag.outputs.tag_name }}
       tag_created: ${{ steps.create_tag.outputs.tag_created }}
@@ -66,6 +66,15 @@ jobs:
           echo "Error: Could not extract version from version.mk"
           exit 1
         fi
+
+        case "${GITHUB_REF#refs/heads/}:$version" in
+          main:*-[0-9a-zA-Z]*) ;;
+          stable:[0-9]*.[0-9]*.[0-9]*) ;;
+          *)
+            echo "QMODEM_VERSION does not match its release branch: ${GITHUB_REF#refs/heads/}:$version" >&2
+            exit 1
+            ;;
+        esac
         
         # 生成tag名称
         tag_name="v$version"
@@ -138,6 +147,39 @@ jobs:
             fi
             is_pr=$([[ "${{ github.event_name }}" == "pull_request" ]] && echo 1 || echo 0)
             echo "is_pr=${is_pr}" >> $GITHUB_OUTPUT
+
+      - name: Validate release tag source
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init tag-check
+          cd tag-check
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin main stable "${GITHUB_SHA}"
+          tag_commit="${GITHUB_SHA}"
+          case "${GITHUB_REF_NAME}" in
+            *-rc.*|*-beta.*)
+              git merge-base --is-ancestor "$tag_commit" FETCH_HEAD 2>/dev/null || {
+                git fetch --no-tags origin main
+                git merge-base --is-ancestor "$tag_commit" origin/main || {
+                  echo "pre-release tags must point to main" >&2
+                  exit 1
+                }
+              }
+              ;;
+            v[0-9]*.[0-9]*.[0-9]*)
+              git fetch --no-tags origin stable
+              git merge-base --is-ancestor "$tag_commit" origin/stable || {
+                echo "stable tags must point to stable" >&2
+                exit 1
+              }
+              ;;
+            *)
+              echo "unsupported QModem release tag: ${GITHUB_REF_NAME}" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Checkout
         if: 

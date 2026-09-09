@@ -7,8 +7,9 @@
 1. [系统架构](architecture.zh-cn.md)：理解各组件的职责和调用链。
 2. [模组适配](modem-adaptation.zh-cn.md)：添加厂商、型号、端口规则和 AT 能力。
 3. [测试与验证](testing.zh-cn.md)：区分静态测试、fixture、SDK 构建和硬件验证。
-4. [rpcd 接口](../qmodem-rpcd-interface.zh-cn.md)：前后端调用约定。
-5. [AT fixture](../../testcases/README.md)：采集、脱敏和回放真实模组响应。
+4. [分支与发布策略](../release/branch-policy.zh-cn.md)：维护 `main`/`stable` 和发布标签。
+5. [rpcd 接口](../qmodem-rpcd-interface.zh-cn.md)：前后端调用约定。
+6. [AT fixture](../../testcases/README.md)：采集、脱敏和回放真实模组响应。
 
 旧版[开发者指南](../developer-guide.zh-cn.md)保留为历史参考。代码路径、RPC 方法和适配步骤发生冲突时，以当前源码和本组文档为准。
 

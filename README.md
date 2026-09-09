@@ -63,6 +63,8 @@ The detailed English manuals are currently maintained in the existing [user guid
 
 - [User documentation](docs/user/index.zh-cn.md)
 - [Developer documentation](docs/developer/index.zh-cn.md)
+- [Branch and release policy](docs/release/branch-policy.zh-cn.md)
+- [Version migration and issue reporting](docs/release/version-migration.zh-cn.md)
 - [Supported hardware](docs/support_list.md)
 - [rpcd API](docs/qmodem-rpcd-interface.md)
 - [AT fixture development](testcases/README.md)
