@@ -4,6 +4,7 @@
 return baseclass.extend({
 	manufacturers: {
 		gosuncn: 'GosunCN',
+		foxconn: 'Foxconn',
 		quectel: 'Quectel',
 		simcom: 'Simcom',
 		sierra: 'Sierra Wireless',
@@ -13,6 +14,7 @@ return baseclass.extend({
 		neoway: 'Neoway',
 		telit: 'Telit',
 		thales: 'Thales',
+		openluat: 'OpenLuat',
 		nk: "Tom's Love"
 	},
 	platforms: {
