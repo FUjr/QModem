@@ -370,7 +370,7 @@ return view.extend({
 
 		// Additional modem configuration (modal only)
 		//vendor
-		o = s.option(form.ListValue, 'vendor', _('Vendor'));
+		o = s.option(form.ListValue, 'manufacturer', _('Manufacturer'));
 		o.modalonly = true;
 		o.optional = true;
 		for (var key in modemCfg.manufacturers) {
