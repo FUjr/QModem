@@ -28,7 +28,7 @@ update_cfg(){
 	config_load qmodem
 	config_get AT_PORT "$MODEM_CFG" at_port
 	config_get ALIAS "$MODEM_CFG" alias
-	config_get USE_UBUS "$MODEM_CFG" use_ubus
+	config_get USE_UBUS "$MODEM_CFG" use_ubus 1
 	[ "$USE_UBUS" = "1" ] && use_ubus_flag="-u"
 }
 

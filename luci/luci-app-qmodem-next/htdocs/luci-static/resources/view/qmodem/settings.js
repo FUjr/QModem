@@ -290,6 +290,7 @@ return view.extend({
 							// Set type and path automatically
 							uci.set('qmodem', sid, 'data_interface', deviceInfo.type);
 							uci.set('qmodem', sid, 'path', deviceInfo.path);
+							uci.set('qmodem', sid, 'use_ubus', '1');
 							
 							ui.hideModal();
 							m.save().then(function() {
@@ -365,7 +366,8 @@ return view.extend({
 			o.value(port.id, port.label);
 		});
 	}		o = s.option(form.Flag, 'use_ubus', _('Use Ubus AT Daemon'));
-		o.default = '0';
+		o.default = '1';
+		o.rmempty = false;
 
 
 		// Additional modem configuration (modal only)

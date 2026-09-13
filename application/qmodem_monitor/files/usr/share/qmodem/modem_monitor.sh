@@ -66,7 +66,7 @@ update_cfg(){
 	config_load qmodem
 	config_get AT_PORT "$Modem_ID" at_port
 	config_get ALIAS "$Modem_ID" alias
-	config_get USE_UBUS "$Modem_ID" use_ubus
+	config_get USE_UBUS "$Modem_ID" use_ubus 1
 	[ "$USE_UBUS" = "1" ] && use_ubus_flag="-u"
     log "loaded config for modem $Modem_ID: at_port=$AT_PORT, alias=$ALIAS, use_ubus=$USE_UBUS"
 }
