@@ -50,7 +50,7 @@ msgstr ""
 msgid "16-bit (Unicode)"
 msgstr ""
 
-#: view/qmodem/settings.js:491
+#: view/qmodem/settings.js:493
 msgid "5G Ethernet Interface"
 msgstr ""
 
@@ -101,7 +101,7 @@ msgstr ""
 #: vendor/simcom.sh:257
 #: vendor/telit.sh:156
 #: vendor/thales.sh:45
-#: view/qmodem/settings.js:348
+#: view/qmodem/settings.js:349
 msgid "AT Port"
 msgstr ""
 
@@ -154,7 +154,7 @@ msgstr ""
 msgid "Actions"
 msgstr ""
 
-#: view/qmodem/settings.js:299
+#: view/qmodem/settings.js:300
 msgid "Add"
 msgstr ""
 
@@ -184,11 +184,11 @@ msgstr ""
 msgid "Advanced Configuration"
 msgstr ""
 
-#: view/qmodem/settings.js:461
+#: view/qmodem/settings.js:463
 msgid "After setting this option, the first module loaded into this slot will automatically be assigned this default alias."
 msgstr ""
 
-#: view/qmodem/settings.js:341
+#: view/qmodem/settings.js:342
 msgid "Alias"
 msgstr ""
 
@@ -257,11 +257,11 @@ msgstr ""
 msgid "Are you sure you want to perform a soft reboot? The modem will restart and may lose connection temporarily."
 msgstr ""
 
-#: view/qmodem/settings.js:306
+#: view/qmodem/settings.js:307
 msgid "Are you sure you want to remove this modem device? this cannot be roll back with uci machanism."
 msgstr ""
 
-#: view/qmodem/settings.js:511
+#: view/qmodem/settings.js:513
 msgid "Associated USB"
 msgstr ""
 
@@ -395,7 +395,7 @@ msgid "Bridge Mode"
 msgstr ""
 
 #: view/qmodem/network_config.js:334
-#: view/qmodem/settings.js:501
+#: view/qmodem/settings.js:503
 msgid "Bridge Port"
 msgstr ""
 
@@ -609,7 +609,7 @@ msgstr ""
 msgid "Configure network preference (5G/4G/3G priority). Changes may require modem restart."
 msgstr ""
 
-#: view/qmodem/settings.js:427
+#: view/qmodem/settings.js:429
 msgid "Configure physical slots for modem installation"
 msgstr ""
 
@@ -758,15 +758,15 @@ msgstr ""
 msgid "Debug"
 msgstr ""
 
-#: view/qmodem/settings.js:460
+#: view/qmodem/settings.js:462
 msgid "Default Alias"
 msgstr ""
 
-#: view/qmodem/settings.js:465
+#: view/qmodem/settings.js:467
 msgid "Default Metric"
 msgstr ""
 
-#: view/qmodem/settings.js:502
+#: view/qmodem/settings.js:504
 msgid "Default bridge port for passthrough. Device-level bridge_port overrides this slot default."
 msgstr ""
 
@@ -818,7 +818,7 @@ msgstr ""
 msgid "Detected Ports"
 msgstr ""
 
-#: view/qmodem/settings.js:345
+#: view/qmodem/settings.js:346
 msgid "Device Path"
 msgstr ""
 
@@ -874,7 +874,7 @@ msgstr ""
 msgid "Disable"
 msgstr ""
 
-#: view/qmodem/settings.js:395
+#: view/qmodem/settings.js:397
 msgid "Disabled Features"
 msgstr ""
 
@@ -998,7 +998,7 @@ msgstr ""
 #: view/qmodem/config_advanced.js:1097
 #: view/qmodem/network_config.js:76
 #: view/qmodem/network_config.js:749
-#: view/qmodem/settings.js:321
+#: view/qmodem/settings.js:322
 msgid "Enabled"
 msgstr ""
 
@@ -1335,11 +1335,11 @@ msgstr ""
 msgid "Feishu webhook URL from your bot configuration"
 msgstr ""
 
-#: view/qmodem/settings.js:492
+#: view/qmodem/settings.js:494
 msgid "For 5G modules using the Ethernet PHY connection, please specify the network interface name (e.g., eth0, eth1)"
 msgstr ""
 
-#: view/qmodem/settings.js:512
+#: view/qmodem/settings.js:514
 msgid "For M.2 slots with both PCIe and USB support, specify the associated USB port (for ttyUSB access)"
 msgstr ""
 
@@ -1376,15 +1376,15 @@ msgstr ""
 msgid "Full scan failed"
 msgstr ""
 
-#: view/qmodem/settings.js:527
+#: view/qmodem/settings.js:529
 msgid "GPIO Value(Modem Power Down)"
 msgstr ""
 
-#: view/qmodem/settings.js:532
+#: view/qmodem/settings.js:534
 msgid "GPIO Value(Modem Power Up)"
 msgstr ""
 
-#: view/qmodem/settings.js:523
+#: view/qmodem/settings.js:525
 msgid "GPIO pin for power control"
 msgstr ""
 
@@ -1615,16 +1615,16 @@ msgstr ""
 msgid "Invalid message index"
 msgstr ""
 
-#: view/qmodem/settings.js:472
+#: view/qmodem/settings.js:474
 msgid "LED indicator for SIM card status"
 msgstr ""
 
-#: view/qmodem/settings.js:482
+#: view/qmodem/settings.js:484
 msgid "LED indicator for network connection status"
 msgstr ""
 
 #: vendor/huawei.sh:385
-#: view/qmodem/settings.js:408
+#: view/qmodem/settings.js:410
 msgid "LTE Band"
 msgstr ""
 
@@ -1921,7 +1921,7 @@ msgstr ""
 msgid "Model AT Timeout"
 msgstr ""
 
-#: view/qmodem/settings.js:339
+#: view/qmodem/settings.js:340
 msgid "Model Name"
 msgstr ""
 
@@ -1968,19 +1968,19 @@ msgstr ""
 msgid "Modem Probe Settings"
 msgstr ""
 
-#: view/qmodem/settings.js:434
+#: view/qmodem/settings.js:436
 msgid "Modem Slot"
 msgstr ""
 
-#: view/qmodem/settings.js:426
+#: view/qmodem/settings.js:428
 msgid "Modem Slot Configuration"
 msgstr ""
 
-#: view/qmodem/settings.js:316
+#: view/qmodem/settings.js:317
 msgid "Modem device removal failed: "
 msgstr ""
 
-#: view/qmodem/settings.js:311
+#: view/qmodem/settings.js:312
 msgid "Modem device removed successfully"
 msgstr ""
 
@@ -2013,7 +2013,7 @@ msgstr ""
 msgid "NR Band"
 msgstr ""
 
-#: view/qmodem/settings.js:413
+#: view/qmodem/settings.js:415
 msgid "NSA Band"
 msgstr ""
 
@@ -2056,7 +2056,7 @@ msgstr ""
 msgid "Network Information"
 msgstr ""
 
-#: view/qmodem/settings.js:481
+#: view/qmodem/settings.js:483
 msgid "Network LED"
 msgstr ""
 
@@ -2266,7 +2266,7 @@ msgstr ""
 msgid "Other Storage"
 msgstr ""
 
-#: view/qmodem/settings.js:361
+#: view/qmodem/settings.js:362
 msgid "Override AT Port"
 msgstr ""
 
@@ -2286,7 +2286,7 @@ msgstr ""
 msgid "PCI and ARFCN are required"
 msgstr ""
 
-#: view/qmodem/settings.js:439
+#: view/qmodem/settings.js:441
 msgid "PCIe"
 msgstr ""
 
@@ -2376,11 +2376,11 @@ msgstr ""
 msgid "Physical Channel"
 msgstr ""
 
-#: view/qmodem/settings.js:444
+#: view/qmodem/settings.js:446
 msgid "Physical slot identifier (e.g., 1-1.4 for USB, 0000:01:00.0 for PCIe)"
 msgstr ""
 
-#: view/qmodem/settings.js:380
+#: view/qmodem/settings.js:382
 msgid "Platform"
 msgstr ""
 
@@ -2422,7 +2422,7 @@ msgstr ""
 msgid "Post Init Delay"
 msgstr ""
 
-#: view/qmodem/settings.js:522
+#: view/qmodem/settings.js:524
 msgid "Power GPIO"
 msgstr ""
 
@@ -2729,7 +2729,7 @@ msgstr ""
 msgid "RxLev"
 msgstr ""
 
-#: view/qmodem/settings.js:418
+#: view/qmodem/settings.js:420
 msgid "SA Band"
 msgstr ""
 
@@ -2776,7 +2776,7 @@ msgstr ""
 msgid "SIM Information"
 msgstr ""
 
-#: view/qmodem/settings.js:471
+#: view/qmodem/settings.js:473
 msgid "SIM LED"
 msgstr ""
 
@@ -2862,7 +2862,7 @@ msgstr ""
 msgid "SIM slot switched to Slot %s successfully."
 msgstr ""
 
-#: view/qmodem/settings.js:355
+#: view/qmodem/settings.js:356
 msgid "SMS AT Port"
 msgstr ""
 
@@ -2997,7 +2997,7 @@ msgstr ""
 msgid "Select a device to configure:"
 msgstr ""
 
-#: view/qmodem/settings.js:396
+#: view/qmodem/settings.js:398
 msgid "Select features to disable for this modem."
 msgstr ""
 
@@ -3126,11 +3126,11 @@ msgstr ""
 msgid "Slot %s"
 msgstr ""
 
-#: view/qmodem/settings.js:443
+#: view/qmodem/settings.js:445
 msgid "Slot ID"
 msgstr ""
 
-#: view/qmodem/settings.js:437
+#: view/qmodem/settings.js:439
 msgid "Slot Type"
 msgstr ""
 
@@ -3144,7 +3144,7 @@ msgstr ""
 #: view/qmodem/config_advanced.js:1475
 #: view/qmodem/config_advanced.js:1478
 #: view/qmodem/config_advanced.js:1525
-#: view/qmodem/settings.js:333
+#: view/qmodem/settings.js:334
 msgid "Soft Reboot"
 msgstr ""
 
@@ -3196,11 +3196,11 @@ msgstr ""
 msgid "Supported"
 msgstr ""
 
-#: view/qmodem/settings.js:387
+#: view/qmodem/settings.js:389
 msgid "Supported Modes"
 msgstr ""
 
-#: view/qmodem/settings.js:388
+#: view/qmodem/settings.js:390
 msgid "Supported driver modes (e.g., RNDIS/NCM/QMI/MBIM/ETH/PPP)"
 msgstr ""
 
@@ -3277,7 +3277,7 @@ msgstr ""
 msgid "Temperature"
 msgstr ""
 
-#: view/qmodem/settings.js:466
+#: view/qmodem/settings.js:468
 msgid "The first module loaded into this slot will automatically be assigned this default metric."
 msgstr ""
 
@@ -3356,7 +3356,7 @@ msgstr ""
 msgid "Tx Power"
 msgstr ""
 
-#: view/qmodem/settings.js:326
+#: view/qmodem/settings.js:327
 #: view/qmodem/sms_sim.js:161
 msgid "Type"
 msgstr ""
@@ -3393,7 +3393,7 @@ msgstr ""
 msgid "UMobile (MY)"
 msgstr ""
 
-#: view/qmodem/settings.js:438
+#: view/qmodem/settings.js:440
 msgid "USB"
 msgstr ""
 
@@ -3455,11 +3455,11 @@ msgid "Use Ubus"
 msgstr ""
 
 #: view/qmodem/debug.js:140
-#: view/qmodem/settings.js:367
+#: view/qmodem/settings.js:368
 msgid "Use Ubus AT Daemon"
 msgstr ""
 
-#: view/qmodem/settings.js:373
+#: view/qmodem/settings.js:375
 msgid "Vendor"
 msgstr ""
 
@@ -3495,7 +3495,7 @@ msgstr ""
 msgid "Voltage"
 msgstr ""
 
-#: view/qmodem/settings.js:403
+#: view/qmodem/settings.js:405
 msgid "WCDMA Band"
 msgstr ""
 
@@ -3550,24 +3550,24 @@ msgstr ""
 msgid "Yota (RU)"
 msgstr ""
 
-#: view/qmodem/settings.js:340
-#: view/qmodem/settings.js:342
-#: view/qmodem/settings.js:346
-#: view/qmodem/settings.js:349
-#: view/qmodem/settings.js:356
-#: view/qmodem/settings.js:362
-#: view/qmodem/settings.js:404
-#: view/qmodem/settings.js:409
-#: view/qmodem/settings.js:414
-#: view/qmodem/settings.js:419
-#: view/qmodem/settings.js:462
-#: view/qmodem/settings.js:468
-#: view/qmodem/settings.js:529
-#: view/qmodem/settings.js:534
+#: view/qmodem/settings.js:341
+#: view/qmodem/settings.js:343
+#: view/qmodem/settings.js:347
+#: view/qmodem/settings.js:350
+#: view/qmodem/settings.js:357
+#: view/qmodem/settings.js:363
+#: view/qmodem/settings.js:406
+#: view/qmodem/settings.js:411
+#: view/qmodem/settings.js:416
+#: view/qmodem/settings.js:421
+#: view/qmodem/settings.js:464
+#: view/qmodem/settings.js:470
+#: view/qmodem/settings.js:531
+#: view/qmodem/settings.js:536
 msgid "e.g."
 msgstr ""
 
-#: view/qmodem/settings.js:334
+#: view/qmodem/settings.js:335
 msgid "enable modem soft reboot"
 msgstr ""
 
