@@ -817,7 +817,8 @@ set_if()
             m_debug "create interface $interface_name with proto $proto and metric $metric"
         fi
     else
-        if [ -n "$interface" ];then
+	# skip delete of the only v6 interface
+	if [ -n "$interface" ] && [ "$interface_name" != "$interface6_name" ];then
             uci delete network.${interface_name}
             network_reload_flag=1
             m_debug "delete interface $interface_name"
@@ -827,11 +828,15 @@ set_if()
         if [ -z "$interfacev6" ];then
             # uci set network.lan.ipv6='1' # user decide themself whether to enable IPv6 on LAN.
             # uci set network.lan.ip6assign='64'
+            if [ "$env4" -eq 0 ];then  # v6 is the only interface: same name, no alias
+	        interface6_name="${interface_name}"
+	    else
+	        uci set network.${interface6_name}.ifname="@${interface_name}"
+	        uci set network.${interface6_name}.device="@${interface_name}"
+	    fi
             uci set network.${interface6_name}='interface'
             uci set network.${interface6_name}.modem_config="${modem_config}"
             uci set network.${interface6_name}.proto="${protov6}"
-            uci set network.${interface6_name}.ifname="@${interface_name}"
-            uci set network.${interface6_name}.device="@${interface_name}"
             uci set network.${interface6_name}.metric="${metric}"
             
             local wwan6_num=$(uci -q get firewall.@zone[$num].network | grep -w "${interface6_name}" | wc -l)
@@ -1190,7 +1195,8 @@ qmi_dial()
     fi
     #if is rmnet* ,use the first part of the name
     if [[ "$modem_netcard" = "rmnet"* ]];then
-        qmi_if=$(echo "$modem_netcard" | cut -d. -f1)
+        # accomodate change '.' to '_' in driver
+        qmi_if=$(echo "$modem_netcard" | cut -d. -f1 | cut -d_ -f1,2)  
     fi
         cmd_line="${cmd_line} -i ${qmi_if}"
     fi
