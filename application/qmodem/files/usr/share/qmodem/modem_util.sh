@@ -165,9 +165,11 @@ log2file()
     local msg="$2"
 	local path="$3"
 
-	#打印日志
-    local update_time=$(date +"%Y-%m-%d %H:%M:%S")
-    echo "[${update_time}] ${subject}:${msg} " >> "${path}"
+    # Print log 打印日志
+    # local update_time=$(date +"%Y-%m-%d %H:%M:%S")
+    # Time to milliseconds
+    local update_time=$( date +"%m-%d %H:%M:%S.%N" | cut -c1-18 )
+    echo "[${update_time}] ${subject}:${msg}" >> "${path}"
 }
 
 log2sys()
