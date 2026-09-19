@@ -8,7 +8,7 @@ include ../../version.mk
 
 PKG_NAME:=luci-app-qmodem-next
 PKGARCH:=all
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 PKG_MAINTAINER:=Tom <fjrcn@outlook.com>
 PKG_LICENSE:=GPLv3
 PKG_DEPENDS:=+qmodem +qmodem-smsd +sms-forwarder-next
@@ -22,7 +22,7 @@ define Package/$(PKG_NAME)
   CATEGORY:=LuCI
   SUBMENU:=3. Applications
   TITLE:=LuCI Modern UI for QModem
-  DEPENDS:=@!PACKAGE_luci-app-qmodem $(PKG_DEPENDS) +luci-base
+  DEPENDS:=$(PKG_DEPENDS) +luci-base
   CONFLICTS:=luci-app-qmodem
   PROVIDES:=qmodem-luci-ui
   PKGARCH:=all
@@ -50,7 +50,7 @@ define Package/luci-i18n-qmodem-next-zh-cn
 	TITLE:=luci-app-qmodem-next - zh-cn translation
 	HIDDEN:=1
 	DEFAULT:=LUCI_LANG_zh_Hans||(ALL&&m)
-	DEPENDS:=+luci-app-qmodem-next
+	DEPENDS:=luci-app-qmodem-next
 	PKGARCH:=all
 endef
 
