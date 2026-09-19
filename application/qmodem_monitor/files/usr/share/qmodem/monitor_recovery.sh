@@ -31,7 +31,7 @@ nm_config() {
     N=$(nm_get monitor_action_failures 3)
     AT_PORT=$(nm_get at_port '')
     Alias=$(nm_get alias "$Modem_ID"); [ "$Alias" = - ] && Alias=$Modem_ID
-    use_ubus_flag=''; [ "$(nm_get use_ubus 1)" = 1 ] && use_ubus_flag=-u
+    use_ubus_flag=''; [ "$(nm_get use_ubus 0)" = 1 ] && use_ubus_flag=-u
     nm_ip "$Primary" && { [ -z "$Backup" ] || { nm_ip "$Backup" && [ "$Backup" != "$Primary" ]; }; } &&
         nm_uint "$Timeout" 1 30 && nm_uint "$Packets" 1 10 &&
         nm_uint "$PacketInterval" 1 60 && nm_uint "$Interval" 5 3600 &&
@@ -237,7 +237,7 @@ nm_main() {
     trap nm_cleanup TERM INT
     # Restore radio functionality even if the newly saved probe config is bad.
     AT_PORT=$(nm_get at_port '')
-    use_ubus_flag=''; [ "$(nm_get use_ubus 1)" = 1 ] && use_ubus_flag=-u
+    use_ubus_flag=''; [ "$(nm_get use_ubus 0)" = 1 ] && use_ubus_flag=-u
     while ! nm_cfun_on; do nm_sleep 10; done
     while ! nm_config; do nm_state error invalid_configuration; nm_sleep 5; done
     while ! nm_cfun_on; do nm_sleep 10; done

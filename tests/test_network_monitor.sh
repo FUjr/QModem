@@ -16,6 +16,47 @@ done
 nm_uint 3 1 10 || fail uint
 if nm_uint 03 1 10; then fail leading_zero; fi
 
+# Exercise normal recovery and pending-intent compensation through the AT
+# invocation.  The transport consumes use_ubus_flag, so assert its selection
+# when AT+CFUN is actually issued instead of only inspecting configuration.
+(
+    . "$ROOT/application/qmodem_monitor/files/usr/share/qmodem/monitor_recovery.sh"
+    nm_state() { :; }
+    nm_run() { shift; "$@"; }
+    uci() {
+        [ "$1" != -q ] || shift
+        [ "$1" = get ] || return 1
+        case "$2" in
+            qmodem.test.at_port) printf '%s\n' ttyUSBtest ;;
+            qmodem.test.use_ubus) [ "$TEST_USE_UBUS" = missing ] || printf '%s\n' "$TEST_USE_UBUS" ;;
+        esac
+    }
+    at() {
+        printf '%s|%s|%s\n' "$use_ubus_flag" "$1" "$2" >> "$TMP/at-invocations"
+        printf '%s\n' OK
+    }
+    for TEST_USE_UBUS in missing 0 1; do
+        expected_flag=''
+        [ "$TEST_USE_UBUS" != 1 ] || expected_flag=-u
+
+        : > "$TMP/at-invocations"
+        nm_config || fail "normal configuration $TEST_USE_UBUS"
+        nm_at_command 'AT+CFUN=0' || fail "normal AT $TEST_USE_UBUS"
+        [ "$(cat "$TMP/at-invocations")" = "$expected_flag|ttyUSBtest|AT+CFUN=0" ] ||
+            fail "normal use_ubus transport $TEST_USE_UBUS"
+
+        : > "$TMP/at-invocations"
+        AT_PORT=$(nm_get at_port '')
+        use_ubus_flag=''; [ "$(nm_get use_ubus 0)" = 1 ] && use_ubus_flag=-u
+        : > "$NM_INTENTS/$Modem_ID"
+        nm_cfun_on || fail "pending intent $TEST_USE_UBUS"
+        [ ! -e "$NM_INTENTS/$Modem_ID" ] || fail "pending intent cleared $TEST_USE_UBUS"
+        [ "$(cat "$TMP/at-invocations")" = "$expected_flag|ttyUSBtest|AT+CFUN=1" ] ||
+            fail "pending intent use_ubus transport $TEST_USE_UBUS"
+    done
+)
+echo 'network monitor use_ubus transport tests passed'
+
 # Execute the actual probe function with controlled network/command outcomes.
 nm_interface() { NetDev=wwan_test; Address=true; }
 nm_run() {
