@@ -1655,8 +1655,12 @@ static struct net_device * rmnet_vnd_register_device(struct mhi_netdev *pQmapDev
 
 	priv->agg_skb = NULL;
 	priv->agg_count = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,18,0)
 	hrtimer_init(&priv->agg_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	priv->agg_hrtimer.function = rmnet_vnd_tx_agg_timer_cb;
+#else
+	hrtimer_setup(&priv->agg_hrtimer, rmnet_vnd_tx_agg_timer_cb, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+#endif
 	INIT_WORK(&priv->agg_wq, rmnet_vnd_tx_agg_work);
 	ktime_get_ts64(&priv->agg_time);
 	spin_lock_init(&priv->agg_lock);
