@@ -15,8 +15,7 @@ PKG_LICENSE:=GPLv3
 PKG_LINCESE_FILES:=LICENSE
 PKG_MAINTAINER:=Tom <fjrcn@outlook.com>
 PKG_PROVIDES:=qmodem-luci-ui
-LUCI_DEPENDS:=@!PACKAGE_luci-app-qmodem-next \
-		+luci-compat \
+LUCI_DEPENDS:=+luci-compat \
 		+qmodem
 
 
