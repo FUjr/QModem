@@ -648,6 +648,9 @@ case "$1" in
     "get_sim_slot": {
         "config_section": "string"
     },
+    "get_monitor_status": {
+        "config_section": "string"
+    },
     "set_sim_slot": {
         "config_section": "string",
         "slot": "string"
@@ -658,6 +661,15 @@ EOF
     call)
         read -r input
         config_section=$(echo "$input" | jsonfilter -e '@.config_section')
+        if [ "$2" = get_monitor_status ]; then
+            case "$config_section" in ''|*[!A-Za-z0-9_]*) printf '%s\n' '{"error":"invalid modem section"}'; exit 1;; esac
+            [ "$(uci -q get "qmodem.$config_section")" = modem-device ] || { printf '%s\n' '{"error":"unknown modem section"}'; exit 1; }
+            if [ -f /usr/share/qmodem/monitor_recovery.sh ]; then
+                exec /usr/share/qmodem/monitor_recovery.sh "$config_section" status
+            fi
+            printf '%s\n' '{"enabled":false,"running":false,"stale":true,"connectivity":"unknown","phase":"unavailable"}'
+            exit 0
+        fi
         if [ -n "$config_section" ]; then
             get_modem_config "$config_section" > /dev/null
             load_vendor_script "$vendor" > /dev/null

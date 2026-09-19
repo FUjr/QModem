@@ -15,7 +15,7 @@ define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=QModem Network Monitor scripts
-  DEPENDS:=+qmodem
+  DEPENDS:=+qmodem +flock +jq
 endef
 
 define Package/$(PKG_NAME)/description
