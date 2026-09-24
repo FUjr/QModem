@@ -1044,14 +1044,455 @@ static void reload_network(void)
 	run_exec(argv, 60);
 }
 
+/* Physical modem identity plus the stored UCI view used for ownership arbitration. */
+struct device_identity {
+	char id[192];
+	char serial[128];
+};
+
+struct modem_section {
+	char name[128];
+	char scan_id[192];
+	char scan_serial[128];
+	char network[2048];
+	char at_port[160];
+	char valid_at_ports[4096];
+	char path[512];
+	int fixed;
+};
+
+struct modem_section_table {
+	struct modem_section *items;
+	size_t len;
+	char *listing;
+};
+
+/* All new formatted strings fail closed on truncation. */
+static int scan_format(char *out, size_t len, const char *fmt, ...)
+{
+	va_list ap;
+	int n;
+
+	va_start(ap, fmt);
+	n = vsnprintf(out, len, fmt, ap);
+	va_end(ap);
+	if (n < 0 || (size_t)n >= len) {
+		if (len)
+			out[0] = '\0';
+		return -1;
+	}
+	return 0;
+}
+
+/* Vendor placeholder serials must never be used as a device identity. */
+static int scan_serial_valid(const char *s)
+{
+	int all_zero = 1, all_f = 1;
+
+	if (strlen(s) < 4 || !strcasecmp(s, "0123456789ABCDEF") ||
+	    !strcasecmp(s, "none") || !strcasecmp(s, "unknown") ||
+	    !strcasecmp(s, "N/A"))
+		return 0;
+	for (; *s; s++) {
+		if (*s != '0')
+			all_zero = 0;
+		if (*s != 'F' && *s != 'f')
+			all_f = 0;
+	}
+	return !all_zero && !all_f;
+}
+
+/* Slots may carry an interface suffix (4-1.2:1.0); the physical port does not. */
+static int scan_usb_phys(const char *slot, char *out, size_t len)
+{
+	char *sep;
+
+	if (scan_format(out, len, "%s", slot))
+		return -1;
+	sep = strchr(out, ':');
+	if (sep)
+		*sep = '\0';
+	return 0;
+}
+
+/* Identity survives interface renumbering and stays unique per port even when
+ * the vendor exposes no usable serial number. */
+static int scan_identity(const char *slot, const char *slot_type,
+		const struct scan_result *res, struct device_identity *id)
+{
+	char phys[128], path[256], serial[4096] = "";
+
+	memset(id, 0, sizeof(*id));
+	if (!strcmp(slot_type, "pcie"))
+		return scan_format(id->id, sizeof(id->id), "pcie:%s", slot);
+	if (scan_usb_phys(slot, phys, sizeof(phys)) ||
+	    scan_format(path, sizeof(path), "/sys/bus/usb/devices/%s/serial", phys))
+		return -1;
+	if (!read_file_trim(path, serial, sizeof(serial)) && scan_serial_valid(serial) &&
+	    scan_format(id->serial, sizeof(id->serial), "%s", serial))
+		return -1;
+	return scan_format(id->id, sizeof(id->id), "usb:%s:%s@%s",
+		res->vid[0] ? res->vid : "?", res->pid[0] ? res->pid : "?", phys);
+}
+
+/* The same physical device cannot be plugged in at two ports at once, so a
+ * section whose device is still present at a different path describes another
+ * modem and must never be adopted or migrated into. */
+static int scan_section_elsewhere(const struct modem_section *s, const struct scan_result *res)
+{
+	char path[512], own[512];
+	size_t n;
+
+	if (scan_format(path, sizeof(path), "%s", s->path) ||
+	    scan_format(own, sizeof(own), "%s", res->modem_path))
+		return 1;
+	n = strlen(path);
+	while (n && path[n - 1] == '/')
+		path[--n] = '\0';
+	n = strlen(own);
+	while (n && own[n - 1] == '/')
+		own[--n] = '\0';
+	return path[0] && strcmp(path, own) && is_dir(path);
+}
+
+/* Whole-token match: usb0 must not be satisfied by usb01. */
+static int scan_list_hits_words(const struct str_list *a, const char *words)
+{
+	while (*words) {
+		const char *start;
+		size_t len;
+
+		while (isspace((unsigned char)*words))
+			words++;
+		start = words;
+		while (*words && !isspace((unsigned char)*words))
+			words++;
+		len = (size_t)(words - start);
+		for (size_t i = 0; len && i < a->len; i++) {
+			if (strlen(a->items[i]) == len && !memcmp(a->items[i], start, len))
+				return 1;
+		}
+	}
+	return 0;
+}
+
+/* uci -q get exits non-zero for an absent option as well as for a failure, so a
+ * non-zero status is only fatal when the option really is present in the
+ * listing that scan_load_sections() already read. */
+static int scan_option_known(const char *listing, const char *section, const char *option)
+{
+	char needle[256];
+
+	if (scan_format(needle, sizeof(needle), "qmodem.%s.%s=", section, option))
+		return 0;
+	for (const char *p = listing; (p = strstr(p, needle)); p++)
+		if (p == listing || p[-1] == '\n')
+			return 1;
+	return 0;
+}
+
+static int scan_get_option(const char *listing, const char *section, const char *option,
+		char *out, size_t len)
+{
+	char key[256];
+
+	out[0] = '\0';
+	if (scan_format(key, sizeof(key), "qmodem.%s.%s", section, option))
+		return -1;
+	if (uci_get(key, out, len)) {
+		out[0] = '\0';
+		if (scan_option_known(listing, section, option))
+			return -1;
+		return 0;
+	}
+	/* A value that exactly fills the buffer may have been cut short, and a
+	 * wrong value would silently change which section owns a modem. */
+	if (strlen(out) >= len - 1) {
+		out[0] = '\0';
+		log_msg(LOG_L_WARN, "option too long to compare section=%s option=%s", section, option);
+		return -1;
+	}
+	return 0;
+}
+
+static int scan_load_sections(struct modem_section_table *t)
+{
+	char out[65536];
+	char *argv[] = { "uci", "-q", "show", "qmodem", NULL };
+	char *save = NULL, *line;
+
+	if (capture_exec(argv, out, sizeof(out), 3))
+		return -1;
+	/* An incomplete listing could hide the real owner of this modem and make us
+	 * create a duplicate section, so fail closed instead of guessing. */
+	if (strlen(out) >= sizeof(out) - 1) {
+		log_msg(LOG_L_WARN, "qmodem config listing truncated, skipping ownership check");
+		return -1;
+	}
+	t->listing = strdup(out);
+	if (!t->listing)
+		return -1;
+	for (line = strtok_r(out, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+		struct modem_section *s, *items;
+		char *eq, fixed[16];
+		if (strncmp(line, "qmodem.", 7) || !(eq = strchr(line + 7, '=')) ||
+		    strcmp(eq + 1, "modem-device"))
+			continue;
+		*eq = '\0';
+		/* Named sections only: anonymous or type-addressed names would make
+		 * later uci set/del calls address a different section. */
+		if (!line[7] || strchr(line + 7, '.') || strchr(line + 7, '@') ||
+		    strchr(line + 7, '['))
+			continue;
+		items = realloc(t->items, (t->len + 1) * sizeof(*items));
+		if (!items)
+			return -1;
+		t->items = items;
+		s = &t->items[t->len++];
+		memset(s, 0, sizeof(*s));
+		if (scan_format(s->name, sizeof(s->name), "%s", line + 7) ||
+		    scan_get_option(t->listing, s->name, "scan_id", s->scan_id, sizeof(s->scan_id)) ||
+		    scan_get_option(t->listing, s->name, "scan_serial", s->scan_serial, sizeof(s->scan_serial)) ||
+		    scan_get_option(t->listing, s->name, "network", s->network, sizeof(s->network)) ||
+		    scan_get_option(t->listing, s->name, "at_port", s->at_port, sizeof(s->at_port)) ||
+		    scan_get_option(t->listing, s->name, "valid_at_ports", s->valid_at_ports, sizeof(s->valid_at_ports)) ||
+		    scan_get_option(t->listing, s->name, "path", s->path, sizeof(s->path)) ||
+		    scan_get_option(t->listing, s->name, "fixed_device", fixed, sizeof(fixed)))
+			return -1;
+		s->fixed = !strcmp(fixed, "1");
+	}
+	return 0;
+}
+
+static const struct modem_section *scan_find_section(const struct modem_section_table *t,
+		const char *name)
+{
+	for (size_t i = 0; i < t->len; i++) {
+		if (!strcmp(t->items[i].name, name))
+			return &t->items[i];
+	}
+	return NULL;
+}
+
+/* Same physical device: same recorded identity, or the same vendor serial. */
+static int scan_matches_identity(const struct modem_section *s, const struct device_identity *id)
+{
+	if (s->scan_id[0] && id->id[0] && !strcmp(s->scan_id, id->id))
+		return 1;
+	return s->scan_serial[0] && id->serial[0] && !strcmp(s->scan_serial, id->serial);
+}
+
+/* Two different live serials always describe two different physical devices. */
+static int scan_serial_conflicts(const struct modem_section *s, const struct device_identity *id)
+{
+	return id->serial[0] && s->scan_serial[0] && strcmp(s->scan_serial, id->serial);
+}
+
+/* A net device or AT port can only be owned by one physical modem at a time. */
+static int scan_matches_resources(const struct modem_section *s, const struct scan_result *res)
+{
+	return scan_list_hits_words(&res->net_devices, s->network) ||
+		scan_list_hits_words(&res->valid_at_ports, s->valid_at_ports) ||
+		scan_list_hits_words(&res->valid_at_ports, s->at_port);
+}
+
+/* A recorded section is stale once the device path it was created for is gone. */
+static int scan_section_stale(const struct modem_section *s)
+{
+	char path[512];
+	size_t n;
+
+	if (!s->path[0] || scan_format(path, sizeof(path), "%s", s->path))
+		return 0;
+	n = strlen(path);
+	while (n && path[n - 1] == '/')
+		path[--n] = '\0';
+	return n && !is_dir(path);
+}
+
+/* Pick the section that already owns this modem, so a re-enumerated device keeps
+ * its name and the user's alias/APN/pincode instead of gaining a second section.
+ * Order: the section named after the scanned slot, then a recorded identity,
+ * then a stale section that still claims this scan's interfaces. */
+static const struct modem_section *scan_select_owner(const struct modem_section_table *t,
+		const char *section, const struct scan_result *res,
+		const struct device_identity *id)
+{
+	const struct modem_section *self = scan_find_section(t, section);
+	const struct modem_section *best = NULL;
+
+	if (self && !scan_serial_conflicts(self, id) && !scan_section_elsewhere(self, res) &&
+	    (scan_matches_identity(self, id) || scan_matches_resources(self, res)))
+		return self;
+	for (size_t i = 0; i < t->len; i++) {
+		const struct modem_section *s = &t->items[i];
+		if (s == self || scan_serial_conflicts(s, id) ||
+		    scan_section_elsewhere(s, res) || !scan_matches_identity(s, id))
+			continue;
+		/* A section whose path still exists is the live record of the device,
+		 * even when a vendor reuses one serial across units. */
+		if (!best || (scan_section_stale(best) && !scan_section_stale(s)) ||
+		    (scan_section_stale(best) == scan_section_stale(s) &&
+		     strcmp(s->name, best->name) < 0))
+			best = s;
+	}
+	if (best)
+		return best;
+	/* A section whose own device path is gone while it still claims this scan's
+	 * interfaces is a stale record of the same modem; adopting it preserves the
+	 * user's settings and keeps the metric and dial instance count unchanged. */
+	for (size_t i = 0; i < t->len; i++) {
+		const struct modem_section *s = &t->items[i];
+		if (s == self || s->fixed || scan_serial_conflicts(s, id) ||
+		    scan_section_elsewhere(s, res) ||
+		    !scan_matches_resources(s, res) || !scan_section_stale(s))
+			continue;
+		if (!best || strcmp(s->name, best->name) < 0)
+			best = s;
+	}
+	return best;
+}
+
+static int scan_set_option(const char *section, const char *option, const char *value)
+{
+	char key[256];
+
+	if (scan_format(key, sizeof(key), "qmodem.%s.%s", section, option))
+		return -1;
+	return uci_set(key, value);
+}
+
+/* Identity options are owned by the scanner, so they are written outright: an
+ * empty serial is stored as an empty value rather than deleted, because uci
+ * reports a missing option and a failed read the same way. */
+static int scan_write_identity(const char *section, const struct device_identity *id)
+{
+	if (scan_set_option(section, "scan_id", id->id))
+		return -1;
+	return scan_set_option(section, "scan_serial", id->serial);
+}
+
+/* Stop the procd dial instance of a section that is about to disappear. Removing
+ * the UCI section is not enough: qmodem_network reload only walks the sections
+ * that still exist, so a deleted one keeps dialing with a stale AT port. The
+ * instance is deleted only when it is really running, so a failure to stop it
+ * is reported instead of being mistaken for "nothing to stop". */
+static int scan_stop_instance(const char *section)
+{
+	char out[16384], instance[160], payload[256];
+	struct json_object *root, *svc, *instances, *entry;
+	char *list[] = { "ubus", "call", "service", "list",
+		"{\"name\":\"qmodem_network\"}", NULL };
+	char *del[] = { "ubus", "call", "service", "delete", payload, NULL };
+	int present = 0, rc = -1;
+
+	if (scan_format(instance, sizeof(instance), "modem_%s", section) ||
+	    capture_exec(list, out, sizeof(out), 5) || strlen(out) >= sizeof(out) - 1)
+		return -1;
+	root = json_tokener_parse(out);
+	if (!root || !json_object_is_type(root, json_type_object)) {
+		if (root)
+			json_object_put(root);
+		return -1;
+	}
+	if (json_object_object_get_ex(root, "qmodem_network", &svc)) {
+		if (!json_object_object_get_ex(svc, "instances", &instances) ||
+		    !json_object_is_type(instances, json_type_object)) {
+			json_object_put(root);
+			return -1;
+		}
+		present = json_object_object_get_ex(instances, instance, &entry);
+	}
+	json_object_put(root);
+	if (!present)
+		return 0;
+	if (scan_format(payload, sizeof(payload),
+			"{\"name\":\"qmodem_network\",\"instance\":\"%s\"}", instance))
+		return -1;
+	rc = run_exec(del, 5);
+	if (rc)
+		log_msg(LOG_L_WARN, "cannot stop dial instance=%s", instance);
+	return rc;
+}
+
+/* Retire a duplicate section: stop its dial instance, drop the interfaces it
+ * generated and decrement the global counter so the metric and default route
+ * stay single. Only called for a section already proven to be the same device. */
+static int scan_retire_duplicate(const char *ghost, const char *keep)
+{
+	const char *formats[] = { "qmodem.%s", "network.%s", "network.%sv6",
+		"dhcp.%s", "dhcp.%sv6" };
+	char keys[5][256], count_s[32] = "";
+	long count;
+
+	if (!strcmp(ghost, keep))
+		return 0;
+	if (scan_stop_instance(ghost))
+		return -1;
+	for (size_t i = 0; i < 5; i++) {
+		if (scan_format(keys[i], sizeof(keys[i]), formats[i], ghost))
+			return -1;
+	}
+	uci_get("qmodem.main.modem_count", count_s, sizeof(count_s));
+	count = strtol(count_s, NULL, 10);
+	if (scan_format(count_s, sizeof(count_s), "%ld", count > 0 ? count - 1 : 0))
+		return -1;
+	if (uci_del(keys[0]))
+		return -1;
+	for (size_t i = 1; i < 5; i++)
+		uci_del(keys[i]);
+	if (uci_set("qmodem.main.modem_count", count_s))
+		return -1;
+	uci_commit("network");
+	uci_commit("dhcp");
+	log_msg(LOG_L_INFO, "retired duplicate modem section=%s keep=%s", ghost, keep);
+	return 0;
+}
+
+/* Refresh only the scan derived fields of an existing section. Every user option
+ * (alias, apn, pincode, metric, state, bridge ports, ...) is left untouched. */
+static int scan_migrate_fields(const char *section, const char *slot_type,
+		const struct scan_result *res)
+{
+	const char *clear[] = { "modes", "valid_at_ports", "tty_devices", "net_devices",
+		"ports", "voice_pcm_port", "voice_pcm_interface", "option_driver" };
+	char key[256];
+
+	if (scan_set_option(section, "path", res->modem_path) ||
+	    scan_set_option(section, "data_interface", slot_type))
+		return -1;
+	for (size_t i = 0; i < sizeof(clear) / sizeof(clear[0]); i++) {
+		if (scan_format(key, sizeof(key), "qmodem.%s.%s", section, clear[i]))
+			return -1;
+		uci_del(key);
+	}
+	for (size_t i = 0; i < res->at_ports.len; i++) {
+		if (scan_format(key, sizeof(key), "qmodem.%s.tty_devices", section) ||
+		    uci_add_list(key, res->at_ports.items[i]))
+			return -1;
+	}
+	for (size_t i = 0; i < res->net_devices.len; i++) {
+		if (scan_format(key, sizeof(key), "qmodem.%s.net_devices", section) ||
+		    uci_add_list(key, res->net_devices.items[i]))
+			return -1;
+	}
+	return 0;
+}
+
 static int add_modem(const char *slot, const char *slot_type)
 {
 	struct scan_result res;
 	struct modem_profile profile;
 	char section[128], key[256], existing[64], fixed[16];
 	char orig_network[512] = "", orig_at[128] = "", orig_state[64] = "", orig_name[128] = "";
+	char orig_path[512] = "";
+	char ghosts[8][128], quiesce[8][128];
+	size_t ghost_len = 0, quiesce_len = 0;
 	char net_join[512], default_alias[128] = "", default_metric[32] = "";
-	int existed;
+	int existed, migrated = 0, retired = 0, retire_failed = 0;
+	struct device_identity identity;
+	struct modem_section_table sections = { 0 };
+	const struct modem_section *owner, *self_section;
 
 	memset(&res, 0, sizeof(res));
 	sl_init(&res.net_devices);
@@ -1091,8 +1532,60 @@ static int add_modem(const char *slot, const char *slot_type)
 		goto out_fail;
 	}
 
+	if (scan_identity(slot, slot_type, &res, &identity)) {
+		log_msg(LOG_L_WARN, "cannot represent modem identity slot=%s", slot);
+		sl_free(&profile.modes);
+		goto out_fail;
+	}
 	join_list(&res.net_devices, net_join, sizeof(net_join));
 	pthread_mutex_lock(&uci_lock);
+	if (scan_load_sections(&sections))
+		goto out_owner_fail;
+	owner = scan_select_owner(&sections, section, &res, &identity);
+	self_section = scan_find_section(&sections, section);
+	if (owner && strcmp(owner->name, section)) {
+		/* The scanned slot belongs to a section created for an older path:
+		 * migrate that section instead of adding a duplicate device. */
+		if (owner->fixed || (self_section && self_section->fixed)) {
+			log_msg(LOG_L_INFO, "skip fixed modem migration slot=%s owner=%s",
+				slot, owner->name);
+			free(sections.items);
+			sections.items = NULL;
+			free(sections.listing);
+			sections.listing = NULL;
+			pthread_mutex_unlock(&uci_lock);
+			sl_free(&profile.modes);
+			goto out_success;
+		}
+		log_msg(LOG_L_INFO, "migrate modem section=%s slot=%s type=%s",
+			owner->name, slot, slot_type);
+		if (scan_format(section, sizeof(section), "%s", owner->name))
+			goto out_owner_fail;
+	}
+	/* A section whose own device path is gone but that still claims this scan's
+	 * interfaces is a leftover of the same modem. One that carries the identity
+	 * we just read is provably that modem and is retired outright; one created
+	 * before identities existed is ambiguous, so it is only stopped. Both are
+	 * handled after the surviving section has been written and committed. */
+	for (size_t i = 0; i < sections.len; i++) {
+		const struct modem_section *s = &sections.items[i];
+		if (!strcmp(s->name, section) || s->fixed ||
+		    scan_serial_conflicts(s, &identity) ||
+		    !scan_matches_resources(s, &res) || !scan_section_stale(s))
+			continue;
+		if (scan_matches_identity(s, &identity)) {
+			if (ghost_len < sizeof(ghosts) / sizeof(ghosts[0]) &&
+			    !scan_format(ghosts[ghost_len], sizeof(ghosts[0]), "%s", s->name))
+				ghost_len++;
+		} else if (quiesce_len < sizeof(quiesce) / sizeof(quiesce[0]) &&
+			   !scan_format(quiesce[quiesce_len], sizeof(quiesce[0]), "%s", s->name)) {
+			quiesce_len++;
+		}
+	}
+	free(sections.items);
+	sections.items = NULL;
+	free(sections.listing);
+	sections.listing = NULL;
 	snprintf(key, sizeof(key), "qmodem.%s", section);
 	existed = !uci_get(key, existing, sizeof(existing)) && existing[0];
 	if (existed) {
@@ -1104,14 +1597,16 @@ static int add_modem(const char *slot, const char *slot_type)
 		uci_get(key, orig_state, sizeof(orig_state));
 		snprintf(key, sizeof(key), "qmodem.%s.name", section);
 		uci_get(key, orig_name, sizeof(orig_name));
-		snprintf(key, sizeof(key), "qmodem.%s.modes", section); uci_del(key);
-		snprintf(key, sizeof(key), "qmodem.%s.valid_at_ports", section); uci_del(key);
-		snprintf(key, sizeof(key), "qmodem.%s.tty_devices", section); uci_del(key);
-		snprintf(key, sizeof(key), "qmodem.%s.net_devices", section); uci_del(key);
-		snprintf(key, sizeof(key), "qmodem.%s.ports", section); uci_del(key);
-		snprintf(key, sizeof(key), "qmodem.%s.voice_pcm_port", section); uci_del(key);
-		snprintf(key, sizeof(key), "qmodem.%s.voice_pcm_interface", section); uci_del(key);
-		snprintf(key, sizeof(key), "qmodem.%s.state", section); uci_set(key, "enabled");
+		snprintf(key, sizeof(key), "qmodem.%s.path", section);
+		uci_get(key, orig_path, sizeof(orig_path));
+		migrated = strcmp(orig_path, res.modem_path) != 0;
+		/* Keep every user option (alias, apn, pincode, metric, enable_dial,
+		 * bridge ports, ...) and refresh only what the scan derives. The
+		 * recorded path follows the device, so a slot that came back on its
+		 * original port is refreshed here instead of being left stale. */
+		if (scan_migrate_fields(section, slot_type, &res) ||
+		    scan_set_option(section, "state", "enabled"))
+			goto out_owner_fail;
 	} else {
 		char modem_count_s[32] = "", metric[32];
 		int modem_count = 0;
@@ -1138,6 +1633,9 @@ static int add_modem(const char *slot, const char *slot_type)
 		snprintf(key, sizeof(key), "qmodem.%s.state", section); uci_set(key, "enabled");
 		snprintf(key, sizeof(key), "qmodem.%s.metric", section); uci_set(key, metric);
 	}
+
+	if (scan_write_identity(section, &identity))
+		goto out_owner_fail;
 
 	snprintf(key, sizeof(key), "qmodem.%s.name", section); uci_set(key, profile.name);
 	snprintf(key, sizeof(key), "qmodem.%s.network", section); uci_set(key, net_join);
@@ -1173,6 +1671,29 @@ static int add_modem(const char *slot, const char *slot_type)
 		uci_set(key, "1");
 	}
 	uci_commit("qmodem");
+	/* The survivor is committed first, so a failure here can never leave the
+	 * device without any configuration at all. */
+	for (size_t i = 0; i < ghost_len; i++) {
+		/* A failed retire can still have removed the section, so the network
+		 * must be reconciled either way. */
+		retired = 1;
+		if (scan_retire_duplicate(ghosts[i], section)) {
+			retire_failed = 1;
+			break;
+		}
+	}
+	/* A section we cannot prove to be a duplicate is stopped instead of
+	 * deleted, so a stale record can never cost the user its settings. */
+	for (size_t i = 0; i < quiesce_len; i++) {
+		retired = 1;
+		if (scan_set_option(quiesce[i], "state", "disabled")) {
+			retire_failed = 1;
+			break;
+		}
+		log_msg(LOG_L_INFO, "stopped leftover modem section=%s keep=%s", quiesce[i], section);
+	}
+	if (ghost_len || quiesce_len)
+		uci_commit("qmodem");
 	pthread_mutex_unlock(&uci_lock);
 
 	{
@@ -1182,8 +1703,9 @@ static int add_modem(const char *slot, const char *slot_type)
 		mkdir(rundir, 0755);
 	}
 	exec_post_init(section);
-	if (!existed || strcmp(orig_network, net_join) || strcmp(orig_at, res.preferred_at) ||
-	    strcmp(orig_state, "enabled") || strcmp(orig_name, profile.name))
+	if (migrated || retired || !existed || strcmp(orig_network, net_join) ||
+	    strcmp(orig_at, res.preferred_at) || strcmp(orig_state, "enabled") ||
+	    strcmp(orig_name, profile.name))
 		reload_network();
 
 	log_msg(LOG_L_INFO, "added modem section=%s name=%s type=%s ports=%zu valid=%zu",
@@ -1194,8 +1716,14 @@ out_success:
 	sl_free(&res.at_ports);
 	sl_free(&res.pcie_at_ports);
 	sl_free(&res.valid_at_ports);
-	return 0;
+	return retire_failed ? 1 : 0;
 
+out_owner_fail:
+	log_msg(LOG_L_WARN, "modem ownership update failed slot=%s", slot);
+	free(sections.items);
+	free(sections.listing);
+	pthread_mutex_unlock(&uci_lock);
+	sl_free(&profile.modes);
 out_fail:
 	sl_free(&res.net_devices);
 	sl_free(&res.at_ports);
@@ -1209,9 +1737,17 @@ static void remove_modem(const char *section)
 	char key[256], existing[64], count_s[32];
 	int count = 0;
 	snprintf(key, sizeof(key), "qmodem.%s", section);
-	if (uci_get(key, existing, sizeof(existing)) || !existing[0])
-		return;
 	pthread_mutex_lock(&uci_lock);
+	if (uci_get(key, existing, sizeof(existing)) || !existing[0]) {
+		pthread_mutex_unlock(&uci_lock);
+		return;
+	}
+	if (scan_stop_instance(section)) {
+		/* Without this the dial script would keep running against a device
+		 * that no longer has a section; keep the config so it can be retried. */
+		pthread_mutex_unlock(&uci_lock);
+		return;
+	}
 	uci_get("qmodem.main.modem_count", count_s, sizeof(count_s));
 	if (count_s[0])
 		count = atoi(count_s);
@@ -1230,19 +1766,44 @@ static void remove_modem(const char *section)
 	log_msg(LOG_L_INFO, "removed modem section=%s", section);
 }
 
+/* Disable the section that owns the removed slot. The section name is frozen at
+ * creation and no longer tracks the device, so match on the recorded path: a
+ * late remove for an old path must not disable a modem that moved elsewhere. */
 static void disable_slot(const char *slot)
 {
-	char section[128], key[256];
-	char *argv_reorder[] = { "uci", "-q", "reorder", key, NULL };
-	section_from_slot(slot, section, sizeof(section));
+	struct modem_section_table sections = { 0 };
+	char removed[2][512];
+	int matched = 0;
+
+	snprintf(removed[0], sizeof(removed[0]), "/sys/bus/usb/devices/%s", slot);
+	snprintf(removed[1], sizeof(removed[1]), "/sys/bus/pci/devices/%s", slot);
 	pthread_mutex_lock(&uci_lock);
-	snprintf(key, sizeof(key), "qmodem.%s=1", section);
-	run_exec(argv_reorder, 3);
-	snprintf(key, sizeof(key), "qmodem.%s.state", section);
-	uci_set(key, "disabled");
-	uci_commit("qmodem");
+	if (scan_load_sections(&sections))
+		goto out;
+	for (size_t i = 0; i < sections.len; i++) {
+		char path[512];
+		size_t n;
+
+		if (scan_format(path, sizeof(path), "%s", sections.items[i].path))
+			continue;
+		n = strlen(path);
+		while (n && path[n - 1] == '/')
+			path[--n] = '\0';
+		if ((strcmp(path, removed[0]) && strcmp(path, removed[1])) || is_dir(path))
+			continue;
+		if (scan_set_option(sections.items[i].name, "state", "disabled"))
+			break;
+		matched = 1;
+		log_msg(LOG_L_INFO, "disabled slot=%s section=%s", slot, sections.items[i].name);
+	}
+	if (matched)
+		uci_commit("qmodem");
+out:
+	free(sections.items);
+	free(sections.listing);
 	pthread_mutex_unlock(&uci_lock);
-	log_msg(LOG_L_INFO, "disabled slot=%s section=%s", slot, section);
+	if (!matched)
+		log_msg(LOG_L_DEBUG, "no section owns removed slot=%s", slot);
 }
 
 static void scan_usb_all(void)

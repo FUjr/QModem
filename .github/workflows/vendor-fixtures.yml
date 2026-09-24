@@ -45,6 +45,7 @@ jobs:
           bash -n application/qmodem/tests/test_recognition_collection.sh
           bash -n application/qmodem/tests/test_recognition_fixtures.sh
           bash -n application/qmodem/tests/test_vendor_fixtures.sh
+          sh -n application/qmodem/tests/test_modem_scan_device_dedup.sh
       - name: Enforce command boundary
         run: |
           application/qmodem/tests/test_vendor_cmds_boundary.sh
@@ -56,6 +57,7 @@ jobs:
           application/qmodem/tests/test_recognition_collection.sh
           application/qmodem/tests/test_recognition_fixtures.sh
           application/qmodem/tests/test_fixture_profiles.sh
+          application/qmodem/tests/test_modem_scan_device_dedup.sh
           QMODEM_TEST_SEAL_BIN=/tmp/qmodem-seal \
             application/qmodem/tests/test_collect_encryption.sh
       - name: Replay vendor fixtures
