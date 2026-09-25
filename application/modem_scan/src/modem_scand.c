@@ -1543,7 +1543,7 @@ static int add_modem(const char *slot, const char *slot_type)
 		goto out_owner_fail;
 	owner = scan_select_owner(&sections, section, &res, &identity);
 	self_section = scan_find_section(&sections, section);
-	if (owner && strcmp(owner->name, section)) {
+	if (owner) {
 		/* The scanned slot belongs to a section created for an older path:
 		 * migrate that section instead of adding a duplicate device. */
 		if (owner->fixed || (self_section && self_section->fixed)) {
@@ -1557,22 +1557,33 @@ static int add_modem(const char *slot, const char *slot_type)
 			sl_free(&profile.modes);
 			goto out_success;
 		}
-		log_msg(LOG_L_INFO, "migrate modem section=%s slot=%s type=%s",
-			owner->name, slot, slot_type);
-		if (scan_format(section, sizeof(section), "%s", owner->name))
-			goto out_owner_fail;
+		if (strcmp(owner->name, section)) {
+			log_msg(LOG_L_INFO, "migrate modem section=%s slot=%s type=%s",
+				owner->name, slot, slot_type);
+			if (scan_format(section, sizeof(section), "%s", owner->name))
+				goto out_owner_fail;
+		}
 	}
-	/* A section whose own device path is gone but that still claims this scan's
-	 * interfaces is a leftover of the same modem. One that carries the identity
-	 * we just read is provably that modem and is retired outright; one created
-	 * before identities existed is ambiguous, so it is only stopped. Both are
+	/* A section that is the same modem as the scanned slot is always retired,
+	 * so a name that was taken over keeps owning the device. Retiring the
+	 * section that was just scanned would remove the configuration we are about
+	 * to write. A section whose device path is gone but that still claims this
+	 * scan's interfaces is a leftover: one carrying the identity we just read
+	 * is provably that modem and is retired outright; one created before
+	 * identities existed is ambiguous, so it is only stopped. All of them are
 	 * handled after the surviving section has been written and committed. */
 	for (size_t i = 0; i < sections.len; i++) {
 		const struct modem_section *s = &sections.items[i];
-		if (!strcmp(s->name, section) || s->fixed ||
-		    scan_serial_conflicts(s, &identity) ||
-		    !scan_matches_resources(s, &res) || !scan_section_stale(s))
+		if (s->fixed || scan_serial_conflicts(s, &identity) ||
+		    scan_section_elsewhere(s, &res))
 			continue;
+		if (!scan_matches_identity(s, &identity)) {
+			if (!strcmp(s->name, section) ||
+			    !scan_matches_resources(s, &res) || !scan_section_stale(s))
+				continue;
+		} else if (!strcmp(s->name, section)) {
+			continue;
+		}
 		if (scan_matches_identity(s, &identity)) {
 			if (ghost_len < sizeof(ghosts) / sizeof(ghosts[0]) &&
 			    !scan_format(ghosts[ghost_len], sizeof(ghosts[0]), "%s", s->name))

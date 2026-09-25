@@ -79,6 +79,12 @@ check "a section whose device path is gone counts as stale" \
     'return n && !is_dir(path);'
 check "a stale section is adopted before a new one is created" \
     '!scan_matches_resources(s, res) || !scan_section_stale(s)'
+check "a section that took over a name keeps owning the device" \
+    'if (strcmp(owner->name, section)) {'
+check "the section that was just scanned is never retired as a duplicate" \
+    '} else if (!strcmp(s->name, section)) {'
+check "a section without an identity still needs a stale path and a claim" \
+    '!scan_matches_resources(s, &res) || !scan_section_stale(s))'
 check "a live section wins over a stale one sharing the same serial" \
     'if (!best || (scan_section_stale(best) && !scan_section_stale(s)) ||'
 
@@ -166,7 +172,9 @@ check "both the USB and the PCIe sysfs path of the slot are considered" \
 check "a late remove never disables a modem that moved to another port" \
     'no section owns removed slot=%s'
 check "fixed sections are never retired" \
-    'if (!strcmp(s->name, section) || s->fixed ||'
+    'if (s->fixed || scan_serial_conflicts(s, &identity) ||'
+check "a live modem at another port is never retired as a duplicate" \
+    'scan_section_elsewhere(s, &res))'
 
 # --- the duplicate must be recognised as a duplicate -------------------------
 
