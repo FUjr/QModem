@@ -12,6 +12,7 @@ MODEM_RUNDIR="/var/run/qmodem"
 extra_command "dial" "<modem_cfg> run dial script"
 extra_command "hang" "<modem_cfg> run hang script"
 extra_command "redial" "<modem_cfg> stop previous dial script. run hang script. and run dial script"
+extra_command "reconfigure" "<modem_cfg> apply settings while respecting dial enable state"
 extra_command "modem_status" "<modem_cfg> Check dial script status" 
 service_triggers()
 {
@@ -65,6 +66,16 @@ redial()
 {
     hang $1
     dial $1
+}
+
+reconfigure()
+{
+    case "$1" in ''|*[!A-Za-z0-9_]*) return 1;; esac
+    hang "$1"
+    force_stop=0
+    config_load qmodem
+    config_get g_enabled main enable_dial
+    _update_modem "$1"
 }
 
 _update_modem()

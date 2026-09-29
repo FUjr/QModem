@@ -50,10 +50,28 @@ external_bridge_manager()
     local endpoint="$2"
     local hook="${QMODEM_BRIDGE_MANAGER_HOOK:-/usr/libexec/qmodem-bridge-manager}"
 
-    [ "$bridge_manager" = "misectel-interface-v1" ] || return 2
+    case "$bridge_manager" in misectel-interface-v1|misectel-interface-v2) :;; *) return 2;; esac
     if [ ! -x "$hook" ]; then
         m_debug "configured bridge manager hook is unavailable: $hook"
         return 1
+    fi
+    if [ "$bridge_manager" = "misectel-interface-v2" ]; then
+        local response lease_file="${MODEM_RUNDIR}/${modem_config}_dir/bridge-lease"
+        if [ "$action" = release ] && [ -z "$bridge_member_lease" ]; then
+            bridge_member_lease=$(cat "$lease_file" 2>/dev/null)
+            [ -n "$bridge_member_lease" ] || return 0
+        fi
+        response=$("$hook" "$action" "$modem_config" "$endpoint" "" "" "$bridge_member_lease") || return 1
+        bridge_device_name=$(printf '%s\n' "$response" | jsonfilter -e '@.bridge')
+        if [ "$action" = apply ]; then
+            bridge_member_lease=$(printf '%s\n' "$response" | jsonfilter -e '@.lease')
+            [ -n "$bridge_device_name" ] && [ -n "$bridge_member_lease" ] || return 1
+            printf '%s\n' "$bridge_member_lease" > "$lease_file"
+        else
+            rm -f "$lease_file"
+            bridge_member_lease=''
+        fi
+        return 0
     fi
     bridge_device_name=$(resolve_bridge_device_name) || return 1
     if ! "$hook" "$action" "$modem_config" "$endpoint" "$bridge_device_name" "$bridge_management_ip" >/dev/null; then
@@ -888,7 +906,7 @@ set_if()
     if [ -n "$ethernet_check" ] && [ -n "/sys/class/net/$ethernet_5g" ] && [ -n "$ethernet_5g" ];then
         set_modem_netcard=$ethernet_5g
     fi
-    if [ "$bridge_manager" = "misectel-interface-v1" ]; then
+    if [ "$bridge_manager" = "misectel-interface-v1" ] || [ "$bridge_manager" = "misectel-interface-v2" ]; then
         if [ "$bridge_enabled" = "1" ]; then
             if ! external_bridge_manager apply "$set_modem_netcard"; then
                 ifdown "${interface_name}" >/dev/null 2>&1
@@ -975,7 +993,7 @@ flush_if()
     config_load network
     remove_target="$modem_config"
     config_foreach flush_ip_cb "interface"
-    if [ "$bridge_manager" = "misectel-interface-v1" ]; then
+    if [ "$bridge_manager" = "misectel-interface-v1" ] || [ "$bridge_manager" = "misectel-interface-v2" ]; then
         external_bridge_manager release "" || m_debug "managed bridge release failed during flush"
     else
         cleanup_bridge_passthrough

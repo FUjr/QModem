@@ -82,6 +82,27 @@ bridge_manager='misectel-interface-v1'
 bridge_management_ip='192.168.1.2/24'
 external_bridge_manager apply wwan0
 [ "$(cat "$hook_dir/call")" = 'apply modem0 wwan0 bmodem0 192.168.1.2/24' ]
+cat > "$hook_dir/hook" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" > "$QMODEM_BRIDGE_MANAGER_CALL"
+printf '%s\n' '{"result":true,"bridge":"bqm-authority","lease":"generation:42"}'
+EOF
+jsonfilter() {
+	input=$(cat)
+	case "$2" in '@.bridge') echo bqm-authority;; '@.lease') echo generation:42;; esac
+}
+MODEM_RUNDIR="$hook_dir"
+mkdir "$hook_dir/modem0_dir"
+bridge_member_lease=''
+bridge_manager=misectel-interface-v2
+external_bridge_manager apply wwan0
+[ "$bridge_device_name" = bqm-authority ]
+[ "$(cat "$hook_dir/modem0_dir/bridge-lease")" = generation:42 ]
+# A new hangup process recovers the lease; the hook, not QModem, names the bridge.
+bridge_member_lease=''
+external_bridge_manager release ''
+[ "$(cat "$hook_dir/call")" = 'release modem0    generation:42' ]
+[ ! -e "$hook_dir/modem0_dir/bridge-lease" ]
 rm -f "$hook_dir/hook"
 if external_bridge_manager apply wwan0; then
 	exit 1
