@@ -572,8 +572,7 @@ update_config()
             config_get pincode $modem_config pincode
             ;;
     esac
-    modem_net=$(find $modem_path -name net |tail -1)
-    modem_netcard=$(ls $modem_net)
+    modem_netcard=$("${SCRIPT_DIR}/modem_netdev.sh" "$modem_config")
     interface_name=$modem_config
     [ -n "$alias" ] && [ "$alias" != "-" ] && interface_name=$alias
     interface6_name=${interface_name}v6

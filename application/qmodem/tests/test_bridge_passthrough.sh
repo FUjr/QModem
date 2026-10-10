@@ -4,6 +4,11 @@ set -eu
 
 QMODEM_PACKAGE_DIR="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"
 dial_script="${QMODEM_PACKAGE_DIR}/files/usr/share/qmodem/modem_dial.sh"
+hook_dir="$(mktemp -d)"
+trap 'rm -rf "$hook_dir"' EXIT INT TERM
+SCRIPT_DIR="$hook_dir"
+printf '#!/bin/sh\nprintf "wwan0\\n"\n' > "$SCRIPT_DIR/modem_netdev.sh"
+chmod +x "$SCRIPT_DIR/modem_netdev.sh"
 
 extract_function()
 {
@@ -66,8 +71,6 @@ TEST_DONOT_NAT=1
 update_config
 [ "$bridge_enabled:$donot_nat" = '0:1' ]
 
-hook_dir="$(mktemp -d)"
-trap 'rm -rf "$hook_dir"' EXIT INT TERM
 cat > "$hook_dir/hook" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" > "$QMODEM_BRIDGE_MANAGER_CALL"
