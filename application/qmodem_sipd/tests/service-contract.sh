@@ -6,14 +6,14 @@ REPO=$(CDPATH= cd -- "$ROOT/../.." && pwd)
 VOIP="$REPO/application/voipd"
 SMSD="$REPO/application/qmodem_smsd"
 FORWARDER="$REPO/application/sms_forwarder_next"
-LUCI="$REPO/luci/luci-app-qmodem-voip"
+LUCI="$REPO/luci/luci-app-qmodem-sipd"
 
 "$ROOT/tests/registration-retry.sh"
 
 test -f "$ROOT/files/etc/init.d/qmodem_voip_sipd"
 test -f "$ROOT/files/etc/config/qmodem_sip"
 test -x "$ROOT/files/etc/uci-defaults/89-qmodem-sip-migrate"
-grep -q 'qmodem.sip.%s' "$ROOT/src/sip_consumer.c"
+grep -q 'qmodem.sip.%s.%s' "$ROOT/src/sip_consumer.c"
 grep -q 'object.name = "qmodem.sip"' "$ROOT/src/sip_control.c"
 grep -q 'ubus_lookup_id(context, "qmodem_voip"' "$ROOT/src/sip_control.c"
 grep -q 'ubus_lookup_id(context, "qmodem.sms"' "$ROOT/src/sip_control.c"
@@ -42,24 +42,20 @@ grep -q '\.name = "message_id"' "$ROOT/src/sip_control.c"
 ! find "$VOIP/src" -maxdepth 1 -name 'sip_*' -print -quit | grep -q .
 ! grep -q 'qmodem_voip_sip_consumer' "$VOIP/Makefile"
 
-grep -q "config direction 'inbound'" "$ROOT/files/etc/config/qmodem_sip"
-grep -q "config direction 'outbound'" "$ROOT/files/etc/config/qmodem_sip"
-grep -q 'start_direction inbound' "$ROOT/files/etc/init.d/qmodem_voip_sipd"
-grep -q 'start_direction outbound' "$ROOT/files/etc/init.d/qmodem_voip_sipd"
-grep -q 'procd_add_interface_trigger "interface\.\*"' \
-	"$ROOT/files/etc/init.d/qmodem_voip_sipd"
-grep -q '^while :; do$' "$ROOT/files/usr/sbin/qmodem_voip_sip_wait"
-! grep -q 'remaining=60' "$ROOT/files/usr/sbin/qmodem_voip_sip_wait"
+"$ROOT/tests/multi-service.sh"
+grep -q 'config_foreach start_direction direction' "$ROOT/files/etc/init.d/qmodem_sipd"
+grep -q 'procd_add_interface_trigger' "$ROOT/files/etc/init.d/qmodem_sipd"
+! grep -q 'qmodem_voip_sip_wait' "$ROOT/files/etc/init.d/qmodem_sipd"
 grep -q 'qmodem_voip.sip.outbound_server' \
 	"$ROOT/files/etc/uci-defaults/89-qmodem-sip-migrate"
 grep -q 'delete qmodem_voip.sip' \
 	"$ROOT/files/etc/uci-defaults/89-qmodem-sip-migrate"
 
-test -f "$LUCI/htdocs/luci-static/resources/view/qmodem-voip/sip.js"
+test -f "$LUCI/htdocs/luci-static/resources/view/qmodem-sipd/sip.js"
 grep -q 'admin/modem/qmodem/qmodem-sipd' \
-	"$LUCI/root/usr/share/luci/menu.d/luci-app-qmodem-voip.json"
+	"$LUCI/root/usr/share/luci/menu.d/luci-app-qmodem-sipd.json"
 grep -q "new form.Map('qmodem_sip'" \
-	"$LUCI/htdocs/luci-static/resources/view/qmodem-voip/sip.js"
+	"$LUCI/htdocs/luci-static/resources/view/qmodem-sipd/sip.js"
 grep -q 'message_context=qmodem-message' \
 	"$REPO/docs/wiki/SIP-SMS-VoIP-Configuration.zh-cn.md"
 grep -q 'MESSAGE_DATA(X-QModem-SMS-From)' \

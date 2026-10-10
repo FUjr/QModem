@@ -1,39 +1,38 @@
 #!/bin/sh /etc/rc.common
 START=99
 USE_PROCD=1
-
+start_modem()
+{
+ local group="$1" modem enabled interface
+ config_get modem "$group" modem_id
+ config_get enabled "$group" enabled 0
+ [ "$enabled" = 1 ] || enabled=0
+ case "$group:$modem" in *[!A-Za-z0-9_:]*|:|*: ) return 0 ;; esac
+ case " $modems " in *" $modem "*) logger -t qmodem_voip 'duplicate voice modem rejected'; return 0 ;; esac
+ modems="$modems $modem"
+ config_get interface "$group" interface lan
+ mkdir -p -m 700 "/var/run/qmodem_voip/$group" "/var/lib/qmodem_voip/$group"
+ procd_open_instance "$group"
+ procd_set_param command /usr/sbin/qmodem_voip_daemon_wait \
+  --media-interface "$interface" --media-cert /dev/null --media-key /dev/null \
+  --media-socket-path "/var/run/qmodem_voip/$group/media.sock" --start-enabled "$enabled" \
+  --group "$group" --modem-id "$modem"
+ procd_set_param env "QMODEM_VOIP_MODEM_ID=$modem" "QMODEM_VOIP_JOURNAL=/var/lib/qmodem_voip/$group/modem-safety.journal"
+ procd_set_param respawn 3600 5 5
+ procd_close_instance
+}
 start_service()
 {
-	mkdir -p -m 700 /etc/qmodem_voip
-	mkdir -p -m 700 /var/run/qmodem_voip
-	mkdir -p -m 700 /var/lib/qmodem_voip
-	interface=$(uci -q get qmodem_voip.main.interface)
-	interface=${interface:-lan}
-	case $interface in ''|*[!A-Za-z0-9_.:-]*) return 1 ;; esac
-	media_socket_path=$(uci -q get qmodem_voip.main.media_socket_path)
-	media_socket_path=${media_socket_path:-/var/run/qmodem_voip/media.sock}
-	enabled=$(uci -q get qmodem_voip.main.enabled)
-	case $enabled in 1) ;; *) enabled=0 ;; esac
-	procd_open_instance
-	procd_set_param command /usr/sbin/qmodem_voip_daemon_wait \
-		--media-interface "$interface" \
-		--media-cert /dev/null \
-		--media-key /dev/null \
-		--media-socket-path "$media_socket_path" \
-		--start-enabled "$enabled"
-	procd_set_param respawn 3600 5 5
-	procd_close_instance
-	/usr/sbin/qmodem_voip_web
+ local modems=''
+ mkdir -p -m 700 /etc/qmodem_voip /var/run/qmodem_voip /var/lib/qmodem_voip
+ config_load qmodem_voip
+ config_foreach start_modem modem
+ # One aggregate API, with explicit modem selection for multi-modem calls.
+ procd_open_instance control
+ procd_set_param command /usr/sbin/qmodem_voip_control
+ procd_set_param respawn 3600 5 5
+ procd_close_instance
+ /usr/sbin/qmodem_voip_web
 }
-
-reload_service()
-{
-	stop
-	start
-	/usr/sbin/qmodem_voip_web
-}
-
-service_triggers()
-{
-	procd_add_reload_trigger qmodem_voip
-}
+reload_service() { start; }
+service_triggers() { procd_add_reload_trigger qmodem_voip qmodem; }

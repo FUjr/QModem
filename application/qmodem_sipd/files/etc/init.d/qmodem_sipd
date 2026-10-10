@@ -1,0 +1,105 @@
+#!/bin/sh /etc/rc.common
+START=100
+USE_PROCD=1
+
+interface_address()
+{
+ local status device
+ status=$(ubus -t 2 call "network.interface.$1" status 2>/dev/null) || return 1
+ device=$(printf '%s\n' "$status" | jsonfilter -e '@.l3_device')
+ [ -n "$device" ] || return 1
+ ip -4 -o addr show dev "$device" scope global 2>/dev/null |
+  awk 'NR == 1 { sub(/\/.*/, "", $4); print $4 }'
+}
+
+start_direction()
+{
+ local section="$1" group direction modem sms voice interface address port path rtp other
+ config_get group "$section" group
+ config_get direction "$section" direction
+ config_get sms "$section" sms_enabled 0
+ config_get voice "$section" voip_enabled 0
+ [ "$sms" = 1 ] || [ "$voice" = 1 ] || return 0
+ case "$group" in ''|*[!A-Za-z0-9_]*) logger -t qmodem_sipd 'explicit group required'; return 0 ;; esac
+ case "$direction" in inbound|outbound) ;; *) return 0 ;; esac
+ config_get modem "$group" modem_id
+ case "$modem" in ''|*[!A-Za-z0-9_]*) return 0 ;; esac
+ [ "$(uci -q get "qmodem.$modem")" = modem-device ] || return 0
+ case " ${bad_modems:-} " in *" $modem "*) logger -t qmodem_sipd "ambiguous modem binding rejected"; return 0 ;; esac
+ # Refuse duplicate workers rather than sharing one modem/direction or local port.
+ case " $started " in *" $group/$direction "*) logger -t qmodem_sipd 'duplicate group direction'; return 0 ;; esac
+ "${QMODEM_SIP_VALIDATE:-/usr/sbin/qmodem_voip_sip_validate}" "$section" || return 0
+ config_get interface "$section" interface
+ address=$(interface_address "$interface")
+ [ -n "$address" ] || return 0
+ config_get port "$section" listen_port
+ case " $ports " in *" $address:$port "*) logger -t qmodem_sipd 'duplicate bind port'; return 0 ;; esac
+ config_get rtp "$section" rtp_start 40000
+ case " $rtps " in *" $rtp "*) logger -t qmodem_sipd 'duplicate RTP port'; return 0 ;; esac
+ started="$started $group/$direction"
+ ports="$ports $address:$port"
+ rtps="$rtps $rtp"
+ path="${QMODEM_SIP_RUN_DIR:-/var/run/qmodem_sip}/$group-$direction"
+ mkdir -p -m 700 "${QMODEM_SIP_RUN_DIR:-/var/run/qmodem_sip}"
+ set -- --listen-address "$address" --advertise-address "$address" \
+  --media-socket-path "/var/run/qmodem_voip/$group/media.sock" \
+  --group "$group" --modem-id "$modem" --direction "$direction" \
+  --voice-enabled "$voice" --pidfile "$path.pid" --listen-port "$port" --rtp-start "$rtp"
+ [ "$sms" != 1 ] || set -- "$@" --sms-modem "$modem"
+ if [ "$direction" = outbound ]; then
+  local server server_port username password realm interval
+  config_get server "$section" server
+  config_get server_port "$section" port 5061
+  config_get username "$section" username
+  config_get password "$section" password
+  config_get realm "$section" realm
+  config_get interval "$section" register_interval 300
+  umask 077
+  {
+   printf 'server=%s\nserver_uri=sips:%s:%s;transport=tls\n' "$server" "$server" "$server_port"
+   printf 'aor=sips:%s@%s:%s;transport=tls\n' "$username" "$server" "$server_port"
+   printf 'username=%s\npassword=%s\nrealm=%s\nport=%s\ninterval=%s\n' "$username" "$password" "$realm" "$server_port" "$interval"
+  } >"$path.conf" || return 0
+  set -- "$@" --mode outbound --outbound-config "$path.conf"
+ else
+  /usr/sbin/qmodem_voip_sipd --sync "$section" "$path.credentials" || return 0
+  set -- "$@" --credentials "$path.credentials"
+ fi
+ procd_open_instance "$group-$direction"
+ # SIP registration and SMS must never wait for the voice daemon.
+ procd_set_param command /usr/bin/qmodem_voip_sip_consumer "$@"
+ procd_set_param respawn 3600 5 5
+ procd_close_instance
+}
+check_group()
+{
+ local modem
+ config_get modem "$1" modem_id
+ case " $bindings " in *" $modem "*) bad_modems="$bad_modems $modem" ;; esac
+ bindings="$bindings $modem"
+}
+start_service()
+{
+ local started='' ports='' rtps='' bindings='' bad_modems=''
+ config_load qmodem_sip
+ config_foreach check_group group
+ procd_open_instance control
+ procd_set_param command /usr/sbin/qmodem_voip_sipd
+ procd_set_param respawn 3600 5 5
+ procd_close_instance
+ config_foreach start_direction direction
+ ubus call service event '{"type":"firewall","data":{"reload":true}}' >/dev/null 2>&1 || :
+}
+reload_service() { start; }
+interface_trigger()
+{
+ local interface
+ config_get interface "$1" interface
+ [ -z "$interface" ] || procd_add_interface_trigger 'interface.*' "$interface" /etc/init.d/qmodem_sipd reload
+}
+service_triggers()
+{
+ config_load qmodem_sip
+ config_foreach interface_trigger direction
+ procd_add_reload_trigger qmodem_sip qmodem
+}

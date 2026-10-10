@@ -14,6 +14,11 @@
 struct qmodem_voip_media_manager;
 
 struct qmodem_voip_context {
+	char group[64];
+	char modem_id[64];
+	char object_name[96];
+	char journal_path[256];
+	char history_path[256];
 	struct ubus_context *ubus;
 	struct ubus_object object;
 	struct ubus_event_handler at_events;

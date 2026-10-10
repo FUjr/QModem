@@ -13,8 +13,8 @@ define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=QModem SIP transport service (experimental)
-  DEPENDS:=+qmodem-voip +qmodem-smsd +libubus +libubox +libblobmsg-json +libjson-c +libuci \
-	+libpj +libpjlib-util +libpjsip +libpjsip-ua +libsoxr +alsa-lib
+  DEPENDS:=+uci +jsonfilter +jshn +rpcd +ucode +ucode-mod-uci +ucode-mod-fs +libubus +libubox +libblobmsg-json +libjson-c +libuci \
+	+libopenssl +libpj +libpjlib-util +libpjsip +libpjsip-ua +libsoxr +alsa-lib
 endef
 
 define Package/$(PKG_NAME)/description
@@ -28,9 +28,7 @@ endef
 define Build/Prepare
 	$(RM) -r $(PKG_BUILD_DIR)
 	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) ../voipd/src/g711.h ../voipd/src/media.h ../voipd/src/media_socket.h \
-		../voipd/src/modem_profile.h \
-		../voipd/src/rtp_transport.h $(PKG_BUILD_DIR)/
+	$(CP) ../qmodem_media_common/include/* $(PKG_BUILD_DIR)/
 	$(CP) ./src/* $(PKG_BUILD_DIR)/
 endef
 
@@ -45,7 +43,7 @@ define Build/Compile
 		$(PKG_BUILD_DIR)/media_socket_client.c \
 		$(TARGET_LDFLAGS) \
 		-lpjsip -lpjsip-ua -lpjlib-util -lpj -lsoxr -lasound \
-		-lubus -lubox -lblobmsg_json -ljson-c -lm
+		-lubus -lubox -lblobmsg_json -ljson-c -lcrypto -lm
 	$(TARGET_CC) $(TARGET_CPPFLAGS) $(TARGET_CFLAGS) \
 		-I$(STAGING_DIR)/usr/include -Wall -Wextra -Werror -std=gnu11 \
 		-o $(PKG_BUILD_DIR)/qmodem_voip_sipd \
@@ -60,11 +58,15 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/qmodem_voip_sip_consumer $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/qmodem_voip_sipd $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/usr/sbin/* $(1)/usr/sbin/
-	$(INSTALL_BIN) ./files/etc/init.d/qmodem_voip_sipd $(1)/etc/init.d/
+	$(INSTALL_BIN) ./files/etc/init.d/* $(1)/etc/init.d/
 	$(INSTALL_CONF) ./files/etc/config/qmodem_sip $(1)/etc/config/
 	$(INSTALL_BIN) ./files/etc/qmodem_voip/firewall.include $(1)/etc/qmodem_voip/
 	$(INSTALL_BIN) ./files/etc/uci-defaults/89-qmodem-sip-migrate $(1)/etc/uci-defaults/
+	$(INSTALL_BIN) ./files/etc/uci-defaults/91-qmodem-sip-groups $(1)/etc/uci-defaults/
 	$(INSTALL_BIN) ./files/etc/uci-defaults/90-qmodem-sip-firewall $(1)/etc/uci-defaults/
+	$(INSTALL_DIR) $(1)/usr/libexec/rpcd $(1)/usr/share/qmodem_sip
+	$(INSTALL_BIN) ./files/usr/libexec/rpcd/* $(1)/usr/libexec/rpcd/
+	$(INSTALL_DATA) ./files/usr/share/qmodem_sip/* $(1)/usr/share/qmodem_sip/
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))

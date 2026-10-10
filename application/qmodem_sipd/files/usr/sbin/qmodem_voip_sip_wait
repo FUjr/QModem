@@ -1,10 +1,3 @@
 #!/bin/sh
-
-logger -t qmodem_voip_sipd 'waiting for voipd media readiness'
-while :; do
-	status=$(ubus -t 2 call qmodem_voip status 2>/dev/null) || status=
-	if [ "$(printf '%s\n' "$status" | jsonfilter -e '@.media_engine' 2>/dev/null)" = ready ]; then
-		exec /usr/bin/qmodem_voip_sip_consumer "$@"
-	fi
-	sleep 1
-done
+# Compatibility entry point: SIP registration and SMS do not wait for voice.
+exec /usr/bin/qmodem_voip_sip_consumer "$@"

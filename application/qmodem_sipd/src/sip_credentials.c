@@ -3,6 +3,7 @@
 #include "sip_credentials.h"
 
 #include <errno.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
 #include <sys/random.h>
@@ -21,7 +22,7 @@ static int read_uci_credentials(char username[QMODEM_VOIP_SIP_USERNAME_SIZE],
 
 	if (!context || uci_load(context, "qmodem_sip", &package) != UCI_OK)
 		goto out;
-	section = uci_lookup_section(context, package, "inbound");
+	section = uci_lookup_section(context, package, (getenv("QMODEM_SIP_SECTION") ? getenv("QMODEM_SIP_SECTION") : "inbound"));
 	if (!section)
 		goto out;
 	value = uci_lookup_option_string(context, section, "username");
@@ -50,7 +51,7 @@ static int set_option(struct uci_context *context, const char *option,
 	pointer.p = package;
 	pointer.s = section;
 	pointer.package = "qmodem_sip";
-	pointer.section = "inbound";
+	pointer.section = (getenv("QMODEM_SIP_SECTION") ? getenv("QMODEM_SIP_SECTION") : "inbound");
 	pointer.option = option;
 	pointer.value = value;
 	return uci_set(context, &pointer) == UCI_OK ? 0 : -1;
@@ -65,7 +66,7 @@ static int persist_credentials(const char *username, const char *password)
 
 	if (!context || uci_load(context, "qmodem_sip", &package) != UCI_OK)
 		goto out;
-	section = uci_lookup_section(context, package, "inbound");
+	section = uci_lookup_section(context, package, (getenv("QMODEM_SIP_SECTION") ? getenv("QMODEM_SIP_SECTION") : "inbound"));
 	if (!section || set_option(context, "username", package, section, username) != 0 ||
 	    set_option(context, "password", package, section, password) != 0 ||
 	    uci_save(context, package) != UCI_OK ||
@@ -112,7 +113,7 @@ int qmodem_voip_sip_credentials_sync(char username[QMODEM_VOIP_SIP_USERNAME_SIZE
 
 	result = read_uci_credentials(username, password);
 	if (result == 0)
-		result = qmodem_voip_sip_write_credentials(QMODEM_VOIP_SIP_CONFIG,
+		result = qmodem_voip_sip_write_credentials((getenv("QMODEM_SIP_CREDENTIALS") ? getenv("QMODEM_SIP_CREDENTIALS") : QMODEM_VOIP_SIP_CONFIG),
 			username, password);
 	memset(password, 0, sizeof(password));
 	return result;
@@ -125,7 +126,7 @@ int qmodem_voip_sip_credentials_generate(const char *username,
 	    qmodem_voip_sip_validate_credentials(username, password) != 0)
 		return -1;
 	if (persist_credentials(username, password) != 0 ||
-	    qmodem_voip_sip_write_credentials(QMODEM_VOIP_SIP_CONFIG,
+	    qmodem_voip_sip_write_credentials((getenv("QMODEM_SIP_CREDENTIALS") ? getenv("QMODEM_SIP_CREDENTIALS") : QMODEM_VOIP_SIP_CONFIG),
 		username, password) != 0) {
 		memset(password, 0, QMODEM_VOIP_SIP_PASSWORD_SIZE);
 		return -1;

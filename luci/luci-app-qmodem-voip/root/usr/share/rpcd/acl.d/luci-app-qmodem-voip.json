@@ -1,30 +1,60 @@
 {
-	"luci-app-qmodem-voip": {
-		"description": "Grant read-only access to experimental QModem voice",
-		"read": {
-			"ubus": {
-				"qmodem_voip": [ "status", "capabilities", "call_history" ],
-				"qmodem.sip": [ "status" ],
-				"uci": [ "network", "qmodem", "qmodem_voip", "qmodem_sip" ]
-			},
-			"uci": [ "network", "qmodem", "qmodem_voip", "qmodem_sip" ]
-		}
-	},
-	"luci-app-qmodem-voip-admin": {
-		"description": "Grant administrative access to experimental QModem voice",
-		"read": {
-			"ubus": {
-				"qmodem_voip": [ "status", "capabilities", "call_history" ],
-				"qmodem.sip": [ "status" ]
-			}
-		},
-		"write": {
-			"ubus": {
-				"qmodem_voip": [ "enable", "disable", "originate", "answer", "reject", "hangup", "send_dtmf", "issue_media_token" ],
-				"qmodem.sip": [ "generate_credentials" ],
-				"uci": [ "qmodem_voip", "qmodem_sip" ]
-			},
-			"uci": [ "qmodem_voip", "qmodem_sip" ]
-		}
-	}
+  "luci-app-qmodem-voip": {
+    "description": "Grant read-only access to experimental QModem voice",
+    "read": {
+      "ubus": {
+        "qmodem_voip": [
+          "status",
+          "capabilities",
+          "call_history"
+        ],
+        "uci": [
+          "network",
+          "qmodem",
+          "qmodem_voip",
+          "qmodem_sip"
+        ]
+      },
+      "uci": [
+        "network",
+        "qmodem",
+        "qmodem_voip",
+        "qmodem_sip"
+      ]
+    }
+  },
+  "luci-app-qmodem-voip-admin": {
+    "description": "Grant administrative access to experimental QModem voice",
+    "read": {
+      "ubus": {
+        "qmodem_voip": [
+          "status",
+          "capabilities",
+          "call_history"
+        ]
+      }
+    },
+    "write": {
+      "ubus": {
+        "qmodem_voip": [
+          "enable",
+          "disable",
+          "originate",
+          "answer",
+          "reject",
+          "hangup",
+          "send_dtmf",
+          "issue_media_token"
+        ],
+        "uci": [
+          "qmodem_voip",
+          "qmodem_sip"
+        ]
+      },
+      "uci": [
+        "qmodem_voip",
+        "qmodem_sip"
+      ]
+    }
+  }
 }
