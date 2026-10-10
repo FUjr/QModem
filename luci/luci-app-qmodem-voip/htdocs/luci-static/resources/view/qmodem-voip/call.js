@@ -37,7 +37,13 @@ return view.extend({
 			L.resolveDefault(rpc.capabilities(), {}),
 			L.resolveDefault(rpc.status(), {}),
 			L.resolveDefault(rpc.callHistory(), { calls: [] })
-		]).then((results) => {
+		]).then(async (results) => {
+			this.modems = results[1].modems || [];
+            this.selectedModem = this.modems[0]?.modem_id || null;
+            if (this.selectedModem) {
+                rpc.selectModem(this.selectedModem);
+                results = await Promise.all([L.resolveDefault(rpc.capabilities(), {}), L.resolveDefault(rpc.status(), {}), L.resolveDefault(rpc.callHistory(), { calls: [] })]);
+            }
 			this.history = Array.isArray(results[2]?.calls) ? results[2].calls : [];
 			this.historyFilter = 'all';
 			this.capabilityPending = !results[0] || Object.keys(results[0]).length === 0;
@@ -50,7 +56,7 @@ return view.extend({
 
 	createServiceMap() {
 		const voiceMap = new form.Map('qmodem_voip');
-		const section = voiceMap.section(form.NamedSection, 'main', 'main',
+		const section = voiceMap.section(form.NamedSection, this.state.snapshot?.group || 'main', this.state.snapshot?.group ? 'modem' : 'main',
 			_('Call service'),
 			_('Changes are stored in UCI and take effect after Save & Apply.'));
 		section.anonymous = true;
@@ -60,7 +66,8 @@ return view.extend({
 		enabled.default = '0';
 		enabled.rmempty = false;
 		enabled.description = _('Starts modem voice preparation and browser media support.');
-		const webEnabled = section.option(form.Flag, 'web_enabled',
+		const webSection = voiceMap.section(form.NamedSection, 'main', 'main');
+        const webEnabled = webSection.option(form.Flag, 'web_enabled',
 			_('Enable HTTPS and WebSocket media access'));
 		webEnabled.default = '0';
 		webEnabled.rmempty = false;
@@ -452,7 +459,17 @@ return view.extend({
 	},
 
 	async render() {
-		const serviceForm = E('div', {}, await this.createServiceMap().render());
+		const selector = E('select', { class: 'cbi-input-select', change: async (event) => {
+            this.closeMedia();
+            this.selectedModem = event.target.value;
+            rpc.selectModem(this.selectedModem);
+            this.state = reducer.initialState();
+            this.capabilityPending = true;
+            await this.refresh(); await this.refreshHistory();
+            serviceMapNode.replaceChildren(await this.createServiceMap().render());
+        } }, (this.modems || []).map(m => E('option', {value:m.modem_id}, [m.modem_id])));
+        const serviceMapNode = E('div', {}, [await this.createServiceMap().render()]);
+        const serviceForm = E('div', {}, [E('label', {}, [ _('Local modem'), selector ]), serviceMapNode]);
 		surface.build(this, serviceForm);
 		this.updateView();
 		this.updateHistory();

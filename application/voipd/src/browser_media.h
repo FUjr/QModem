@@ -45,6 +45,7 @@ struct qmodem_voip_browser_media {
 	void *client;
 	void *pending_client;
 	char address[16];
+    char socket_path[108];
 	char certificate[256];
 	char key[256];
 	uint8_t certificate_data[QMODEM_VOIP_BROWSER_TLS_MAX];

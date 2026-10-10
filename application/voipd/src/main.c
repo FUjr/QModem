@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 	struct sigaction action = { 0 };
 	const char *socket_path;
 	int result;
-	if (argc != 11 || strcmp(argv[1], "--media-address") != 0 ||
+	if ((argc != 11 && argc != 15) || strcmp(argv[1], "--media-address") != 0 ||
 	    strcmp(argv[3], "--media-cert") != 0 || strcmp(argv[5], "--media-key") != 0 ||
 	    strcmp(argv[7], "--media-socket-path") != 0 ||
 	    strcmp(argv[9], "--start-enabled") != 0 ||
@@ -34,6 +34,21 @@ int main(int argc, char **argv)
 	if (!socket_path || !socket_path[0] ||
 	    strlen(socket_path) >= QMODEM_VOIP_MEDIA_SOCKET_PATH_MAX)
 		return 1;
+    strcpy(app->object_name,"qmodem_voip");
+    strcpy(app->journal_path,"/var/lib/qmodem_voip/modem-safety.journal");
+    strcpy(app->history_path,"/var/lib/qmodem_voip/call-history.json");
+    if(argc==15) {
+        if(strcmp(argv[11],"--group") || strcmp(argv[13],"--modem-id") ||
+           !argv[12][0] || strlen(argv[12])>=48 || !argv[14][0] || strlen(argv[14])>=48) return 1;
+        if(strspn(argv[12],"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")!=strlen(argv[12]) ||
+           strspn(argv[14],"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")!=strlen(argv[14])) return 1;
+        strcpy(app->group,argv[12]);strcpy(app->modem_id,argv[14]);
+        snprintf(app->object_name,sizeof(app->object_name),"qmodem.voip.%s",app->group);
+        snprintf(app->journal_path,sizeof(app->journal_path),"/var/lib/qmodem_voip/%s/modem-safety.journal",app->group);
+        snprintf(app->history_path,sizeof(app->history_path),"/var/lib/qmodem_voip/%s/call-history.json",app->group);
+        setenv("QMODEM_VOIP_MODEM_ID",app->modem_id,1);
+        setenv("QMODEM_VOIP_JOURNAL",app->journal_path,1);
+    }
 	openlog("qmodem_voip", LOG_PID, LOG_DAEMON);
 	qmodem_voip_call_init(&app->call);
 	app->start_enabled = strcmp(argv[10], "1") == 0;
@@ -52,6 +67,7 @@ int main(int argc, char **argv)
 	app->rtp.fd = -1;
 	if (qmodem_voip_browser_configure(&app->browser, &app->media, argv[2], argv[4], argv[6]) != 0)
 		return 1;
+	if(app->group[0])snprintf(app->browser.socket_path,sizeof(app->browser.socket_path),"/var/run/qmodem_voip/%s/websocket.sock",app->group);
 	if (uloop_init() != 0)
 		return 1;
 	app->ubus = ubus_connect(NULL);
@@ -60,7 +76,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	ubus_add_uloop(app->ubus);
-	app->object.name = "qmodem_voip";
+	app->object.name = app->object_name;
 	app->object.type = &qmodem_voip_object_type;
 	app->object.methods = qmodem_voip_object_type.methods;
 	app->object.n_methods = qmodem_voip_object_type.n_methods;

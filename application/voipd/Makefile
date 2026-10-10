@@ -38,6 +38,9 @@ define Build/Prepare
 endef
 
 define Build/Compile
+	$(TARGET_CC) $(TARGET_CPPFLAGS) $(TARGET_CFLAGS) -std=gnu11 -Wall -Wextra -Werror \
+		-o $(PKG_BUILD_DIR)/qmodem_voip_control $(PKG_BUILD_DIR)/voice_control.c \
+		$(TARGET_LDFLAGS) -lubus -lubox -lblobmsg_json -luci
 	$(QMODEM_VOIP_MODULE_CC) --target=arm-linux-gnueabihf -march=armv7-a \
 		-fuse-ld=lld -shared -fPIC -Os -nostdlib -std=gnu11 \
 		-Wall -Wextra -Werror -Wl,--build-id=none -Wl,--hash-style=gnu \
@@ -79,6 +82,7 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./files/usr/share/qmodem_voip/module/install_media_gate.sh \
 		$(1)/usr/share/qmodem_voip/module/
 	$(INSTALL_BIN) ./files/usr/sbin/qmodem_voip_modem_safety $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/qmodem_voip_control $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/usr/sbin/qmodem_voip_daemon_wait $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/usr/sbin/qmodem_voip_web $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/etc/init.d/qmodem_voip $(1)/etc/init.d/

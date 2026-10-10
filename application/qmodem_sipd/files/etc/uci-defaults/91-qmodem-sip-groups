@@ -1,0 +1,57 @@
+#!/bin/sh
+# Migrate only when both directions can be mapped to one unambiguous local modem.
+[ "$(uci -q get qmodem_sip.main.schema_version)" != 2 ] || exit 0
+modem=
+for direction in inbound outbound; do
+ candidate=$(uci -q get "qmodem_sip.$direction.sms_modem")
+ [ -z "$candidate" ] || { [ -z "$modem" ] || [ "$candidate" = "$modem" ] || exit 0; modem=$candidate; }
+done
+if [ -z "$modem" ]; then
+ for candidate in $(uci -q show qmodem | sed -n 's/^qmodem\.\([A-Za-z0-9_]*\)=modem-device$/\1/p'); do
+  [ "$(uci -q get "qmodem.$candidate.name")" = rm520n-gl ] || continue
+  [ -z "$modem" ] || { logger -t qmodem_sipd 'ambiguous legacy modem mapping; select explicitly'; exit 0; }
+  modem=$candidate
+ done
+fi
+[ -n "$modem" ] || exit 0
+case "$modem" in ''|*[!A-Za-z0-9_]*) exit 0 ;; esac
+[ ${#modem} -le 40 ] || exit 0
+group="sip_$modem"
+legacy=/var/lib/qmodem_voip/modem-safety.journal
+if [ -f "$legacy" ]; then
+ path=$(uci -q get "qmodem.$modem.path");path=${path%/}
+ slot=$(sed -n 's/^slot=//p' "$legacy")
+ [ "$slot" = "${path##*/}" ] || { logger -t qmodem_sipd 'legacy safety journal does not match selected modem'; exit 0; }
+ mkdir -p -m 700 "/var/lib/qmodem_voip/$group" || exit 1
+ [ -f "/var/lib/qmodem_voip/$group/modem-safety.journal" ] || cp -p "$legacy" "/var/lib/qmodem_voip/$group/modem-safety.journal" || exit 1
+fi
+if [ -f /var/lib/qmodem_voip/call-history.json ]; then
+ mkdir -p -m 700 "/var/lib/qmodem_voip/$group" || exit 1
+ [ -f "/var/lib/qmodem_voip/$group/call-history.json" ] || cp -p /var/lib/qmodem_voip/call-history.json "/var/lib/qmodem_voip/$group/call-history.json" || exit 1
+fi
+uci set "qmodem_sip.$group=group"
+uci set "qmodem_sip.$group.modem_id=$modem"
+index=0
+for direction in inbound outbound; do
+ [ "$(uci -q get "qmodem_sip.$direction")" = direction ] || continue
+ uci set "qmodem_sip.$direction.group=$group"
+ uci set "qmodem_sip.$direction.direction=$direction"
+ uci set "qmodem_sip.$direction.rtp_start=$((40000 + index * 4))"
+ [ "$(uci -q get "qmodem_sip.$direction.enabled")" = 1 ] || {
+  uci set "qmodem_sip.$direction.sms_enabled=0"
+  uci set "qmodem_sip.$direction.voip_enabled=0"
+ }
+ uci -q delete "qmodem_sip.$direction.enabled"
+ uci -q delete "qmodem_sip.$direction.sms_modem"
+ index=$((index+1))
+done
+uci set "qmodem_voip.$group=modem"
+uci set "qmodem_voip.$group.modem_id=$modem"
+uci set "qmodem_voip.$group.enabled=$(uci -q get qmodem_voip.main.enabled || echo 0)"
+uci set "qmodem_voip.$group.interface=$(uci -q get qmodem_voip.main.interface || echo lan)"
+uci set qmodem_sip.main.schema_version=2
+uci commit qmodem_sip
+uci commit qmodem_voip
+rm -f /etc/rc.d/S100qmodem_voip_sipd
+/etc/init.d/qmodem_sipd enable
+exit 0

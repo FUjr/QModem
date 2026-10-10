@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 static void clear_secret(void *value, size_t length)
 {
@@ -201,6 +202,17 @@ int qmodem_voip_media_token_method(struct ubus_context *ubus,
 		return qmodem_voip_reply_status(ubus, request, UBUS_STATUS_INVALID_ARGUMENT,
 			"invalid_session", "session, revision, or origin is invalid");
 	blob_buf_init(&buffer, 0);
+    /* Existing uhttpd media endpoint follows the selected modem for new
+     * connections. Established streams retain their original worker fd. */
+    if(app->group[0]) {
+        char temporary[192];
+        snprintf(temporary,sizeof(temporary),"/var/run/qmodem_voip/websocket.%ld",(long)getpid());
+        unlink(temporary);
+        if(symlink(app->browser.socket_path,temporary) || rename(temporary,"/var/run/qmodem_voip/websocket.sock")) {
+            unlink(temporary);blob_buf_free(&buffer);clear_secret(token,sizeof(token));
+            return UBUS_STATUS_UNKNOWN_ERROR;
+        }
+    }
 	blobmsg_add_string(&buffer, "token", token);
 	blobmsg_add_u32(&buffer, "expires_in", QMODEM_VOIP_BROWSER_TOKEN_TTL);
 	blobmsg_add_u64(&buffer, "call_revision", revision);

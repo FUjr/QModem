@@ -23,7 +23,7 @@
 #define SAFETY_JOURNAL "/var/lib/qmodem_voip/modem-safety.journal"
 #define UCI_PROGRAM "/sbin/uci"
 #define ADB_UNLOCK_HELPER "/usr/bin/qmodem_voip_adb_unlock"
-#define ADB_PROGRAM "/usr/bin/adb"
+#define ADB_PROGRAM "/usr/lib/qmodem_voip/adb_selected.sh"
 
 struct qmodem_voip_context qmodem_voip_ctxt;
 
@@ -293,7 +293,7 @@ static void restart_voice_server(struct qmodem_voip_context *app)
 static int journal_enabled(void)
 {
 	char line[128];
-	FILE *file = fopen(SAFETY_JOURNAL, "r");
+	FILE *file = fopen(qmodem_voip_ctxt.journal_path[0] ? qmodem_voip_ctxt.journal_path : SAFETY_JOURNAL, "r");
 	if (!file)
 		return 0;
 	while (fgets(line, sizeof(line), file))
@@ -324,9 +324,9 @@ static int set_application_enabled(int enabled)
 	if (child < 0)
 		return -1;
 	if (child == 0) {
-		char *const arguments[] = { "uci", "set",
-			enabled ? "qmodem_voip.main.enabled=1" :
-				"qmodem_voip.main.enabled=0", NULL };
+		char option[160];
+		snprintf(option,sizeof(option),"qmodem_voip.%s.enabled=%d",qmodem_voip_ctxt.group[0] ? qmodem_voip_ctxt.group : "main",enabled);
+		char *const arguments[] = { "uci", "set", option, NULL };
 		execv(UCI_PROGRAM, arguments);
 		_exit(127);
 	}
@@ -358,6 +358,8 @@ void qmodem_voip_cancel_serial_prepare(void)
 void qmodem_voip_add_redacted_status(struct blob_buf *buffer,
 					const struct qmodem_voip_call *call)
 {
+	blobmsg_add_string(buffer, "modem_id", qmodem_voip_ctxt.modem_id);
+	blobmsg_add_string(buffer, "group", qmodem_voip_ctxt.group);
 	blobmsg_add_string(buffer, "state", qmodem_voip_state_name(call->state));
 	blobmsg_add_string(buffer, "origin",
 			   qmodem_voip_endpoint_name(call->origin));
@@ -800,7 +802,7 @@ static int call_history_method(struct ubus_context *ubus,
 	(void)object;
 	(void)method;
 	(void)message;
-	history = qmodem_voip_call_history_load(QMODEM_VOIP_CALL_HISTORY_PATH);
+	history = qmodem_voip_call_history_load(qmodem_voip_ctxt.history_path[0] ? qmodem_voip_ctxt.history_path : QMODEM_VOIP_CALL_HISTORY_PATH);
 	if (!history)
 		return qmodem_voip_reply_status(ubus, request,
 			UBUS_STATUS_UNKNOWN_ERROR, "history_unavailable",
@@ -831,7 +833,7 @@ void qmodem_voip_publish_event(const struct qmodem_voip_call *call,
 	struct qmodem_voip_completed_call completed;
 	struct blob_buf buffer = { 0 };
 	if (qmodem_voip_call_get_completed(&app->call, &completed)) {
-		if (qmodem_voip_call_history_append(QMODEM_VOIP_CALL_HISTORY_PATH,
+		if (qmodem_voip_call_history_append((qmodem_voip_ctxt.history_path[0] ? qmodem_voip_ctxt.history_path : QMODEM_VOIP_CALL_HISTORY_PATH),
 			&completed) == 0)
 			qmodem_voip_call_ack_completed(&app->call);
 		else
