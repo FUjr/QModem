@@ -28,9 +28,7 @@ endef
 define Build/Prepare
 	$(RM) -r $(PKG_BUILD_DIR)
 	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) ../voipd/src/g711.h ../voipd/src/media.h ../voipd/src/media_socket.h \
-		../voipd/src/modem_profile.h \
-		../voipd/src/rtp_transport.h $(PKG_BUILD_DIR)/
+	$(CP) ../qmodem_media_common/include/* $(PKG_BUILD_DIR)/
 	$(CP) ./src/* $(PKG_BUILD_DIR)/
 endef
 

@@ -34,6 +34,7 @@ define Build/Prepare
 	$(RM) -r $(PKG_BUILD_DIR)
 	mkdir -p $(PKG_BUILD_DIR)
 	$(CP) ./src/* $(PKG_BUILD_DIR)/
+	$(CP) ../qmodem_media_common/include/* $(PKG_BUILD_DIR)/
 endef
 
 define Build/Compile
