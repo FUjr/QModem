@@ -2,7 +2,11 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 if [ "${UPLINK_NETNS_TEST:-0}" != 1 ]; then
-    exec unshare -Urnm sh -c 'mount --make-rprivate /; mount -t sysfs sysfs /sys; exec env UPLINK_NETNS_TEST=1 "$@"' sh "$0"
+    # Root already has namespace capabilities; a second user namespace would
+    # hide runner-owned directories from the mapped root identity.
+    ns_flags=-Urnm
+    [ "$(id -u)" != 0 ] || ns_flags=-nm
+    exec unshare "$ns_flags" sh -c 'mount --make-rprivate /; mount -t sysfs sysfs /sys; exec env UPLINK_NETNS_TEST=1 "$@"' sh "$0"
 fi
 . "$root/root/usr/share/qmodem-uplink/core.sh"
 UP_TARGETS=223.5.5.5 UP_TIMEOUT=1
