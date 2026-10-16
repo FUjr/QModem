@@ -88,7 +88,9 @@ while :; do
     if ! up_config; then
         jq -n --arg generation "$(uci -q export qmodem_uplink | sha256sum | cut -d' ' -f1)" --arg applied "${applied_generation:-}" '{enabled:true,reason:"invalid_config",members:[],active:null,config_generation:$generation,applied_generation:$applied}' > "$RUN/status.json.tmp"
         mv "$RUN/status.json.tmp" "$RUN/status.json"
-        sleep "$UP_INTERVAL" 9>&- & round_child=$!; wait "$round_child"; round_child=
+        # Parsing an invalid interval clears UP_INTERVAL; keep rejected reloads
+        # from spinning while the last valid packet policy stays installed.
+        sleep "${UP_INTERVAL:-10}" 9>&- & round_child=$!; wait "$round_child"; round_child=
         continue
     fi
     # Reconfigure only newly enrolled modems, never restart every PDP on reload.
