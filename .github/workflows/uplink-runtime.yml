@@ -13,7 +13,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y nftables iproute2 conntrack jq libjson-c-dev
       - name: Check syntax and lifecycle tests
         run: |
-          find application/qmodem_uplink_manager/root -type f -exec sh -c 'head -1 "$1" | grep -q "^#!/bin/sh" && sh -n "$1" || test $? = 1' sh {} \;
+          while IFS= read -r -d '' file; do
+            if head -1 "$file" | grep -q '^#!/bin/sh'; then sh -n "$file"; fi
+          done < <(find application/qmodem_uplink_manager/root -type f -print0)
           node --check luci/luci-app-qmodem-uplink/htdocs/luci-static/resources/view/qmodem/uplink.js
           sh application/qmodem_uplink_manager/tests/test_health.sh
           sh application/qmodem/tests/test_bridge_passthrough.sh

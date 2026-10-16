@@ -336,7 +336,7 @@ jobs:
           done
           package_dir="bin/packages/${{ env.SDK_ARCH }}/qmodem"
           required_packages=(
-            qmodem qmodem-smsd sms-forwarder-next
+            qmodem qmodem-smsd sms-forwarder-next qmodem-uplink-manager luci-app-qmodem-uplink
             luci-app-qmodem-next luci-i18n-qmodem-next-zh-cn
           )
           for package in "${required_packages[@]}"; do
