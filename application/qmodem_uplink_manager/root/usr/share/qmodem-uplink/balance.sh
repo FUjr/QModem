@@ -20,7 +20,7 @@ up_ids() {
     # Fail closed if conntrack cannot be inspected; a failed query is not an empty table.
     live=$(conntrack -L -f ipv4 -o extended 2>/dev/null) || return 1
     previous=$(printf '%s' "$previous" | jq -c --argjson members "$members" 'with_entries(select(.key as $id | any($members[]; .id==$id)))')
-    records='{}' 
+    records='{}'
     for key in $(printf '%s' "$members" | jq -r '.[].id'); do
         n=$(printf '%s' "$previous" | jq -r --arg key "$key" '.[$key] // 0')
         if [ "$n" -eq 0 ]; then
