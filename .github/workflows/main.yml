@@ -301,6 +301,11 @@ jobs:
           cd sdk
           ./scripts/feeds update qmodem
           ./scripts/feeds install -a -p qmodem
+          # Cached SDKs can predate new packages. Refresh their selections after
+          # installing current feed metadata instead of silently skipping builds.
+          sed -i '/^CONFIG_PACKAGE_qmodem-uplink-manager=/d; /^CONFIG_PACKAGE_luci-app-qmodem-uplink=/d' .config
+          printf '%s\n' 'CONFIG_PACKAGE_qmodem-uplink-manager=m' 'CONFIG_PACKAGE_luci-app-qmodem-uplink=m' >> .config
+          make defconfig
           generic_package=$(cat ../qmodem/.github/workflows/qmodem_package_generic)
           arch_package=$(cat ../qmodem/.github/workflows/qmodem_package_arch)
           for package in $generic_package; do
