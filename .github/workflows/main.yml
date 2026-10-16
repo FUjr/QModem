@@ -309,6 +309,12 @@ jobs:
           for package in $arch_package; do
             make package/$package/compile -j$(nproc) || true
           done
+          for package in qmodem-uplink-manager luci-app-qmodem-uplink; do
+            if ! find bin/packages/${{ env.SDK_ARCH }}/qmodem/ -type f \( -name "${package}_*.ipk" -o -name "${package}-*.apk" \) | grep -q .; then
+              echo "Missing required package: $package" >&2
+              exit 1
+            fi
+          done
           ls bin/packages/${{ env.SDK_ARCH }}/qmodem/
           echo "status=success" >> $GITHUB_OUTPUT
           echo "FIRMWARE=$(pwd)/bin/packages/${{ env.SDK_ARCH }}/qmodem/" >> $GITHUB_ENV
