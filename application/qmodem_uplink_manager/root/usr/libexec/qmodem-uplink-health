@@ -1,0 +1,28 @@
+#!/bin/sh
+# Exit 2: instance not enrolled; 0/1: fresh manager health result.
+if [ "$1" = enrolled ]; then
+    [ "$(uci -q get qmodem_uplink.main.enabled)" = 1 ] || exit 2
+    case "$2" in ''|*[!A-Za-z0-9_]*) exit 2;; esac
+    . /lib/functions.sh
+    enrolled=2
+    find_member() {
+        local kind target enabled
+        config_get kind "$1" kind
+        config_get target "$1" target
+        config_get enabled "$1" enabled 1
+        [ "$kind:$target:$enabled" != "modem:$instance:1" ] || enrolled=0
+    }
+    instance=$2
+    config_load qmodem_uplink; config_foreach find_member member
+    exit "$enrolled"
+fi
+case "$1" in ''|*[!A-Za-z0-9_]*) exit 2;; esac
+"$0" enrolled "$1" || exit 2
+file=/var/run/qmodem-uplink/status.json
+[ -r "$file" ] || exit 3
+now=$(cut -d. -f1 /proc/uptime)
+jq -e --arg id "modem:$1" '.enabled and any(.members[]; .id==$id)' "$file" >/dev/null || exit 3
+jq -e --arg id "modem:$1" '.members[] | select(.id==$id) | .reason=="passthrough" or .reason=="enslaved_device" or .reason=="interface_owner_mismatch" or .reason=="unsupported_protocol" or .reason=="stale_session"' "$file" >/dev/null && exit 3
+# Stale manager state must not trigger modem reset storms.
+jq -e --argjson now "$now" '$now < .valid_until' "$file" >/dev/null || exit 3
+jq -e --arg id "modem:$1" '.members[] | select(.id==$id) | .sample' "$file" >/dev/null

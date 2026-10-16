@@ -1,0 +1,213 @@
+#!/bin/sh
+. "${QMODEM_UPLINK_FUNCTIONS:-/lib/functions.sh}"
+. "${QMODEM_UPLINK_CORE:-/usr/share/qmodem-uplink/core.sh}"
+RUN=${QMODEM_UPLINK_RUN:-/var/run/qmodem-uplink}
+UP_STATE=${QMODEM_UPLINK_STATE:-/etc/qmodem-uplink}
+. "${QMODEM_UPLINK_BALANCE:-/usr/share/qmodem-uplink/balance.sh}"
+. "${QMODEM_UPLINK_SETTINGS:-/usr/share/qmodem-uplink/settings.sh}"
+mkdir -p "$RUN" "$UP_STATE"
+exec 9>"$RUN/lock"; flock -n 9 || exit 0
+printf '%s\n' "$$" > "$RUN/pid"
+UP_OWNED=0
+round_child=
+up_now() { cut -d. -f1 /proc/uptime; }
+up_dns_remove() {
+    local f changed=0
+    for f in $(cat "$RUN/dns-files" 2>/dev/null); do
+        case "$f" in /tmp/dnsmasq*.d/qmodem-uplink.conf) [ ! -f "$f" ] || { rm -f "$f"; changed=1; };; esac
+    done
+    rm -f "$RUN/dns-files"
+    [ "$changed" = 0 ] || "${QMODEM_UPLINK_DNS_SERVICE:-/etc/init.d/dnsmasq}" restart
+}
+up_finish() {
+    trap - EXIT INT TERM
+    [ -z "$round_child" ] || { kill "$round_child" 2>/dev/null; wait "$round_child" 2>/dev/null; }
+    if [ "$UP_OWNED" = 1 ]; then up_nft_cleanup; up_cleanup_routes; fi
+    up_firewall_restore
+    up_dns_remove
+    up_rpf_restore
+    rm -f "$RUN/enrolled-"*
+    rm -f "$RUN/pid" "$RUN/health-"*.json
+    jq -n '{enabled:false,active:null,members:[],reason:"stopped"}' > "$RUN/status.json.tmp"
+    mv "$RUN/status.json.tmp" "$RUN/status.json"
+    exit 0
+}
+trap up_finish EXIT INT TERM
+trap '[ -z "$round_child" ] || kill "$round_child" 2>/dev/null' USR1
+up_num() {
+    local val
+    val=$(uci -q get "qmodem_uplink.main.$1")
+    [ -n "$val" ] || val=$2
+    up_uint "$val" "$3" "$4" || return 1
+    printf '%s\n' "$val"
+}
+UP_INTERVAL=$(up_num interval 10 1 300) || exit 2
+UP_TIMEOUT=$(up_num timeout 2 1 10)
+UP_FAIL=$(up_num fail_threshold 3 1 30)
+UP_RECOVER=$(up_num recover_threshold 3 1 30)
+UP_STABLE=$(up_num stable_seconds 60 0 3600)
+UP_TARGETS=$(uci -q get qmodem_uplink.main.targets)
+[ -n "$UP_TARGETS" ] || UP_TARGETS='223.5.5.5 119.29.29.29'
+for t in $UP_TARGETS; do up_ipv4 "$t" || exit 2; done
+[ "$(uci -q get qmodem_uplink.main.enabled)" = 1 ] || exit 0
+up_check_namespace && up_nft_owned || { trap - EXIT; echo '{"enabled":true,"active":null,"members":[],"reason":"routing_namespace_conflict"}' > "$RUN/status.json"; exit 2; }
+up_firewall_acquire || { up_firewall_restore; trap - EXIT; echo '{"enabled":true,"active":null,"members":[],"reason":"firewall_or_mwan_conflict"}' > "$RUN/status.json"; exit 2; }
+UP_OWNED=1
+up_policy_init || exit 2
+boot_id=$(cat /proc/sys/kernel/random/boot_id)
+if [ "$(cat "$UP_STATE/boot-id" 2>/dev/null)" != "$boot_id" ]; then rm -f "$UP_STATE/rp-filter"; fi
+printf '%s\n' "$boot_id" > "$UP_STATE/boot-id"
+members='[]'
+up_member() {
+    local s=$1 kind id priority enabled weight
+    config_get kind "$s" kind
+    config_get id "$s" target
+    config_get priority "$s" priority 100
+    config_get enabled "$s" enabled 1
+    config_get weight "$s" weight 1
+    if ! up_name "$id" || ! up_uint "$priority" 1 65535 || ! up_uint "$weight" 1 255; then config_error=1; return; fi
+    case "$kind:$enabled" in wired:0|wired:1|modem:0|modem:1) :;; *) config_error=1; return;; esac
+    members=$(printf '%s' "$members" | jq --arg id "$id" --arg kind "$kind" --argjson priority "$priority" --argjson weight "$weight" --argjson enabled "$enabled" '. + [{id:($kind+":"+$id),kind:$kind,target:$id,priority:$priority,weight:$weight,enabled:($enabled==1)}]')
+}
+active='' last_switch=0
+# DNS changes are runtime files in dnsmasq's existing include directory. Manual
+# dnsmasq servers and per-domain policy remain intact; netifd resolvfile is untouched.
+up_dns_instance() {
+    local s=$1 dir disabled noresolv
+    config_get disabled "$s" disabled 0
+    [ "$disabled" = 1 ] && return
+    config_get dir "$s" confdir "/tmp/dnsmasq.$s.d"
+    case "$dir" in /tmp/dnsmasq*.d) :;; *) return;; esac
+    mkdir -p "$dir"
+    { echo no-resolv; for t in $dns; do echo "server=$t@$choice_dev"; done; } > "$dir/qmodem-uplink.conf.tmp"
+    mv "$dir/qmodem-uplink.conf.tmp" "$dir/qmodem-uplink.conf"
+    echo "$dir/qmodem-uplink.conf" >> "$RUN/dns-files"
+}
+while :; do
+    [ "$(uci -q get qmodem_uplink.main.enabled)" = 1 ] || exit 0
+    if ! up_config; then
+        jq -n --arg generation "$(uci -q export qmodem_uplink | sha256sum | cut -d' ' -f1)" --arg applied "${applied_generation:-}" '{enabled:true,reason:"invalid_config",members:[],active:null,config_generation:$generation,applied_generation:$applied}' > "$RUN/status.json.tmp"
+        mv "$RUN/status.json.tmp" "$RUN/status.json"
+        sleep "$UP_INTERVAL" 9>&- & round_child=$!; wait "$round_child"; round_child=
+        continue
+    fi
+    # Reconfigure only newly enrolled modems, never restart every PDP on reload.
+    for modem in $(printf '%s' "$members" | jq -r '.[] | select(.kind=="modem" and .enabled) | .target'); do
+        if [ ! -f "$RUN/enrolled-$modem" ] && [ -x /etc/init.d/qmodem_network ]; then
+            /etc/init.d/qmodem_network reconfigure "$modem" && touch "$RUN/enrolled-$modem"
+        fi
+    done
+    up_firewall_acquire || exit 2
+    lan_ifaces=' '
+    lan_zone() {
+        local name networks
+        config_get name "$1" name
+        config_get networks "$1" network
+        [ "$name" != lan ] || lan_ifaces="$lan_ifaces$networks "
+    }
+    config_load firewall; config_foreach lan_zone zone
+    now=$(up_now); idx=0; result='[]'; seen_devices=' '; choice=''; choice_iface=''; choice_dev=''; choice_addr=''; choice_gw=''; choice_dns=''
+    while IFS= read -r member; do
+        id=$(printf '%s' "$member" | jq -r .id)
+        target=$(printf '%s' "$member" | jq -r .target)
+        kind=$(printf '%s' "$member" | jq -r .kind)
+        idx=$(printf '%s' "$member" | jq -r ' .mark_id-1')
+        ip -4 rule del pref "$((1+idx))" protocol "$UP_PROTO" 2>/dev/null
+        ip -4 route flush table "$((UP_FIRST+idx))" proto "$UP_PROTO"
+        iface=$target; reason=unavailable; available=false; ok=false; dev=''; addr=''; gateway=''; dns=''
+        if [ "$kind" = modem ]; then
+            iface=$(uci -q get "qmodem.$target.alias")
+            [ -n "$iface" ] && [ "$iface" != - ] || iface=$target
+            if [ "$(uci -q get "qmodem.$target")" != modem-device ] || [ "$(uci -q get "qmodem.$target.state")" = disabled ]; then
+                reason=modem_offline; iface=''
+            elif [ "$(uci -q get "qmodem.$target.en_bridge")" = 1 ]; then
+                reason=passthrough; iface=''
+            elif [ "$(uci -q get "network.$iface.modem_config")" != "$target" ]; then
+                reason=interface_owner_mismatch; iface=''
+            elif [ "$(jq -r '.ipv4_owner // empty' "/var/run/qmodem/${target}_dir/backend.json" 2>/dev/null)" != netifd ]; then
+                reason=unsupported_protocol; iface=''
+            elif [ ! -s "/var/run/qmodem/${target}_dir/generation" ] || [ "$(jq -r '.generation // empty' "/var/run/qmodem/${target}_dir/backend.json" 2>/dev/null)" != "$(cat "/var/run/qmodem/${target}_dir/generation" 2>/dev/null)" ]; then
+                reason=stale_session; iface=''
+            fi
+
+        fi
+        if [ -n "$iface" ] && { [ "$(uci -q get "network.$iface.disabled")" = 1 ] || [ "$lan_ifaces" != "${lan_ifaces% $iface *}" ]; }; then
+            reason=not_routed_uplink; iface=''
+        fi
+        if [ -n "$iface" ] && up_name "$iface"; then
+            info=$(ubus call "network.interface.$iface" status 2>/dev/null)
+            dev=$(printf '%s' "$info" | jq -r '.l3_device // empty')
+            addr=$(printf '%s' "$info" | jq -r '.["ipv4-address"][0].address // empty')
+            gateway=$(printf '%s' "$info" | jq -r '[.route[]? | select(.target=="0.0.0.0" and .mask==0)][0].nexthop // empty')
+            dns=$(printf '%s' "$info" | jq -r '.["dns-server"][]? | select(test("^[0-9.]+$"))')
+            if [ "$(uci -q get "network.$iface.peerdns")" = 0 ]; then dns=$(uci -q get "network.$iface.dns"); fi
+            safe_dns=''
+            for t in $dns; do up_ipv4 "$t" && safe_dns="$safe_dns $t"; done
+            dns=$safe_dns
+            case "$dev" in ''|*[!A-Za-z0-9_.:-]*) reason=no_device;; *)
+                if [ "$(printf '%s' "$info" | jq -r '.up // false')" = true ] && up_ipv4 "$addr"; then
+                    if [ -n "$gateway" ] && ! up_ipv4 "$gateway"; then reason=invalid_gateway
+                    elif [ -e "/sys/class/net/$dev/master" ]; then reason=enslaved_device
+                    elif [ ! -d "/sys/class/net/$dev" ]; then reason=no_device
+                    elif [ "$seen_devices" != "${seen_devices% $dev *}" ]; then reason=duplicate_device
+                    elif up_probe_route "$idx" "$dev" "$addr" "$gateway"; then
+                        if [ -f "/proc/sys/net/ipv4/conf/$dev/rp_filter" ] && ! grep -q "^$dev " "$UP_STATE/rp-filter" 2>/dev/null; then
+                            # Reverse lookup follows business policy too: when its default
+                            # is unreachable, even loose RPF drops healthy probe replies.
+                            # Linux uses max(all, interface), so preserve/clear both.
+                            if ! grep -q '^all ' "$UP_STATE/rp-filter" 2>/dev/null; then
+                                printf 'all %s\n' "$(cat /proc/sys/net/ipv4/conf/all/rp_filter)" >> "$UP_STATE/rp-filter"
+                                echo 0 > /proc/sys/net/ipv4/conf/all/rp_filter
+                            fi
+                            printf '%s %s\n' "$dev" "$(cat "/proc/sys/net/ipv4/conf/$dev/rp_filter")" >> "$UP_STATE/rp-filter"
+                            echo 0 > "/proc/sys/net/ipv4/conf/$dev/rp_filter"
+                        fi
+                        seen_devices="$seen_devices$dev "
+                        available=true; reason=targets_unreachable
+                        if up_probe "$dev"; then ok=true; reason=probe_succeeded; fi
+                    else reason=probe_route_error; fi
+                else reason=no_ipv4; fi;;
+            esac
+        fi
+        state_file="$RUN/health-$kind-$target.json"
+        old=$(cat "$state_file" 2>/dev/null || echo null)
+        state=$(up_health "$old" "$ok" "$available" "$now") || exit 2
+        printf '%s' "$state" > "$state_file.tmp"; mv "$state_file.tmp" "$state_file"
+        healthy=$(printf '%s' "$state" | jq -r .healthy)
+        if [ "$healthy" = true ] && [ "$(printf '%s' "$member" | jq .enabled)" = true ] && [ -z "$choice" ]; then
+            choice=$id; choice_iface=$iface; choice_dev=$dev; choice_addr=$addr; choice_gw=$gateway; choice_dns=$dns
+        fi
+        generation=''; [ "$kind" != modem ] || generation=$(cat "/var/run/qmodem/${target}_dir/generation" 2>/dev/null)
+        ifindex=''; [ -z "$dev" ] || ifindex=$(cat "/sys/class/net/$dev/ifindex" 2>/dev/null)
+        row=$(printf '%s' "$member" | jq --arg interface "$iface" --arg device "$dev" --arg address "$addr" --arg gateway "$gateway" --arg reason "$reason" --arg generation "$generation" --arg ifindex "$ifindex" --argjson state "$state" --argjson sample "$ok" '. + {interface:$interface,device:$device,address:$address,gateway:$gateway,reason:$reason,generation:$generation,ifindex:$ifindex,sample:$sample,health:$state}')
+        result=$(printf '%s' "$result" | jq --argjson row "$row" '. + [$row]')
+        idx=$((idx+1))
+    done < "$RUN/members"
+    policy_signature=$(printf '%s' "$result" | jq -c 'map({id,mark_id,enabled,priority,weight,device,address,gateway,generation,ifindex,healthy:.health.healthy})')
+    reason=''
+    if [ "$policy_signature|$config_generation" != "${last_policy:-}" ] || ! nft list table ip qmodem_uplink >/dev/null 2>&1; then
+        if up_nft_publish; then
+            last_policy="$policy_signature|$config_generation"
+            printf '%s' "$result" | jq -c '[.[] | {id,selected,effective_weight}]' > "$RUN/selection.json"
+        else reason=apply_failed; fi
+    else
+        result=$(printf '%s' "$result" | jq -c --argjson selection "$(cat "$RUN/selection.json")" 'map(. as $m | . + ($selection[] | select(.id==$m.id)))')
+    fi
+    signature="$choice|$choice_dev|$choice_addr|$choice_gw|$choice_dns"
+    if [ "$signature" != "${last_signature:-}" ]; then
+        ip -4 route del default table "$UP_BUSINESS" metric 1 proto "$UP_PROTO" 2>/dev/null
+        if [ -n "$choice" ]; then
+            up_route_default "$UP_BUSINESS" "$choice_dev" "$choice_addr" "$choice_gw" || { choice=''; choice_dns=''; signature=''; }
+        fi
+        [ "$choice" = "$active" ] || last_switch=$now
+        active=$choice; last_signature=$signature
+        dns=$choice_dns
+        rm -f "$RUN/dns-files"
+        config_load dhcp; config_foreach up_dns_instance dnsmasq
+        "${QMODEM_UPLINK_DNS_SERVICE:-/etc/init.d/dnsmasq}" restart
+    fi
+    jq -n --arg active "$active" --arg mode "$UP_MODE" --arg reason "$reason" --arg generation "$config_generation" --arg applied "${applied_generation:-}" --argjson selected "${active_members:-[]}" --argjson members "$result" --argjson updated "$now" --argjson switched "$last_switch" --argjson valid_until "$((now+UP_INTERVAL+UP_TIMEOUT*$(printf '%s\n' $UP_TARGETS | wc -l)*$(printf '%s' "$members" | jq length)+30))" \
+        '{enabled:true,mode:$mode,active:(if $active=="" then null else $active end),active_members:$selected,members:$members,updated:$updated,valid_until:$valid_until,last_switch:$switched,config_generation:$generation,applied_generation:$applied,reason:$reason,dns_health:"unknown",ipv6_failover:false}' > "$RUN/status.json.tmp"
+    mv "$RUN/status.json.tmp" "$RUN/status.json"
+    sleep "$UP_INTERVAL" 9>&- & round_child=$!; wait "$round_child"; round_child=
+done
