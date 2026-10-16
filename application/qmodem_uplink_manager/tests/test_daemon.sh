@@ -92,6 +92,7 @@ done
 [ "$(cat "$fixture/state/ids.json")" = "$ids" ]
 oldpolicy=$(nft list table ip qmodem_uplink)
 uci set qmodem_uplink.primary.weight=0
+uci set qmodem_uplink.main.interval=0
 uci commit qmodem_uplink
 kill -USR1 "$watcher"
 n=0
@@ -99,6 +100,9 @@ while ! jq -e '.reason=="invalid_config"' "$fixture/run/status.json" >/dev/null;
     n=$((n+1)); [ "$n" -lt 150 ] || exit 1; sleep 0.1
 done
 [ "$(nft list table ip qmodem_uplink)" = "$oldpolicy" ]
+sleep 0.2
+! grep -q 'sleep:.*invalid' "$fixture/log"
+uci set qmodem_uplink.main.interval=1
 uci set qmodem_uplink.primary.weight=1
 uci set qmodem_uplink.main.mode=failover
 uci commit qmodem_uplink
