@@ -21,6 +21,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <endian.h>
+#include <sys/wait.h>
 
 #include "util.h"
 #include "QMIThread.h"
@@ -476,6 +477,32 @@ static void ql_openwrt_setup_wan6(const char *ifname, const IPV6_T *ipv6) {
 }
 #endif
 
+/* External IPv4 configuration is opt-in; retain legacy and IPv6 behavior. */
+static void publish_ipv4(PROFILE_T *profile, const char *ifname, int up) {
+    char address[32], mask[32], gateway[32], dns1[32], dns2[32], mtu[16];
+    pid_t child;
+    int status = 0;
+    pid_t waited;
+    snprintf(address, sizeof(address), "%s", ipv4Str(profile->ipv4.Address));
+    snprintf(mask, sizeof(mask), "%s", ipv4Str(profile->ipv4.SubnetMask));
+    snprintf(gateway, sizeof(gateway), "%s", ipv4Str(profile->ipv4.Gateway));
+    snprintf(dns1, sizeof(dns1), "%s", ipv4Str(profile->ipv4.DnsPrimary));
+    snprintf(dns2, sizeof(dns2), "%s", ipv4Str(profile->ipv4.DnsSecondary));
+    snprintf(mtu, sizeof(mtu), "%u", profile->ipv4.Mtu);
+    child = fork();
+    if (child == 0) {
+        execl("/usr/libexec/qmodem-ipv4-event", "qmodem-ipv4-event",
+              up && profile->ipv4.Address ? "up" : "down", ifname,
+              address, mask, gateway, dns1, dns2, mtu, (char *)NULL);
+        _exit(127);
+    }
+    if (child > 0) {
+        do { waited = waitpid(child, &status, 0); } while (waited < 0 && errno == EINTR);
+        if (waited < 0 || !WIFEXITED(status) || WEXITSTATUS(status))
+            dbg_time("netifd IPv4 event rejected for %s", ifname);
+    }
+}
+
 void udhcpc_start(PROFILE_T *profile) {
     char *ifname = profile->usbnet_adapter;
 
@@ -485,18 +512,18 @@ void udhcpc_start(PROFILE_T *profile) {
         ifname = profile->qmapnet_adapter;
     }
 
-    if (profile->rawIP && profile->ipv4.Address && profile->ipv4.Mtu) {
+    if (!profile->managed_ipv4 && profile->rawIP && profile->ipv4.Address && profile->ipv4.Mtu) {
         ql_set_mtu(ifname, (profile->ipv4.Mtu));
     }
 
-    if (strcmp(ifname, profile->usbnet_adapter)) {
+    if (!profile->managed_ipv4 && strcmp(ifname, profile->usbnet_adapter)) {
         ifc_set_state(profile->usbnet_adapter, 1);
         if (ifc_get_flags(ifname)&IFF_UP) {
             ifc_set_state(ifname, 0);
         }
     }
 
-    ifc_set_state(ifname, 1);
+    if (!profile->managed_ipv4) ifc_set_state(ifname, 1);
     if (profile->ipv4.Address) {
         if (profile->PCSCFIpv4Addr1)
             dbg_time("pcscf1: %s", ipv4Str(profile->PCSCFIpv4Addr1));
@@ -528,6 +555,10 @@ void udhcpc_start(PROFILE_T *profile) {
     }
 #endif
 
+    if (profile->managed_ipv4) {
+        publish_ipv4(profile, ifname, 1);
+        goto set_ipv6;
+    }
     if (profile->ipv4.Address == 0)
         goto set_ipv6;
 
@@ -729,6 +760,10 @@ void udhcpc_stop(PROFILE_T *profile) {
         dibbler_client_alive = 0;
     }
 
+    if (profile->managed_ipv4) {
+        publish_ipv4(profile, ifname, 0);
+        return;
+    }
     profile->udhcpc_ip = 0;
 //it seems when call netif_carrier_on(), and netcard 's IP is "0.0.0.0", will cause netif_queue_stopped()
     if (!access("/sbin/ip", X_OK))

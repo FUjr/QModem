@@ -6,7 +6,8 @@ case "$instance" in ''|*[!A-Za-z0-9_]*) exit 2;; esac
 path="$("${QMODEM_UCI:-uci}" -q get "qmodem.$instance.path")" || exit 1
 path="$(readlink -f "$path")" || exit 1
 [ -d "$path" ] && [ "$path" != / ] || exit 1
-netdir="$(find "$path" -name net -type d 2>/dev/null | tail -n 1)"
+netdir="$(find "$path" -name net -type d 2>/dev/null)"
+[ "$(printf '%s\n' "$netdir" | wc -l)" = 1 ] || exit 1
 [ -n "$netdir" ] || exit 1
 set -- "$netdir"/*
 # Do not feed a whitespace-separated list into an interface-name argument.
