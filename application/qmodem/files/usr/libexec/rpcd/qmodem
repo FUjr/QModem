@@ -74,8 +74,9 @@ get_modem_config() {
     local section="$1"
     at_port=$(uci get qmodem.$section.at_port 2>/dev/null)
     override_at_port=$(uci get qmodem.$section.override_at_port 2>/dev/null)
-    [ -n "$override_at_port" ] && at_port=$override_at_port
+    [ -z "$override_at_port" ] || { qmodem_port_owned "$section" "$override_at_port" || return 2; at_port=$override_at_port; }
     sms_at_port=$(uci -q get qmodem.$section.sms_at_port 2>/dev/null)
+    [ -z "$sms_at_port" ] || qmodem_port_owned "$section" "$sms_at_port" || return 2
     vendor=$(uci get qmodem.$section.manufacturer 2>/dev/null)
     manufacturer="$vendor"
     platform=$(uci get qmodem.$section.platform 2>/dev/null)
@@ -87,7 +88,8 @@ get_modem_config() {
     modem_slot=$(basename "$modem_path" 2>/dev/null)
     
     [ -z "$pdp_index" ] && pdp_index="1"
-    [ "$use_ubus" = "1" ] && use_ubus_flag="-u"
+    [ "$use_ubus" != "1" ] || use_ubus_flag="-u"
+    return 0
 }
 
 # Helper function to get AT port configuration (for SMS and AT commands)
@@ -96,16 +98,17 @@ get_at_port_config() {
     local use_sms_port="$2"
     at_port=$(uci get qmodem.$section.at_port 2>/dev/null)
     override_at_port=$(uci get qmodem.$section.override_at_port 2>/dev/null)
-    [ -n "$override_at_port" ] && at_port=$override_at_port
+    [ -z "$override_at_port" ] || { qmodem_port_owned "$section" "$override_at_port" || return 2; at_port=$override_at_port; }
     
     if [ "$use_sms_port" = "1" ]; then
         sms_at_port=$(uci -q get qmodem.$section.sms_at_port 2>/dev/null)
-        [ -n "$sms_at_port" ] && at_port=$sms_at_port
+        [ -z "$sms_at_port" ] || { qmodem_port_owned "$section" "$sms_at_port" || return 2; at_port=$sms_at_port; }
     fi
     
     use_ubus=$(uci get qmodem.$section.use_ubus 2>/dev/null)
     use_ubus=${use_ubus:-1}
-    [ "$use_ubus" = "1" ] && use_ubus_flag="-u"
+    [ "$use_ubus" != "1" ] || use_ubus_flag="-u"
+    return 0
 }
 
 # Helper function to get vendor information
@@ -142,7 +145,7 @@ get_at_cfg() {
     json_close_array
     override_at_port=$(uci get qmodem.$config_section.override_at_port 2>/dev/null)
     at_port=$(uci get qmodem.$config_section.at_port 2>/dev/null)
-    [ -n "$override_at_port" ] && at_port=$override_at_port
+    [ -z "$override_at_port" ] || { qmodem_port_owned "$config_section" "$override_at_port" || return 2; at_port=$override_at_port; }
     json_add_string using_port "$at_port"
     json_add_array cmds
     
@@ -663,6 +666,17 @@ EOF
     call)
         read -r input
         config_section=$(echo "$input" | jsonfilter -e '@.config_section')
+        . /usr/share/qmodem/instance.sh
+        case "$2" in
+            scan_pcie|scan_usb|scan_all|get_pcie_devices|get_usb_devices|get_available_devices|get_leds|get_network_interfaces|get_tty_ports) :;;
+            *) qmodem_valid_instance "$config_section" || { printf '%s\n' '{"error":"explicit valid modem section required"}'; exit 2; };;
+        esac
+        if [ "$(uci -q get "qmodem.$config_section.state")" = disabled ]; then
+            case "$2" in
+                remove_modem|dial_status|get_dial_log|clear_dial_log|get_monitor_status|get_at_cfg|get_traffic_reset_schedule|set_traffic_reset_schedule|modem_dial|modem_hang|modem_redial) :;;
+                *) printf '%s\n' '{"error":"modem instance is offline"}'; exit 2;;
+            esac
+        fi
         if [ "$2" = get_monitor_status ]; then
             case "$config_section" in ''|*[!A-Za-z0-9_]*) printf '%s\n' '{"error":"invalid modem section"}'; exit 1;; esac
             [ "$(uci -q get "qmodem.$config_section")" = modem-device ] || { printf '%s\n' '{"error":"unknown modem section"}'; exit 1; }
@@ -673,7 +687,7 @@ EOF
             exit 0
         fi
         if [ -n "$config_section" ]; then
-            get_modem_config "$config_section" > /dev/null
+            get_modem_config "$config_section" > /dev/null || exit 2
             load_vendor_script "$vendor" > /dev/null
             . /usr/share/qmodem/modem_util.sh
         fi
@@ -869,7 +883,7 @@ EOF
                 
                 # Source helper functions and get configuration
                 . /usr/share/qmodem/modem_util.sh
-                get_at_port_config "$config_section" 1
+                get_at_port_config "$config_section" 1 || exit 2
                 
                 json_init
                 json_add_object result
@@ -947,7 +961,7 @@ EOF
                 
                 # Source helper functions and get configuration
                 . /usr/share/qmodem/modem_util.sh
-                get_at_port_config "$config_section" 1
+                get_at_port_config "$config_section" 1 || exit 2
                 
                 res=$(tom_modem $use_ubus_flag -d "$at_port" -o s -p "$cmd")
                 ret=$?
@@ -973,7 +987,7 @@ EOF
                 
                 # Source helper functions and get configuration
                 . /usr/share/qmodem/modem_util.sh
-                get_at_port_config "$config_section" 1
+                get_at_port_config "$config_section" 1 || exit 2
                 
                 sms_tool_q -d "$at_port" send "$phone_number" "$message_content" > /dev/null
                 ret=$?
@@ -1008,7 +1022,7 @@ EOF
                 
                 # Source helper functions and get configuration
                 . /usr/share/qmodem/modem_util.sh
-                get_modem_config "$config_section"
+                get_modem_config "$config_section" || exit 2
                 
                 # Load vendor-specific script
                 load_vendor_script "$vendor"

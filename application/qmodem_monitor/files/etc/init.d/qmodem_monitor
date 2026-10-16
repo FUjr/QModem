@@ -6,7 +6,7 @@ service="$(basename ${basescript:-$initscript})"
 . $IPKG_INSTROOT/lib/functions.sh
 service_triggers()
 {
-	procd_add_reload_trigger "qmodem"
+	procd_add_reload_trigger "qmodem" "qmodem_uplink"
 
 }
 
@@ -38,6 +38,7 @@ _start_instance(){
     config_load qmodem
     config_get enabled $Modem_ID monitor_enabled 0
     config_get profile "$Modem_ID" monitor_profile legacy
+    if [ -x /usr/libexec/qmodem-uplink-health ] && /usr/libexec/qmodem-uplink-health enrolled "$Modem_ID"; then profile=network_recovery; fi
     if [ "$profile" = network_recovery ] || [ -f "/etc/qmodem/monitor-intent/$Modem_ID" ]; then
         [ "$enabled" = 1 ] || [ -f "/etc/qmodem/monitor-intent/$Modem_ID" ] || return 0
         procd_open_instance "m_$Modem_ID"

@@ -3,9 +3,12 @@ source "${QMODEM_JSHN:-/usr/share/libubox/jshn.sh}"
 qmodem_home="${QMODEM_HOME:-/usr/share/qmodem}"
 method=$1
 config_section=$2
+. "$qmodem_home/instance.sh"
+qmodem_valid_instance "$config_section" || exit 2
+[ "$(uci -q get "qmodem.$config_section.state")" != disabled ] || exit 2
 at_port=$(uci -q get qmodem.$config_section.at_port)
 override_at_port=$(uci -q get qmodem.$config_section.override_at_port)
-[ -n "$override_at_port" ] && at_port=$override_at_port
+[ -z "$override_at_port" ] || { qmodem_port_owned "$config_section" "$override_at_port" || exit 2; at_port=$override_at_port; }
 uci -q get qmodem.$config_section.sms_at_port >/dev/null && sms_at_port=$(uci -q get qmodem.$config_section.sms_at_port)
 vendor=$(uci -q get qmodem.$config_section.manufacturer)
 platform=$(uci -q get qmodem.$config_section.platform)
@@ -102,7 +105,7 @@ get_at_cfg(){
     json_close_array
     override_at_port=$(uci -q get qmodem.$config_section.override_at_port)
     at_port=$(uci -q get qmodem.$config_section.at_port)
-    [ -n "$override_at_port" ] && at_port=$override_at_port
+    [ -z "$override_at_port" ] || { qmodem_port_owned "$config_section" "$override_at_port" || exit 2; at_port=$override_at_port; }
     json_add_string using_port "$at_port"
     json_add_array cmds
     

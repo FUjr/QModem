@@ -116,6 +116,16 @@ nm_interface() {
     [ -e "/sys/class/net/$NetDev" ]
 }
 nm_sample() {
+    local external_rc
+    ExternalDeferred=0
+    if [ -x /usr/libexec/qmodem-uplink-health ]; then
+        /usr/libexec/qmodem-uplink-health "$Modem_ID"; external_rc=$?
+        case "$external_rc" in
+            0) nm_interface; PrimaryOK=true; BackupOK=null; return 0;;
+            1) PrimaryOK=false; BackupOK=null; Reason=uplink_manager_unreachable; return 1;;
+            3) PrimaryOK=null; BackupOK=null; Reason=uplink_manager_stale; ExternalDeferred=1; return 0;;
+        esac
+    fi
     PrimaryOK=null BackupOK=null
     if ! nm_interface; then Reason=interface_unavailable; return 1; fi
     PrimaryOK=false
@@ -209,7 +219,11 @@ nm_probe_round() {
     Failures=0
     while [ "$Failures" -lt "$Packets" ]; do
         nm_state probing ''
-        if nm_sample; then nm_result online; nm_state online probe_succeeded; return 0; fi
+        if nm_sample; then
+            if [ "$ExternalDeferred" = 1 ]; then Connectivity=unknown; nm_state waiting "$Reason"
+            else nm_result online; nm_state online probe_succeeded; fi
+            return 0
+        fi
         Failures=$((Failures+1)); Connectivity=offline
         nm_state probing "$Reason"
         [ "$Failures" -ge "$Packets" ] || nm_sleep "$PacketInterval"

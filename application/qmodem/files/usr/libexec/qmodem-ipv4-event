@@ -1,0 +1,50 @@
+#!/bin/sh
+. "${QMODEM_LIB_FUNCTIONS:-/lib/functions.sh}"
+. "${QMODEM_NETIFD_PROTO:-/lib/netifd/netifd-proto.sh}"
+. "${QMODEM_HOME:-/usr/share/qmodem}/instance.sh"
+run=${QMODEM_RUN:-/var/run/qmodem}
+replay=0
+if [ "$1" = replay ]; then
+    QMODEM_INSTANCE=$2 QMODEM_INTERFACE=$3
+    replay=1
+fi
+qmodem_valid_instance "$QMODEM_INSTANCE" || exit 2
+[ "$(uci -q get "network.$QMODEM_INTERFACE.modem_config")" = "$QMODEM_INSTANCE" ] || exit 2
+[ "$(uci -q get "network.$QMODEM_INTERFACE.proto")" = qmodem_runtime ] || exit 2
+base="$run/${QMODEM_INSTANCE}_dir"
+# Serialize invalidation, publication and replay for this instance only.
+exec 9>"$base/event.lock"; flock -x 9
+if [ "$replay" = 1 ]; then
+    file="$base/ipv4.json"
+    [ -r "$file" ] || exit 0
+    QMODEM_GENERATION=$(jq -r '.generation' "$file")
+    set -- $(jq -r '[.action,.device,.address,.mask,.gateway,.dns1,.dns2,.mtu] | join(" ")' "$file")
+fi
+[ -n "$QMODEM_GENERATION" ] && [ "$(cat "$base/generation" 2>/dev/null)" = "$QMODEM_GENERATION" ] || exit 1
+case "$1" in up|down) action=$1;; *) exit 2;; esac
+device=$2 address=$3 mask=$4 gateway=$5 dns1=$6 dns2=$7 mtu=$8
+case "$device" in ''|*[!A-Za-z0-9_.:-]*) exit 2;; esac
+[ "$device" = "$("${QMODEM_HOME:-/usr/share/qmodem}/modem_netdev.sh" "$QMODEM_INSTANCE")" ] || exit 2
+for ipval in "$address" "$mask" "$gateway" "$dns1" "$dns2"; do
+    printf '%s\n' "$ipval" | awk -F. 'NF!=4 {exit 1} {for(i=1;i<=4;i++) if($i !~ /^[0-9]+$/ || $i>255) exit 1}' || exit 2
+done
+[ "$action" != up ] || [ "$address" != 0.0.0.0 ] || exit 1
+case "$mtu" in ''|*[!0-9]*) exit 2;; esac
+jq -n --arg generation "$QMODEM_GENERATION" --arg action "$action" --arg device "$device" \
+    --arg address "$address" --arg mask "$mask" --arg gateway "$gateway" --arg dns1 "$dns1" --arg dns2 "$dns2" --arg mtu "$mtu" \
+    '{generation:$generation,action:$action,device:$device,address:$address,mask:$mask,gateway:$gateway,dns1:$dns1,dns2:$dns2,mtu:$mtu}' > "$base/ipv4.json.tmp.$$" || exit 1
+mv "$base/ipv4.json.tmp.$$" "$base/ipv4.json"
+# Preserve a fresh snapshot while administratively down; only setup enables publication.
+[ "$(cat "$base/netifd-enabled" 2>/dev/null)" = "$QMODEM_INTERFACE" ] || exit 0
+if [ "$action" = down ]; then
+    proto_init_update "$device" 0
+else
+    [ "$address" != 0.0.0.0 ] || exit 1
+    [ "$mtu" -lt 576 ] || [ "$mtu" -gt 65535 ] || ip link set dev "$device" mtu "$mtu" || exit 1
+    proto_init_update "$device" 1
+    proto_add_ipv4_address "$address" "$mask"
+    [ "$gateway" = 0.0.0.0 ] || proto_add_ipv4_route 0.0.0.0 0 "$gateway"
+    [ "$dns1" = 0.0.0.0 ] || proto_add_dns_server "$dns1"
+    [ "$dns2" = 0.0.0.0 ] || proto_add_dns_server "$dns2"
+fi
+proto_send_update "$QMODEM_INTERFACE"
