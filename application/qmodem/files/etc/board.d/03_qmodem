@@ -55,6 +55,14 @@ huasifei,ws3009)
 	ucidef_add_qmodem_slot 4g1 type usb slot 1-1.4 alias 4g3 net_led green:network2 default_metric 21
 	ucidef_add_qmodem_slot 4g2 type usb slot 1-1.1 alias 4g4 net_led green:network3 default_metric 22
 	;;
+misectel,m02k88)
+	ucidef_set_qmodem_main start_delay 15
+	# Independent modules: never associate the USB modem with the PCIe modem.
+	ucidef_add_qmodem_slot usb0 type usb slot 2-1 alias wwan0 gpio 5g1_en gpio_up 1 gpio_down 0 default_metric 5
+	ucidef_add_qmodem_slot pcie0 type pcie slot 0002:01:00.0 alias wwan1 gpio 5g2_en gpio_up 1 gpio_down 0 default_metric 6
+	ucidef_add_qmodem_modem_status cellular1 enabled 1 script misectel_3led bind port port 2-1 led_group 5g1
+	ucidef_add_qmodem_modem_status cellular2 enabled 1 script misectel_3led bind port port 0002:01:00.0 led_group 5g2
+	;;
 misectel,m01k21)
 	ucidef_add_qmodem_modem_status cellular enabled 1 script misectel_3led bind any
 	;;
