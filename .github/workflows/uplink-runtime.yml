@@ -19,6 +19,7 @@ jobs:
           node --check luci/luci-app-qmodem-uplink/htdocs/luci-static/resources/view/qmodem/uplink.js
           sh application/qmodem_uplink_manager/tests/test_health.sh
           sh application/qmodem/tests/test_bridge_passthrough.sh
+          sh application/qmodem/tests/test_modem_netdev.sh
           cc -pthread application/modem_scan/tests/test_scheduler.c -ljson-c -o /tmp/test-scheduler
           /tmp/test-scheduler
           cc -pthread application/quectel_CM_5G_M/tests/test_managed_ipv4.c -o /tmp/test-managed
