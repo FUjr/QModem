@@ -3,7 +3,7 @@ include $(TOPDIR)/rules.mk
 include ../../version.mk
 
 LUCI_TITLE:=LuCI support for experimental QModem voice
-LUCI_DEPENDS:=+qmodem-voip +qmodem-sipd +luci-base
+LUCI_DEPENDS:=+qmodem-voip +luci-base
 LUCI_PKGARCH:=all
 PKG_VERSION:=$(QMODEM_VERSION)
 PKG_RELEASE:=$(QMODEM_RELEASE)

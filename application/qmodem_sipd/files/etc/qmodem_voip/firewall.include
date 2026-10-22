@@ -1,23 +1,30 @@
 #!/bin/sh
-
-handles=$(nft -a list chain inet fw4 input 2>/dev/null |
-	awk '/comment "?qmodem_voip_sipd"?/ { print $NF }')
-for handle in $handles; do
-	nft delete rule inet fw4 input handle "$handle" || exit 1
-done
-
-[ "$(uci -q get qmodem_sip.inbound.enabled)" = 1 ] || exit 0
-/usr/sbin/qmodem_voip_sip_validate inbound >/dev/null 2>&1 || exit 0
-interface=$(uci -q get qmodem_sip.inbound.interface)
-status=$(ubus -t 2 call "network.interface.$interface" status 2>/dev/null) || status=
-device=$(printf '%s\n' "$status" | jsonfilter -e '@.l3_device' 2>/dev/null)
-device=${device:-$interface}
-address=$(ip -4 -o addr show dev "$device" scope global 2>/dev/null |
-	awk 'NR == 1 { sub(/\/.*/, "", $4); print $4 }')
-[ -n "$address" ] || exit 0
-port=$(uci -q get qmodem_sip.inbound.listen_port)
-rtp_start=$(uci -q get qmodem_sip.main.rtp_start)
-rtp_end=$(uci -q get qmodem_sip.main.rtp_end)
-nft add rule inet fw4 input iifname "$device" ip daddr "$address" udp dport "$port" accept comment "qmodem_voip_sipd"
-nft add rule inet fw4 input iifname "$device" ip daddr "$address" tcp dport "$port" accept comment "qmodem_voip_sipd"
-nft add rule inet fw4 input iifname "$device" ip daddr "$address" udp dport "$rtp_start-$rtp_end" accept comment "qmodem_voip_sipd"
+. /lib/functions.sh
+handles=$(nft -a list chain inet fw4 input 2>/dev/null | awk '/comment "?qmodem_voip_sipd"?/ { print $NF }')
+for handle in $handles; do nft delete rule inet fw4 input handle "$handle" || exit 1; done
+add_direction()
+{
+ local section="$1" direction interface status device address port rtp voice
+ /usr/sbin/qmodem_voip_sip_validate "$section" >/dev/null 2>&1 || return 0
+ config_get direction "$section" direction
+ config_get interface "$section" interface
+ config_get port "$section" listen_port
+ config_get rtp "$section" rtp_start
+ config_get voice "$section" voip_enabled 0
+ local sms
+ config_get sms "$section" sms_enabled 0
+ [ "$voice" = 1 ] || [ "$sms" = 1 ] || return 0
+ status=$(ubus -t 2 call "network.interface.$interface" status 2>/dev/null) || return 0
+ device=$(printf '%s\n' "$status" | jsonfilter -e '@.l3_device')
+ [ -n "$device" ] || return 0
+ address=$(ip -4 -o addr show dev "$device" scope global | awk 'NR==1 { sub(/\/.*/,"",$4);print $4 }')
+ [ -n "$address" ] || return 0
+ if [ "$direction" = inbound ]; then
+  nft add rule inet fw4 input iifname "$device" ip daddr "$address" udp dport "$port" accept comment qmodem_voip_sipd
+  nft add rule inet fw4 input iifname "$device" ip daddr "$address" tcp dport "$port" accept comment qmodem_voip_sipd
+ fi
+ # Outbound TLS replies follow conntrack; media may arrive on independent UDP sockets.
+ [ "$voice" != 1 ] || nft add rule inet fw4 input iifname "$device" ip daddr "$address" udp dport "$rtp" accept comment qmodem_voip_sipd
+}
+config_load qmodem_sip
+config_foreach add_direction direction

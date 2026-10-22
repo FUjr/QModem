@@ -1,23 +1,24 @@
 #!/bin/sh
-# Re-converge volatile audio state (QAUDMOD / QPCMV forwarding) after the
-# experimental modem re-enumerates. Audio mode is runtime state that does not
-# survive a USB reset, so a bind/add must reapply it when this daemon owns the
-# modem. Without an `enabled` journal we own nothing and must fail closed.
-warning_recover() {
-	logger -t qmodem_voip "audio reconvergence skipped for ${ACTION} slot $(basename "${DEVPATH:-unknown}")"
-	exit 0
+# Re-converge only the journal owned by the USB modem that re-enumerated.
+[ -n "${DEVPATH:-}" ] || exit 0
+[ "${ACTION:-}" = bind ] || [ "${ACTION:-}" = add ] || exit 0
+recover_group()
+{
+ local group="$1" modem journal slot
+ case "$group" in ''|*[!A-Za-z0-9_]*) return ;; esac
+ modem=$(uci -q get "qmodem_voip.$group.modem_id") || return
+ case "$modem" in ''|*[!A-Za-z0-9_]*) return ;; esac
+ journal="/var/lib/qmodem_voip/$group/modem-safety.journal"
+ [ -r "$journal" ] && grep -q '^phase=enabled$' "$journal" || return
+ slot=$(sed -n 's/^slot=//p' "$journal")
+ case "$slot" in ''|*[!A-Za-z0-9._-]*) return ;; esac
+ case "$DEVPATH" in */"$slot"|*/"$slot/"*|*/"$slot:"*) ;; *) return ;; esac
+ logger -t qmodem_voip "usb_event ${ACTION} group $group"
+ # The safety helper validates the journal checksum and selected physical ports.
+ ( export QMODEM_VOIP_MODEM_ID="$modem" QMODEM_VOIP_JOURNAL="$journal"
+   /usr/sbin/qmodem_voip_modem_safety recover >/dev/null 2>&1 ) &
 }
-
-[ -n "${DEVPATH}" ] || warning_recover
-[ "${ACTION}" = bind ] || [ "${ACTION}" = add ] || exit 0
-[ -r /var/lib/qmodem_voip/modem-safety.journal ] || exit 0
-grep -q '^phase=enabled$' /var/lib/qmodem_voip/modem-safety.journal || exit 0
-
-case $(basename "${DEVPATH}") in
-''|*[!A-Za-z0-9._-]*) warning_recover ;; esac
-logger -t qmodem_voip "usb_event ${ACTION} slot $(basename "${DEVPATH}")"
-
-# Run offline; the safety recover applies the model-selected QAUDMOD/QPCMV and
-# read-backs before returning, and drives the module into a clean state.
-( /usr/sbin/qmodem_voip_modem_safety recover >/dev/null 2>&1 ) &
+for group in $(uci -q show qmodem_voip | sed -n 's/^qmodem_voip\.\([A-Za-z0-9_]*\)=modem$/\1/p'); do
+ recover_group "$group"
+done
 exit 0

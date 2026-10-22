@@ -17,16 +17,17 @@
 static struct ubus_context *ubus;
 static struct ubus_object object;
 
-enum { ARG_USERNAME, ARG_DIRECTION, ARG_MAX };
+enum { ARG_USERNAME, ARG_DIRECTION, ARG_GROUP, ARG_MAX };
 
 static const struct blobmsg_policy policy[ARG_MAX] = {
 	[ARG_USERNAME] = { .name = "username", .type = BLOBMSG_TYPE_STRING },
-	[ARG_DIRECTION] = { .name = "direction", .type = BLOBMSG_TYPE_STRING }
+	[ARG_DIRECTION] = { .name = "direction", .type = BLOBMSG_TYPE_STRING },
+    [ARG_GROUP] = { .name = "group", .type = BLOBMSG_TYPE_STRING }
 };
 
 enum {
 	MESSAGE_DIRECTION, MESSAGE_RECIPIENT, MESSAGE_SENDER, MESSAGE_TIMESTAMP,
-	MESSAGE_CONTENT, MESSAGE_ID, MESSAGE_REVISION, MESSAGE_MODEM, MESSAGE_MAX
+	MESSAGE_CONTENT, MESSAGE_ID, MESSAGE_REVISION, MESSAGE_MODEM, MESSAGE_GROUP, MESSAGE_MAX
 };
 
 static const struct blobmsg_policy message_policy[MESSAGE_MAX] = {
@@ -37,28 +38,9 @@ static const struct blobmsg_policy message_policy[MESSAGE_MAX] = {
 	[MESSAGE_CONTENT] = { .name = "content", .type = BLOBMSG_TYPE_STRING },
 	[MESSAGE_ID] = { .name = "message_id", .type = BLOBMSG_TYPE_STRING },
 	[MESSAGE_REVISION] = { .name = "revision", .type = BLOBMSG_TYPE_UNSPEC },
-	[MESSAGE_MODEM] = { .name = "modem_id", .type = BLOBMSG_TYPE_STRING }
+	[MESSAGE_MODEM] = { .name = "modem_id", .type = BLOBMSG_TYPE_STRING },
+	[MESSAGE_GROUP] = { .name = "group", .type = BLOBMSG_TYPE_STRING }
 };
-
-static int enabled(const char *section)
-{
-	struct uci_context *context = uci_alloc_context();
-	struct uci_package *package = NULL;
-	struct uci_section *uci_section;
-	const char *value;
-	int result = 0;
-	if (!context || uci_load(context, "qmodem_sip", &package) != UCI_OK)
-		goto out;
-	uci_section = uci_lookup_section(context, package, section);
-	value = uci_section ? uci_lookup_option_string(context, uci_section, "enabled") : NULL;
-	result = value && !strcmp(value, "1");
-out:
-	if (package)
-		uci_unload(context, package);
-	if (context)
-		uci_free_context(context);
-	return result;
-}
 
 static int process_live(const char *path)
 {
@@ -89,20 +71,64 @@ static void direction_status_cb(struct ubus_request *request, int type,
 		blobmsg_add_u8(reply->buffer, "registered", blobmsg_get_bool(values[0]));
 }
 
-static void add_direction(struct ubus_context *context, struct blob_buf *buffer,
-	const char *name, const char *pidfile)
+static void add_groups(struct ubus_context *context, struct blob_buf *buffer)
 {
-	struct direction_status_reply reply = { .buffer = buffer };
-	char object_name[64];
-	uint32_t id;
-	void *table = blobmsg_open_table(buffer, name);
-	blobmsg_add_u8(buffer, "enabled", enabled(name));
-	blobmsg_add_u8(buffer, "running", process_live(pidfile));
-	(void)snprintf(object_name, sizeof(object_name), "qmodem.sip.%s", name);
-	if (ubus_lookup_id(context, object_name, &id) == 0)
-		(void)ubus_invoke(context, id, "status", NULL, direction_status_cb,
-			&reply, 1000);
-	blobmsg_close_table(buffer, table);
+    struct uci_context *uci = uci_alloc_context();
+    struct uci_package *package = NULL;
+    struct uci_element *element;
+    void *array = blobmsg_open_array(buffer, "directions");
+    if (uci && uci_load(uci, "qmodem_sip", &package) == UCI_OK) {
+        uci_foreach_element(&package->sections, element) {
+            struct uci_section *section = uci_to_section(element);
+            const char *group, *direction, *sms, *voice;
+            char object_name[160], pidfile[256]; uint32_t id;
+            struct direction_status_reply reply = { .buffer=buffer };
+            void *table;
+            if (strcmp(section->type, "direction")) continue;
+            group=uci_lookup_option_string(uci,section,"group");
+            direction=uci_lookup_option_string(uci,section,"direction");
+            if (!group || !direction) continue;
+            sms=uci_lookup_option_string(uci,section,"sms_enabled");
+            voice=uci_lookup_option_string(uci,section,"voip_enabled");
+            snprintf(object_name,sizeof(object_name),"qmodem.sip.%s.%s",group,direction);
+            snprintf(pidfile,sizeof(pidfile),"/var/run/qmodem_sip/%s-%s.pid",group,direction);
+            table=blobmsg_open_table(buffer,NULL);
+            blobmsg_add_string(buffer,"section",section->e.name);
+            blobmsg_add_string(buffer,"group",group);
+            blobmsg_add_string(buffer,"direction",direction);
+            blobmsg_add_u8(buffer,"enabled",(sms&&!strcmp(sms,"1"))||(voice&&!strcmp(voice,"1")));
+            blobmsg_add_u8(buffer,"running",process_live(pidfile));
+            if (!ubus_lookup_id(context,object_name,&id)) ubus_invoke(context,id,"status",NULL,direction_status_cb,&reply,1000);
+            blobmsg_close_table(buffer,table);
+        }
+    }
+    if(package)uci_unload(uci,package);
+    if(uci)uci_free_context(uci);
+    blobmsg_close_array(buffer,array);
+}
+
+/* Select by explicit group or modem. Ambiguous requests fail closed. */
+static int select_group(const char *requested, const char *modem, char output[64])
+{
+    if(requested && !*requested)requested=NULL;
+    if(modem && !*modem)modem=NULL;
+    struct uci_context *uci=uci_alloc_context(); struct uci_package *package=NULL;
+    struct uci_element *element; int matches=0;
+    if(uci && uci_load(uci,"qmodem_sip",&package)==UCI_OK) {
+        uci_foreach_element(&package->sections,element) {
+            struct uci_section *section=uci_to_section(element);
+            const char *id;
+            if(strcmp(section->type,"group"))continue;
+            id=uci_lookup_option_string(uci,section,"modem_id");
+            if(requested && strcmp(requested,section->e.name))continue;
+            if(modem && (!id || strcmp(modem,id)))continue;
+            if(strlen(section->e.name)>=64)continue;
+            strcpy(output,section->e.name);matches++;
+        }
+    }
+    if(package)uci_unload(uci,package);
+    if(uci)uci_free_context(uci);
+    return matches==1 ? 0 : -1;
 }
 
 static void add_credential_status(struct blob_buf *buffer)
@@ -137,8 +163,7 @@ static int status_method(struct ubus_context *context, struct ubus_object *obj,
 	blob_buf_init(&buffer, 0);
 	blobmsg_add_string(&buffer, "status", "ok");
 	add_credential_status(&buffer);
-	add_direction(context, &buffer, "inbound", INBOUND_PIDFILE);
-	add_direction(context, &buffer, "outbound", OUTBOUND_PIDFILE);
+	add_groups(context, &buffer);
 	blobmsg_add_u8(&buffer, "voipd_available",
 		ubus_lookup_id(context, "qmodem_voip", &id) == 0);
 	blobmsg_add_u8(&buffer, "smsd_available",
@@ -158,11 +183,35 @@ static int generate_method(struct ubus_context *context, struct ubus_object *obj
 	long process = 0;
 	(void)obj; (void)method;
 	blobmsg_parse(policy, ARG_MAX, values, blob_data(message), blob_len(message));
+    char group[64], section_name[64]={0}, credentials[192], pidfile[192];
+    struct uci_context *uci=uci_alloc_context(); struct uci_package *package=NULL;
+    struct uci_element *element;
+    int matches=0;
+    if(select_group(values[ARG_GROUP] ? blobmsg_get_string(values[ARG_GROUP]) : NULL,NULL,group)) {
+        if(uci)uci_free_context(uci);
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    }
+    if(uci && uci_load(uci,"qmodem_sip",&package)==UCI_OK) {
+        uci_foreach_element(&package->sections,element) {
+            struct uci_section *section=uci_to_section(element);
+            const char *g=uci_lookup_option_string(uci,section,"group");
+            const char *d=uci_lookup_option_string(uci,section,"direction");
+            if(strcmp(section->type,"direction") || !g || !d || strcmp(g,group) || strcmp(d,"inbound") || strlen(section->e.name)>=sizeof(section_name))continue;
+            strcpy(section_name,section->e.name);matches++;
+        }
+    }
+    if(package)uci_unload(uci,package);
+    if(uci)uci_free_context(uci);
+    if(matches!=1)return UBUS_STATUS_INVALID_ARGUMENT;
+    snprintf(credentials,sizeof(credentials),"/var/run/qmodem_sip/%s-inbound.credentials",group);
+    snprintf(pidfile,sizeof(pidfile),"/var/run/qmodem_sip/%s-inbound.pid",group);
+    setenv("QMODEM_SIP_SECTION",section_name,1);
+    setenv("QMODEM_SIP_CREDENTIALS",credentials,1);
 	if (!values[ARG_USERNAME] ||
 	    qmodem_voip_sip_credentials_generate(blobmsg_get_string(values[ARG_USERNAME]),
 		password) != 0)
 		return UBUS_STATUS_INVALID_ARGUMENT;
-	file = fopen(INBOUND_PIDFILE, "r");
+	file = fopen(pidfile, "r");
 	if (file) {
 		(void)fscanf(file, "%ld", &process);
 		(void)fclose(file);
@@ -197,7 +246,7 @@ static int send_message_method(struct ubus_context *context, struct ubus_object 
 	struct proxy_reply reply = { 0 };
 	struct blob_buf buffer = { 0 };
 	const char *direction;
-	char target[64];
+	char target[160], group[64];
 	uint32_t id;
 	int result;
 	(void)obj; (void)method;
@@ -207,7 +256,10 @@ static int send_message_method(struct ubus_context *context, struct ubus_object 
 	direction = blobmsg_get_string(values[MESSAGE_DIRECTION]);
 	if (strcmp(direction, "inbound") && strcmp(direction, "outbound"))
 		return UBUS_STATUS_INVALID_ARGUMENT;
-	(void)snprintf(target, sizeof(target), "qmodem.sip.%s", direction);
+	if (select_group(values[MESSAGE_GROUP] ? blobmsg_get_string(values[MESSAGE_GROUP]) : NULL,
+        values[MESSAGE_MODEM] ? blobmsg_get_string(values[MESSAGE_MODEM]) : NULL, group))
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    (void)snprintf(target, sizeof(target), "qmodem.sip.%s.%s", group, direction);
 	if (ubus_lookup_id(context, target, &id) != 0)
 		return UBUS_STATUS_NOT_FOUND;
 	result = ubus_invoke(context, id, "send_message", message, proxy_reply_cb,
@@ -242,8 +294,15 @@ static void stop_handler(int signo)
 	uloop_end();
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+    if (argc == 4 && !strcmp(argv[1], "--sync")) {
+        char username[QMODEM_VOIP_SIP_USERNAME_SIZE];
+        setenv("QMODEM_SIP_SECTION", argv[2], 1);
+        setenv("QMODEM_SIP_CREDENTIALS", argv[3], 1);
+        return qmodem_voip_sip_credentials_sync(username) ? 1 : 0;
+    }
+    if (argc != 1) return 2;
 	signal(SIGINT, stop_handler);
 	signal(SIGTERM, stop_handler);
 	if (uloop_init() != 0)

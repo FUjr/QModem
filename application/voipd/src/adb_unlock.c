@@ -13,7 +13,7 @@
 
 #define AT_ADAPTER "/usr/lib/qmodem_voip/at_daemon_adapter.sh"
 #define ADB_KEY_TEXT "SH_adb_quectel"
-#define ADB_PROGRAM "/usr/bin/adb"
+#define ADB_PROGRAM "/usr/lib/qmodem_voip/adb_selected.sh"
 #define MEDIA_GATE_SOURCE "/usr/share/qmodem_voip/module/libqvoice_media_gate.so"
 #define MEDIA_GATE_TEMP "/tmp/libqvoice_media_gate.so"
 #define MEDIA_GATE_INSTALL_SOURCE "/usr/share/qmodem_voip/module/install_media_gate.sh"
