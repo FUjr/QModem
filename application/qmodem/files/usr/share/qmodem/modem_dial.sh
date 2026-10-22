@@ -527,7 +527,7 @@ update_config()
         donot_nat=1
     fi
     driver=$(get_driver)
-    update_sim_slot
+    if [ "${offline_cleanup:-0}" = 1 ]; then sim_slot=1; else update_sim_slot; fi
     case $sim_slot in
         1)
         config_get apn $modem_config apn
@@ -1029,11 +1029,19 @@ flush_ip_cb()
     
 }
 
+dial_device_present()
+{
+    "$SCRIPT_DIR/modem_ready.sh" check "$modem_config" && return 0
+    /usr/bin/modem_scanc check "$modem_config" >/dev/null 2>&1
+    return 1
+}
+
 dial(){
     exec 7>"$MODEM_RUNDIR/${modem_config}_dir/dial.lock"
     flock -n 7 || return 1
+    "$SCRIPT_DIR/modem_ready.sh" check "$modem_config" || return 1
     update_config
-    [ "$state" != disabled ] && [ "$enable_dial" = 1 ] && [ "$global_dial" != 0 ] || return 1
+    [ "$state" = enabled ] && [ "$enable_dial" = 1 ] && [ "$global_dial" != 0 ] || return 1
     export QMODEM_INSTANCE="$modem_config" QMODEM_INTERFACE="$interface_name"
     QMODEM_GENERATION="$$-$(date +%s)"
     export QMODEM_GENERATION
@@ -1051,11 +1059,13 @@ dial(){
     m_debug "modem_path=$modem_path,driver=$driver,interface=$interface_name,at_port=$at_port,using_sim_slot:$sim_slot,dns_list:$dns_list,bridge_enabled:$bridge_enabled,bridge_ports:$bridge_ports_selected,bridge_management_ip:$bridge_management_ip"
     while [ "$dial_prepare" != 1 ] ; do
         sleep 5
+        "$SCRIPT_DIR/modem_ready.sh" check "$modem_config" || return 1
         update_config
-        [ "$state" != disabled ] && [ "$enable_dial" = 1 ] && [ "$global_dial" != 0 ] || return 1
+        [ "$state" = enabled ] && [ "$enable_dial" = 1 ] && [ "$global_dial" != 0 ] || return 1
         check_dial_prepare
         dial_prepare=$?
     done
+    "$SCRIPT_DIR/modem_ready.sh" check "$modem_config" || return 1
     set_if || return 1
     export QMODEM_INTERFACE="$interface_name"
     host_owner=unsupported
@@ -1269,6 +1279,7 @@ qmi_dial()
     fi
     cmd_line="$cmd_line -f $log_file"
     while true; do
+        dial_device_present || return 1
         m_debug "dialing: $cmd_line"
         $cmd_line &
         local cm_pid=$!
@@ -1781,7 +1792,8 @@ at_dial_monitor()
     if [ $auto_dial_support -eq 0 ]; then
         m_debug "dialing service is managed by modem(auto dial), do not need monitor"
         while true; do
-            sleep 30
+            dial_device_present || return 1
+            sleep 5
         done
     fi
     at_dial
@@ -1789,6 +1801,7 @@ at_dial_monitor()
     ipv6_cache=$ipv6
     sleep 5
     while true; do
+        dial_device_present || return 1
         check_ip
         case $connection_status in
             0)
@@ -1825,15 +1838,34 @@ at_dial_monitor()
     done
 }
 
+QMODEM_REQUIRE_READY=1
 case "$2" in
+    "offline")
+        offline_cleanup=1
+        debug_subject="modem_offline"
+        update_config
+        cleanup_rc=0
+        wwan_hang || cleanup_rc=$?
+        flush_if || cleanup_rc=$?
+        exit "$cleanup_rc";;
     "hang")
         ( mkdir -p "$MODEM_RUNDIR/${modem_config}_dir"
           exec 9>"$MODEM_RUNDIR/${modem_config}_dir/event.lock"; flock -x 9
           rm -f "$MODEM_RUNDIR/${modem_config}_dir/generation" "$MODEM_RUNDIR/${modem_config}_dir/ipv4.json" "$MODEM_RUNDIR/${modem_config}_dir/backend.json" )
         debug_subject="modem_hang"
+        if ! "$SCRIPT_DIR/modem_ready.sh" check "$modem_config"; then
+            offline_cleanup=1
+        fi
         update_config
+        if [ "${offline_cleanup:-0}" = 1 ]; then
+            cleanup_rc=0
+            wwan_hang || cleanup_rc=$?
+            flush_if || cleanup_rc=$?
+            exit "$cleanup_rc"
+        fi
         hang;;
     "dial")
+        "$SCRIPT_DIR/modem_ready.sh" check "$modem_config" || exit 1
         case "$state" in
             "disabled")
                 debug_subject="modem_hang"

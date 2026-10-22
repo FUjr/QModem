@@ -97,6 +97,10 @@ at()
   [ -n "$port_key" ] || exit 2
   mkdir -p /var/lock
   exec 6>"/var/lock/qmodem-at-$port_key.lock"; flock -x 6 || exit 1
+  if [ "${QMODEM_REQUIRE_READY:-0}" = 1 ]; then
+    "${SCRIPT_DIR}/modem_ready.sh" check "$modem_config" || exit 1
+    [ "$1" = "$(uci -q get "qmodem.$modem_config.at_port")" ] || exit 1
+  fi
   local at_port=$1
   local new_str="${2/[$]/$}"
   local atcmd="${new_str/\"/\"}"

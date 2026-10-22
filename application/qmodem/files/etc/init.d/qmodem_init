@@ -14,7 +14,7 @@ start_service() {
     config_get enable_usb_scan main enable_usb_scan 0
     config_get try_preset_usb main try_preset_usb 1
     config_get try_preset_pcie main try_preset_pcie 1
-    #once enabled, skip all check or scan
+    # scand always validates configured devices; this only blocks discovery.
     [ "$block_auto_probe" -eq 1 ] && return
 
     #enabled by default
@@ -45,13 +45,11 @@ boot() {
 
 _try_vendor_preset_usb()
 {
-    config_foreach _try_usb_device modem-device
     config_foreach _try_usb_slot modem-slot
 }
 
 _try_vendor_preset_pcie()
 {
-    config_foreach _try_pcie_device modem-device
     config_foreach _try_pcie_slot modem-slot
 }
 
@@ -65,18 +63,6 @@ _try_usb_slot()
 {
     config_get type "$1" type
     [ "$type" == "usb" ] && _try_slot $1
-}
-
-_try_usb_device()
-{
-    config_get data_interface $1 data_interface
-    [ "$data_interface" == "usb" ] && _try_device $1
-}
-
-_try_pcie_device()
-{
-    config_get data_interface $1 data_interface
-    [ "$data_interface" == "pcie" ] && _try_device $1
 }
 
 _scan_usb()
@@ -125,28 +111,5 @@ _try_slot()
         ( sleep 1; /usr/share/qmodem/modem_scan.sh add "$slot" "$type" >/dev/null 2>&1 ) &
     else
         ( sleep 1; /usr/share/qmodem/modem_scan.sh disable "$slot" >/dev/null 2>&1 ) &
-    fi
-}
-
-_try_device()
-{
-    config_get path "$1" path
-    config_get network "$1" network
-    config_get slot "$1" slot
-    [ -n "$slot" ] || slot=$(basename "$path")
-    config_get data_interface "$1" data_interface
-    if [ ! -d "$path" ]; then
-        ( sleep 1; /usr/share/qmodem/modem_scan.sh disable "$slot" >/dev/null 2>&1 ) &
-        return
-    fi
-    # if device_path is not parent of netdevice_path, disable device path and scan again
-    network=$(/usr/share/qmodem/modem_netdev.sh "$1")
-    netdevice_path=$(readlink -f "/sys/class/net/$network/device/")
-    device_path=`readlink -f $path`
-    echo "$netdevice_path" | grep -q "^$device_path"
-    is_parent=$?
-    if [ "$is_parent" -ne 0 ] || [ ! -d "$netdevice_path" ]; then
-        ( sleep 1; /usr/share/qmodem/modem_scan.sh disable "$slot" >/dev/null 2>&1 ) &
-        ( sleep 1; /usr/share/qmodem/modem_scan.sh add "$(basename "$path")" "$data_interface" >/dev/null 2>&1 ) &
     fi
 }
