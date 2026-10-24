@@ -45,8 +45,8 @@ msgstr ""
 msgid "(still in beta)"
 msgstr ""
 
-#: view/qmodem/sms.js:541
-#: view/qmodem/sms_conversation.js:253
+#: view/qmodem/sms.js:542
+#: view/qmodem/sms_conversation.js:262
 msgid "16-bit (Unicode)"
 msgstr ""
 
@@ -54,8 +54,8 @@ msgstr ""
 msgid "5G Ethernet Interface"
 msgstr ""
 
-#: view/qmodem/sms.js:540
-#: view/qmodem/sms_conversation.js:252
+#: view/qmodem/sms.js:541
+#: view/qmodem/sms_conversation.js:261
 msgid "7-bit (ASCII)"
 msgstr ""
 
@@ -170,13 +170,13 @@ msgstr ""
 msgid "Add Retry Max"
 msgstr ""
 
-#: view/qmodem/sms.js:96
-#: view/qmodem/sms_conversation.js:114
+#: view/qmodem/sms.js:97
+#: view/qmodem/sms_conversation.js:115
 msgid "Adjust received messages for local timezone (UTC+8)"
 msgstr ""
 
-#: view/qmodem/sms.js:121
-#: view/qmodem/sms_conversation.js:139
+#: view/qmodem/sms.js:122
+#: view/qmodem/sms_conversation.js:140
 msgid "Adjust sent messages for local timezone (UTC+8)"
 msgstr ""
 
@@ -218,11 +218,11 @@ msgstr ""
 msgid "Apply"
 msgstr ""
 
-#: view/qmodem/sms.js:244
+#: view/qmodem/sms.js:245
 msgid "Apply Storage Settings"
 msgstr ""
 
-#: view/qmodem/sms.js:730
+#: view/qmodem/sms.js:736
 msgid "Applying settings..."
 msgstr ""
 
@@ -261,6 +261,10 @@ msgstr ""
 msgid "Are you sure you want to remove this modem device? this cannot be roll back with uci machanism."
 msgstr ""
 
+#: qmodem/sms-address.js:10
+msgid "As entered"
+msgstr ""
+
 #: view/qmodem/settings.js:513
 msgid "Associated USB"
 msgstr ""
@@ -284,11 +288,11 @@ msgstr ""
 msgid "Auto Choose"
 msgstr ""
 
-#: view/qmodem/sms.js:155
+#: view/qmodem/sms.js:156
 msgid "Auto Delete from SIM"
 msgstr ""
 
-#: view/qmodem/sms.js:165
+#: view/qmodem/sms.js:166
 msgid "Automatically delete SMS from SIM card after reading"
 msgstr ""
 
@@ -300,7 +304,7 @@ msgstr ""
 msgid "Available Devices"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:158
+#: view/qmodem/sms_conversation.js:159
 msgid "Back"
 msgstr ""
 
@@ -399,7 +403,7 @@ msgstr ""
 
 #: view/qmodem/network_config.js:996
 #: view/qmodem/settings.js:279
-#: view/qmodem/sms.js:565
+#: view/qmodem/sms.js:566
 #: view/qmodem/sms_forward.js:303
 #: view/qmodem/sms_sim.js:277
 #: view/qmodem/sms_sim.js:328
@@ -542,7 +546,7 @@ msgid "China Unicom (CN)"
 msgstr ""
 
 #: view/qmodem/network_config.js:918
-#: view/qmodem/sms_conversation.js:313
+#: view/qmodem/sms_conversation.js:322
 msgid "Clear"
 msgstr ""
 
@@ -573,7 +577,8 @@ msgstr ""
 msgid "Configuration inputs not found"
 msgstr ""
 
-#: view/qmodem/sms.js:313
+#: qmodem/sms-address.js:35
+#: view/qmodem/sms.js:314
 msgid "Configuration saved"
 msgstr ""
 
@@ -642,7 +647,7 @@ msgstr ""
 msgid "Connected"
 msgstr ""
 
-#: view/qmodem/sms.js:423
+#: view/qmodem/sms.js:424
 msgid "Contact"
 msgstr ""
 
@@ -654,11 +659,11 @@ msgstr ""
 msgid "Control"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:160
+#: view/qmodem/sms_conversation.js:161
 msgid "Conversation with "
 msgstr ""
 
-#: view/qmodem/sms.js:415
+#: view/qmodem/sms.js:416
 msgid "Conversations"
 msgstr ""
 
@@ -666,8 +671,13 @@ msgstr ""
 msgid "Copy"
 msgstr ""
 
-#: view/qmodem/sms.js:426
+#: view/qmodem/sms.js:427
 msgid "Count"
+msgstr ""
+
+#: qmodem/sms-address.js:10
+#: qmodem/sms-address.js:14
+msgid "Country calling code (optional)"
 msgstr ""
 
 #: view/qmodem/config_advanced.js:491
@@ -741,11 +751,11 @@ msgstr ""
 msgid "DNS"
 msgstr ""
 
-#: view/qmodem/sms.js:133
+#: view/qmodem/sms.js:134
 msgid "Database with URC"
 msgstr ""
 
-#: view/qmodem/sms.js:132
+#: view/qmodem/sms.js:133
 msgid "Database with polling"
 msgstr ""
 
@@ -782,7 +792,7 @@ msgstr ""
 msgid "Delay of executing AT command before dialing, in seconds."
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:534
+#: view/qmodem/sms_conversation.js:559
 #: view/qmodem/sms_sim.js:191
 #: view/qmodem/sms_sim.js:307
 msgid "Delete"
@@ -793,7 +803,7 @@ msgstr ""
 msgid "Delete All"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:529
+#: view/qmodem/sms_conversation.js:554
 msgid "Delete this message?"
 msgstr ""
 
@@ -861,7 +871,7 @@ msgstr ""
 msgid "Dial disabled for this modem"
 msgstr ""
 
-#: view/qmodem/sms.js:131
+#: view/qmodem/sms.js:132
 msgid "Direct modem access"
 msgstr ""
 
@@ -982,8 +992,8 @@ msgstr ""
 msgid "Enable USB Scan"
 msgstr ""
 
-#: view/qmodem/sms.js:117
-#: view/qmodem/sms_conversation.js:135
+#: view/qmodem/sms.js:118
+#: view/qmodem/sms_conversation.js:136
 msgid "Enable if SMS timestamps appear 8 hours ahead (e.g., UTC+8 local time parsed as UTC+0)"
 msgstr ""
 
@@ -998,8 +1008,8 @@ msgstr ""
 msgid "Enabled"
 msgstr ""
 
-#: view/qmodem/sms.js:534
-#: view/qmodem/sms_conversation.js:246
+#: view/qmodem/sms.js:535
+#: view/qmodem/sms_conversation.js:255
 msgid "Encoding"
 msgstr ""
 
@@ -1021,12 +1031,12 @@ msgstr ""
 msgid "Enter exactly 15 digits"
 msgstr ""
 
-#: view/qmodem/sms.js:518
+#: view/qmodem/sms.js:511
 msgid "Enter phone number"
 msgstr ""
 
-#: view/qmodem/sms.js:529
-#: view/qmodem/sms_conversation.js:237
+#: view/qmodem/sms.js:530
+#: view/qmodem/sms_conversation.js:246
 msgid "Enter your message here..."
 msgstr ""
 
@@ -1066,11 +1076,11 @@ msgstr ""
 msgid "Error loading SIM switch information: %s"
 msgstr ""
 
-#: view/qmodem/sms.js:714
+#: view/qmodem/sms.js:720
 msgid "Error loading SMS storage: "
 msgstr ""
 
-#: view/qmodem/sms.js:356
+#: view/qmodem/sms.js:357
 msgid "Error loading SMS: "
 msgstr ""
 
@@ -1082,7 +1092,7 @@ msgstr ""
 msgid "Error loading lock band configuration:"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:412
+#: view/qmodem/sms_conversation.js:434
 msgid "Error loading messages: "
 msgstr ""
 
@@ -1118,7 +1128,7 @@ msgstr ""
 msgid "Error scanning neighbor cells: %s"
 msgstr ""
 
-#: view/qmodem/sms.js:749
+#: view/qmodem/sms.js:755
 msgid "Error setting SMS storage: "
 msgstr ""
 
@@ -1160,7 +1170,7 @@ msgstr ""
 msgid "Extend Prefix"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:519
+#: view/qmodem/sms_conversation.js:544
 msgid "Failed"
 msgstr ""
 
@@ -1176,8 +1186,8 @@ msgstr ""
 msgid "Failed to clear log"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:574
-#: view/qmodem/sms_conversation.js:585
+#: view/qmodem/sms_conversation.js:599
+#: view/qmodem/sms_conversation.js:610
 #: view/qmodem/sms_sim.js:289
 msgid "Failed to delete SMS: "
 msgstr ""
@@ -1200,7 +1210,7 @@ msgstr ""
 msgid "Failed to enable QModem Network: "
 msgstr ""
 
-#: view/qmodem/sms.js:669
+#: view/qmodem/sms.js:675
 msgid "Failed to get SMS storage: "
 msgstr ""
 
@@ -1220,7 +1230,7 @@ msgstr ""
 msgid "Failed to load SIM SMS: "
 msgstr ""
 
-#: view/qmodem/sms.js:367
+#: view/qmodem/sms.js:368
 msgid "Failed to load SMS: "
 msgstr ""
 
@@ -1228,11 +1238,15 @@ msgstr ""
 msgid "Failed to load available modes"
 msgstr ""
 
+#: qmodem/sms-address.js:50
+msgid "Failed to load country calling code"
+msgstr ""
+
 #: view/qmodem/network_config.js:949
 msgid "Failed to load log"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:423
+#: view/qmodem/sms_conversation.js:445
 msgid "Failed to load messages: "
 msgstr ""
 
@@ -1254,18 +1268,18 @@ msgstr ""
 msgid "Failed to restart QModem Network: "
 msgstr ""
 
-#: view/qmodem/sms.js:315
+#: view/qmodem/sms.js:316
 msgid "Failed to save configuration: "
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:518
+#: view/qmodem/sms_conversation.js:543
 msgid "Failed to send"
 msgstr ""
 
-#: view/qmodem/sms.js:598
-#: view/qmodem/sms.js:611
-#: view/qmodem/sms_conversation.js:343
-#: view/qmodem/sms_conversation.js:359
+#: view/qmodem/sms.js:604
+#: view/qmodem/sms.js:617
+#: view/qmodem/sms_conversation.js:358
+#: view/qmodem/sms_conversation.js:376
 msgid "Failed to send SMS: "
 msgstr ""
 
@@ -1285,11 +1299,11 @@ msgstr ""
 msgid "Failed to set IMEI"
 msgstr ""
 
-#: view/qmodem/sms.js:745
+#: view/qmodem/sms.js:751
 msgid "Failed to set SMS storage"
 msgstr ""
 
-#: view/qmodem/sms.js:736
+#: view/qmodem/sms.js:742
 msgid "Failed to set SMS storage: "
 msgstr ""
 
@@ -1356,7 +1370,7 @@ msgstr ""
 msgid "Freq band indicator"
 msgstr ""
 
-#: qmodem/sms.js:131
+#: qmodem/sms.js:137
 msgid "Friday"
 msgstr ""
 
@@ -1502,7 +1516,7 @@ msgstr ""
 msgid "If the PIN code is not set, leave it blank."
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:509
+#: view/qmodem/sms_conversation.js:534
 msgid "Incomplete (part "
 msgstr ""
 
@@ -1599,7 +1613,7 @@ msgstr ""
 msgid "Internet Service Provider"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:62
+#: view/qmodem/sms_conversation.js:63
 msgid "Invalid contact"
 msgstr ""
 
@@ -1640,7 +1654,7 @@ msgstr ""
 msgid "LTE UL"
 msgstr ""
 
-#: view/qmodem/sms.js:424
+#: view/qmodem/sms.js:425
 msgid "Last Message"
 msgstr ""
 
@@ -1649,8 +1663,12 @@ msgstr ""
 msgid "Last update"
 msgstr ""
 
-#: view/qmodem/sms.js:549
-#: view/qmodem/sms_conversation.js:266
+#: qmodem/sms-address.js:17
+msgid "Leave empty to send as entered, including service numbers. Use + for a complete international number. When adding a country code, omit the domestic trunk prefix."
+msgstr ""
+
+#: view/qmodem/sms.js:550
+#: view/qmodem/sms_conversation.js:275
 msgid "Length"
 msgstr ""
 
@@ -1666,7 +1684,7 @@ msgstr ""
 msgid "Loading band configuration..."
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:173
+#: view/qmodem/sms_conversation.js:174
 msgid "Loading messages..."
 msgstr ""
 
@@ -1687,19 +1705,19 @@ msgstr ""
 #: view/qmodem/network_config.js:300
 #: view/qmodem/network_config.js:883
 #: view/qmodem/sim_switch.js:87
-#: view/qmodem/sms.js:192
-#: view/qmodem/sms.js:209
-#: view/qmodem/sms.js:226
-#: view/qmodem/sms.js:268
-#: view/qmodem/sms.js:288
-#: view/qmodem/sms.js:296
-#: view/qmodem/sms.js:304
-#: view/qmodem/sms.js:466
-#: view/qmodem/sms.js:494
-#: view/qmodem/sms_conversation.js:188
-#: view/qmodem/sms_conversation.js:196
-#: view/qmodem/sms_conversation.js:204
-#: view/qmodem/sms_conversation.js:581
+#: view/qmodem/sms.js:193
+#: view/qmodem/sms.js:210
+#: view/qmodem/sms.js:227
+#: view/qmodem/sms.js:269
+#: view/qmodem/sms.js:289
+#: view/qmodem/sms.js:297
+#: view/qmodem/sms.js:305
+#: view/qmodem/sms.js:467
+#: view/qmodem/sms.js:495
+#: view/qmodem/sms_conversation.js:194
+#: view/qmodem/sms_conversation.js:202
+#: view/qmodem/sms_conversation.js:210
+#: view/qmodem/sms_conversation.js:606
 #: view/qmodem/sms_sim.js:73
 #: view/qmodem/sms_sim.js:82
 #: view/qmodem/sms_sim.js:238
@@ -1804,8 +1822,8 @@ msgstr ""
 msgid "Megafon (RU)"
 msgstr ""
 
-#: view/qmodem/sms.js:523
-#: view/qmodem/sms_conversation.js:231
+#: view/qmodem/sms.js:524
+#: view/qmodem/sms_conversation.js:240
 msgid "Message"
 msgstr ""
 
@@ -1817,7 +1835,7 @@ msgstr ""
 msgid "Message channel, use | to separate multiple channels"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:578
+#: view/qmodem/sms_conversation.js:603
 msgid "Message deleted"
 msgstr ""
 
@@ -1825,8 +1843,8 @@ msgstr ""
 msgid "Message deleted successfully"
 msgstr ""
 
-#: view/qmodem/sms.js:603
-#: view/qmodem/sms_conversation.js:348
+#: view/qmodem/sms.js:609
+#: view/qmodem/sms_conversation.js:365
 msgid "Message sent successfully"
 msgstr ""
 
@@ -1866,10 +1884,10 @@ msgstr ""
 msgid "Mobile Country Code"
 msgstr ""
 
-#: view/qmodem/sms.js:190
-#: view/qmodem/sms.js:207
-#: view/qmodem/sms.js:224
-#: view/qmodem/sms.js:692
+#: view/qmodem/sms.js:191
+#: view/qmodem/sms.js:208
+#: view/qmodem/sms.js:225
+#: view/qmodem/sms.js:698
 msgid "Mobile Equipment (ME)"
 msgstr ""
 
@@ -1950,8 +1968,8 @@ msgstr ""
 #: view/qmodem/debug.js:27
 #: view/qmodem/overview.js:486
 #: view/qmodem/sim_switch.js:31
-#: view/qmodem/sms.js:63
-#: view/qmodem/sms_conversation.js:81
+#: view/qmodem/sms.js:64
+#: view/qmodem/sms_conversation.js:82
 #: view/qmodem/sms_sim.js:39
 msgid "Modem Name"
 msgstr ""
@@ -1980,7 +1998,7 @@ msgstr ""
 msgid "Modem device removed successfully"
 msgstr ""
 
-#: qmodem/sms.js:131
+#: qmodem/sms.js:137
 msgid "Monday"
 msgstr ""
 
@@ -1988,7 +2006,7 @@ msgstr ""
 msgid "MsChapV2"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:500
+#: view/qmodem/sms_conversation.js:525
 msgid "Multi-part"
 msgstr ""
 
@@ -2109,8 +2127,8 @@ msgstr ""
 msgid "Network preference set successfully"
 msgstr ""
 
-#: view/qmodem/sms.js:488
-#: view/qmodem/sms.js:557
+#: view/qmodem/sms.js:489
+#: view/qmodem/sms.js:558
 msgid "New Conversation"
 msgstr ""
 
@@ -2145,7 +2163,7 @@ msgstr ""
 msgid "No log content to download"
 msgstr ""
 
-#: view/qmodem/sms.js:410
+#: view/qmodem/sms.js:411
 msgid "No messages found"
 msgstr ""
 
@@ -2153,7 +2171,7 @@ msgstr ""
 msgid "No messages found on SIM card"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:466
+#: view/qmodem/sms_conversation.js:491
 msgid "No messages in this conversation"
 msgstr ""
 
@@ -2174,8 +2192,8 @@ msgid "No modem information available"
 msgstr ""
 
 #: view/qmodem/overview.js:476
-#: view/qmodem/sms.js:54
-#: view/qmodem/sms_conversation.js:71
+#: view/qmodem/sms.js:55
+#: view/qmodem/sms_conversation.js:72
 #: view/qmodem/sms_sim.js:30
 msgid "No modems configured or all modems are disabled."
 msgstr ""
@@ -2261,7 +2279,7 @@ msgstr ""
 msgid "OpenID for message forwarding, use comma to separate multiple IDs"
 msgstr ""
 
-#: view/qmodem/sms.js:218
+#: view/qmodem/sms.js:219
 msgid "Other Storage"
 msgstr ""
 
@@ -2313,13 +2331,13 @@ msgstr ""
 msgid "PIN Code"
 msgstr ""
 
-#: view/qmodem/sms.js:83
-#: view/qmodem/sms_conversation.js:101
+#: view/qmodem/sms.js:84
+#: view/qmodem/sms_conversation.js:102
 msgid "Parse received SMS time as UTC+0"
 msgstr ""
 
-#: view/qmodem/sms.js:104
-#: view/qmodem/sms_conversation.js:122
+#: view/qmodem/sms.js:105
+#: view/qmodem/sms_conversation.js:123
 msgid "Parse sent SMS time as UTC+0"
 msgstr ""
 
@@ -2332,7 +2350,7 @@ msgid "Path to custom forwarding script. Script receives SMS_SENDER, SMS_TIME, S
 msgstr ""
 
 #: vendor/thales.sh:357
-#: view/qmodem/sms.js:512
+#: view/qmodem/sms.js:517
 msgid "Phone Number"
 msgstr ""
 
@@ -2386,12 +2404,12 @@ msgstr ""
 msgid "Please check browser console for more details"
 msgstr ""
 
-#: view/qmodem/sms.js:585
-#: view/qmodem/sms_conversation.js:330
+#: view/qmodem/sms.js:586
+#: view/qmodem/sms_conversation.js:345
 msgid "Please enter a message"
 msgstr ""
 
-#: view/qmodem/sms.js:580
+#: view/qmodem/sms.js:581
 msgid "Please enter a phone number"
 msgstr ""
 
@@ -2403,11 +2421,11 @@ msgstr ""
 msgid "Please select at least one network type"
 msgstr ""
 
-#: view/qmodem/sms.js:726
+#: view/qmodem/sms.js:732
 msgid "Please wait for storage info to load"
 msgstr ""
 
-#: view/qmodem/sms.js:141
+#: view/qmodem/sms.js:142
 #: view/qmodem/sms_forward.js:57
 msgid "Poll Interval (seconds)"
 msgstr ""
@@ -2526,7 +2544,7 @@ msgstr ""
 msgid "ReDial"
 msgstr ""
 
-#: view/qmodem/sms.js:184
+#: view/qmodem/sms.js:185
 msgid "Reading Storage"
 msgstr ""
 
@@ -2664,7 +2682,7 @@ msgstr ""
 msgid "Reference Signal Received Quality"
 msgstr ""
 
-#: view/qmodem/sms.js:498
+#: view/qmodem/sms.js:499
 #: view/qmodem/sms_sim.js:242
 msgid "Refresh"
 msgstr ""
@@ -2742,10 +2760,10 @@ msgstr ""
 msgid "SCS"
 msgstr ""
 
-#: view/qmodem/sms.js:191
-#: view/qmodem/sms.js:208
-#: view/qmodem/sms.js:225
-#: view/qmodem/sms.js:693
+#: view/qmodem/sms.js:192
+#: view/qmodem/sms.js:209
+#: view/qmodem/sms.js:226
+#: view/qmodem/sms.js:699
 msgid "SIM Card (SM)"
 msgstr ""
 
@@ -2862,7 +2880,7 @@ msgstr ""
 msgid "SMS AT Port"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:60
+#: view/qmodem/sms_conversation.js:61
 msgid "SMS Conversation"
 msgstr ""
 
@@ -2870,7 +2888,7 @@ msgstr ""
 msgid "SMS Forwarder Configuration"
 msgstr ""
 
-#: view/qmodem/sms.js:255
+#: view/qmodem/sms.js:256
 msgid "SMS Messages"
 msgstr ""
 
@@ -2878,24 +2896,28 @@ msgstr ""
 msgid "SMS Messages on SIM Card"
 msgstr ""
 
-#: view/qmodem/sms.js:128
+#: view/qmodem/sms.js:129
 msgid "SMS Mode"
 msgstr ""
 
-#: view/qmodem/sms.js:176
+#: view/qmodem/sms.js:177
 msgid "SMS Storage"
 msgstr ""
 
-#: view/qmodem/sms.js:741
+#: view/qmodem/sms.js:747
 msgid "SMS storage settings applied successfully"
 msgstr ""
 
-#: qmodem/sms.js:131
+#: qmodem/sms.js:137
 msgid "Saturday"
 msgstr ""
 
 #: view/qmodem/sms_forward.js:309
 msgid "Save"
+msgstr ""
+
+#: qmodem/sms-address.js:12
+msgid "Save for this modem"
 msgstr ""
 
 #: view/qmodem/network_config.js:423
@@ -2997,10 +3019,10 @@ msgstr ""
 msgid "Select features to disable for this modem."
 msgstr ""
 
-#: view/qmodem/sms.js:614
-#: view/qmodem/sms_conversation.js:304
-#: view/qmodem/sms_conversation.js:340
-#: view/qmodem/sms_conversation.js:358
+#: view/qmodem/sms.js:620
+#: view/qmodem/sms_conversation.js:313
+#: view/qmodem/sms_conversation.js:355
+#: view/qmodem/sms_conversation.js:375
 msgid "Send"
 msgstr ""
 
@@ -3008,8 +3030,12 @@ msgstr ""
 msgid "Send AT Command"
 msgstr ""
 
-#: view/qmodem/sms_conversation.js:226
+#: view/qmodem/sms_conversation.js:232
 msgid "Send Message"
+msgstr ""
+
+#: qmodem/sms-address.js:18
+msgid "Send to:"
 msgstr ""
 
 #: view/qmodem/sms_sim.js:158
@@ -3020,12 +3046,12 @@ msgstr ""
 msgid "Sending command..."
 msgstr ""
 
-#: view/qmodem/sms.js:592
+#: view/qmodem/sms.js:598
 msgid "Sending message..."
 msgstr ""
 
-#: view/qmodem/sms.js:592
-#: view/qmodem/sms_conversation.js:336
+#: view/qmodem/sms.js:598
+#: view/qmodem/sms_conversation.js:351
 msgid "Sending..."
 msgstr ""
 
@@ -3062,7 +3088,7 @@ msgstr ""
 msgid "Set IMEI"
 msgstr ""
 
-#: view/qmodem/sms.js:730
+#: view/qmodem/sms.js:736
 msgid "Setting SMS Storage"
 msgstr ""
 
@@ -3180,7 +3206,7 @@ msgstr ""
 msgid "Summary"
 msgstr ""
 
-#: qmodem/sms.js:131
+#: qmodem/sms.js:137
 msgid "Sunday"
 msgstr ""
 
@@ -3285,11 +3311,11 @@ msgstr ""
 msgid "This modem does not support SIM switching."
 msgstr ""
 
-#: qmodem/sms.js:131
+#: qmodem/sms.js:137
 msgid "Thursday"
 msgstr ""
 
-#: view/qmodem/sms.js:425
+#: view/qmodem/sms.js:426
 #: view/qmodem/sms_sim.js:159
 msgid "Time"
 msgstr ""
@@ -3343,7 +3369,7 @@ msgstr ""
 msgid "Try Preset USB Port"
 msgstr ""
 
-#: qmodem/sms.js:131
+#: qmodem/sms.js:137
 msgid "Tuesday"
 msgstr ""
 
@@ -3462,7 +3488,7 @@ msgstr ""
 msgid "View and delete SMS messages stored on SIM card. These are raw messages before being processed into conversations."
 msgstr ""
 
-#: view/qmodem/sms.js:260
+#: view/qmodem/sms.js:261
 msgid "View and manage SMS messages. Messages are grouped by sender/recipient."
 msgstr ""
 
@@ -3512,11 +3538,11 @@ msgstr ""
 msgid "Webhook URL"
 msgstr ""
 
-#: qmodem/sms.js:131
+#: qmodem/sms.js:137
 msgid "Wednesday"
 msgstr ""
 
-#: view/qmodem/sms.js:201
+#: view/qmodem/sms.js:202
 msgid "Writing Storage"
 msgstr ""
 
@@ -3532,7 +3558,7 @@ msgstr ""
 msgid "Yes"
 msgstr ""
 
-#: qmodem/sms.js:130
+#: qmodem/sms.js:136
 msgid "Yesterday"
 msgstr ""
 
@@ -3564,37 +3590,4 @@ msgstr ""
 
 #: view/qmodem/network_config.js:345
 msgid "quectel-CM will append the DNS server to the resolv.conf file by default.if you do not want to modify the resolv.conf file, please check this option."
-msgstr ""
-
-msgid "Country calling code (optional)"
-msgstr ""
-
-msgid "As entered"
-msgstr ""
-
-msgid "Save for this modem"
-msgstr ""
-
-msgid "Send to:"
-msgstr ""
-
-msgid "Leave empty to send as entered, including service numbers. Use + for a complete international number. When adding a country code, omit the domestic trunk prefix."
-msgstr ""
-
-msgid "Invalid country calling code"
-msgstr ""
-
-msgid "Invalid phone number"
-msgstr ""
-
-msgid "Invalid international phone number"
-msgstr ""
-
-msgid "Loading country calling code"
-msgstr ""
-
-msgid "Failed to load country calling code"
-msgstr ""
-
-msgid "Failed to save country calling code"
 msgstr ""
