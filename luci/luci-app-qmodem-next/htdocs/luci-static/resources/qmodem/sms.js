@@ -1,9 +1,11 @@
 'use strict';
 'require rpc';
+'require qmodem.sms-number as smsNumber';
 
 var callList = rpc.declare({ object: 'qmodem.sms', method: 'list', params: [ 'modem_id', 'limit', 'offset' ], expect: { } });
 var callSync = rpc.declare({ object: 'qmodem.sms', method: 'sync', params: [ 'modem_id' ], expect: { } });
-var callSend = rpc.declare({ object: 'qmodem.sms', method: 'send', params: [ 'modem_id', 'recipient', 'content' ], expect: { } });
+var callSend = rpc.declare({ object: 'qmodem.sms', method: 'send', params: [ 'modem_id', 'recipient', 'content', 'conversation_contact', 'country_code' ], expect: { } });
+var callSetCountryCode = rpc.declare({ object: 'qmodem.sms', method: 'configure', params: [ 'modem_id', 'country_code' ], expect: { } });
 var callDelete = rpc.declare({ object: 'qmodem.sms', method: 'delete', params: [ 'modem_id', 'id', 'index' ], expect: { } });
 var callMarkRead = rpc.declare({ object: 'qmodem.sms', method: 'mark_read', params: [ 'modem_id', 'id' ], expect: { } });
 var callStorageGet = rpc.declare({ object: 'qmodem.sms', method: 'storage_get', params: [ 'modem_id' ], expect: { } });
@@ -19,19 +21,6 @@ function messagesFrom(result) {
 		if (message.success != null && message.is_success == null) message.is_success = message.success;
 		return message;
 	});
-}
-
-function conversations(messages) {
-	var grouped = {};
-	messages.forEach(function(message) {
-		var contact = message.type === 'received' ? message.sender : message.recipient;
-		if (!grouped[contact]) grouped[contact] = { contact: contact, messages: [], last_timestamp: 0, unread_count: 0 };
-		grouped[contact].messages.push(message);
-		grouped[contact].last_timestamp = Math.max(grouped[contact].last_timestamp, message.timestamp || 0);
-		if (message.type === 'received' && !message.is_read) grouped[contact].unread_count++;
-	});
-	return Object.keys(grouped).map(function(key) { return grouped[key]; })
-		.sort(function(a, b) { return b.last_timestamp - a.last_timestamp; });
 }
 
 function listRaw(modem) {
@@ -75,6 +64,18 @@ return L.Class.extend({
 		});
 	},
 	getConfig: function(configSection) { return callConfigGet(configSection || 'modem_1'); },
+	getCountryCode: function(configSection) {
+		return callConfigGet(configSection || 'modem_1').then(function(result) {
+			if (result.status === 'error') throw new Error(result.error || 'Failed to load country calling code');
+			return result.country_code || '';
+		});
+	},
+	setCountryCode: function(configSection, code) {
+		return callSetCountryCode(configSection || 'modem_1', smsNumber.normalizeCode(code)).then(function(result) {
+			if (result.status === 'error') throw new Error(result.error || 'Failed to save country calling code');
+			return result;
+		});
+	},
 	configure: function(configSection, mode, pollInterval, forwarding, autoDelete) {
 		var modem = configSection || 'modem_1';
 		return callConfigGet(modem).then(function(current) {
@@ -92,18 +93,23 @@ return L.Class.extend({
 			return refresh.then(function() { return first.mode === 'database_poll' ? listRaw(modem) : first; });
 		}).then(function(result) {
 			var messages = messagesFrom(result);
-			return { conversations: conversations(messages), total: messages.length, mode: result.mode };
+			return { conversations: smsNumber.conversations(messages), total: messages.length, mode: result.mode };
 		});
 	},
 	getConversation: function(configSection, contact) {
 		return this.listSms(configSection).then(function(result) {
-			var found = result.conversations.filter(function(item) { return item.contact === contact; })[0];
-			return { messages: found ? found.messages : [] };
+			var found = result.conversations.filter(function(item) {
+				return item.contacts.some(function(address) { return smsNumber.key(address) === smsNumber.key(contact); });
+			})[0];
+			return { contact: found ? found.contact : contact, messages: found ? found.messages : [] };
 		});
 	},
+
 	sync: function(configSection) { return syncRaw(configSection || 'modem_1'); },
-	sendSms: function(configSection, recipient, message) {
-		return callSend(configSection || 'modem_1', recipient, message).then(function(result) { result.success = result.status === 'success'; return result; });
+	sendSms: function(configSection, recipient, message, encoding, conversationContact) {
+		try { recipient = smsNumber.normalize(recipient); }
+		catch (e) { return Promise.reject(e); }
+		return callSend(configSection || 'modem_1', recipient, message, conversationContact, '').then(function(result) { result.success = result.status === 'success'; return result; });
 	},
 	deleteSms: function(configSection, type, ids) { return deleteMany(configSection || 'modem_1', ids); },
 	markRead: function(configSection, ids) {

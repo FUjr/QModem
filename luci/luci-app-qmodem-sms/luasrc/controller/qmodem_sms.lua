@@ -19,7 +19,29 @@ local function reply(value)
 	http.write_json(value)
 end
 
+local function country_code_get(modem_id)
+	return backend_call("config_get", { modem_id = modem_id })
+end
+
+local function country_code_set(modem_id, code)
+	return backend_call("configure", { modem_id = modem_id, country_code = code })
+end
+
+function getCountryCode()
+	local result = country_code_get(http.formvalue("cfg"))
+	http.prepare_content("application/json")
+	http.write_json(result)
+end
+
+function setCountryCode()
+	local result = country_code_set(http.formvalue("cfg"), http.formvalue("country_code") or "")
+	http.prepare_content("application/json")
+	http.write_json(result)
+end
+
 function index()
+	entry({"admin", "modem", "qmodem", "sms_country_code"}, call("getCountryCode"), nil).leaf = true
+	entry({"admin", "modem", "qmodem", "set_sms_country_code"}, post("setCountryCode"), nil).leaf = true
 	entry({"admin", "modem", "qmodem", "modem_sms"}, template("modem_sms/modem_sms"), luci.i18n.translate("SMS"), 11).leaf = true
 	entry({"admin", "modem", "qmodem", "send_sms"}, call("sendSMS"), nil).leaf = true
 	entry({"admin", "modem", "qmodem", "get_sms"}, call("getSMS"), nil).leaf = true
@@ -51,7 +73,8 @@ function sendSMS()
 	local result = backend_call("send", {
 		modem_id = http.formvalue("cfg"),
 		recipient = http.formvalue("phone_number"),
-		content = http.formvalue("message_content")
+		content = http.formvalue("message_content"),
+		country_code = http.formvalue("country_code")
 	})
 	reply({ result = { status = result.status == "success" and 1 or 0 }, backend = result })
 end

@@ -9,8 +9,13 @@
 #define SMS_PDU_H_
 
 #include <time.h>
+#include <stddef.h>
 
 enum { SMS_MAX_PDU_LENGTH  = 256 };
+
+/* Preserve local/service numbers; only '+' selects international addressing. */
+int sms_normalize_number(const char *input, char *output, size_t capacity);
+int sms_resolve_number(const char *input, const char *country_code, char *output, size_t capacity);
 
 /* 
  * Encode an SMS message. Output the encoded message into output pdu buffer.

@@ -4,6 +4,7 @@
 'require ui';
 'require dom';
 'require qmodem.sms as smsService';
+'require qmodem.sms-address as smsAddress';
 
 // Load CSS
 document.head.appendChild(E('link', {
@@ -506,19 +507,19 @@ return view.extend({
 
 	showNewConversationDialog: function(configSection) {
 		var self = this;
+		var phoneField = E('input', { 'type': 'text', 'id': 'new-conversation-phone',
+			'class': 'cbi-input-text', 'placeholder': _('Enter phone number') });
+		var address = smsAddress.create(function() { return phoneField.value; }, function() { return configSection; });
+		phoneField.addEventListener('input', address.update);
 		
 		var modalContent = E('div', { 'class': 'cbi-section' }, [
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Phone Number')),
 				E('div', { 'class': 'cbi-value-field' }, [
-					E('input', {
-						'type': 'text',
-						'id': 'new-conversation-phone',
-						'class': 'cbi-input-text',
-						'placeholder': _('Enter phone number')
-					})
+					phoneField
 				])
 			]),
+			address.node,
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Message')),
 				E('div', { 'class': 'cbi-value-field' }, [
@@ -586,6 +587,11 @@ return view.extend({
 							return;
 						}
 
+						try { phone = address.recipient(); }
+						catch (err) {
+							ui.addNotification(null, E('p', _(err.message)), 'error');
+							return;
+						}
 						// Close modal and send message
 						ui.hideModal();
 						

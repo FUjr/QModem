@@ -12,6 +12,7 @@
 #include "qmodem-sms/pdu.h"
 
 #include <string.h>
+#include <stdio.h>
 #include <time.h>
 
 enum {
@@ -30,6 +31,43 @@ enum {
 
 	SMS_MAX_7BIT_TEXT_LENGTH  = 160,
 };
+
+int sms_normalize_number(const char *input, char *output, size_t capacity)
+{
+	size_t length = 0;
+	if (!input || !output || capacity < 2)
+		return -1;
+	for (; *input; input++) {
+		if (*input == ' ' || *input == '\t' || *input == '(' || *input == ')' || *input == '-')
+			continue;
+		if ((*input < '0' || *input > '9') && !(*input == '+' && length == 0))
+			return -1;
+		if (length + 1 >= capacity)
+			return -1;
+		output[length++] = *input;
+	}
+	output[length] = '\0';
+	if (!length || (output[0] == '+' && (length < 2 || length > 16 || output[1] == '0')) ||
+	    (output[0] != '+' && length > 20))
+		return -1;
+	return 0;
+}
+
+int sms_resolve_number(const char *input, const char *country_code, char *output, size_t capacity)
+{
+	char number[22], combined[26];
+	if (sms_normalize_number(input, number, sizeof(number)) != 0)
+		return -1;
+	if (number[0] == '+' || !country_code || !*country_code)
+		return sms_normalize_number(number, output, capacity);
+	if (*country_code == '+') country_code++;
+	size_t length = strlen(country_code);
+	if (length < 1 || length > 3 || country_code[0] == '0') return -1;
+	for (size_t i = 0; i < length; i++)
+		if (country_code[i] < '0' || country_code[i] > '9') return -1;
+	snprintf(combined, sizeof(combined), "+%s%s", country_code, number);
+	return sms_normalize_number(combined, output, capacity);
+}
 
 // Swap decimal digits of a number (e.g. 12 -> 21).
 static unsigned char 
@@ -332,7 +370,7 @@ EncodePhoneNumber(const char* phone_number, unsigned char* output_buffer, int bu
 	int i = 0;
 	for (; i < phone_number_length; ++i) {
 
-		if (phone_number[i] < '0' && phone_number[i] > '9')
+		if (phone_number[i] < '0' || phone_number[i] > '9')
 			return -1;
 
 		if (i % 2 == 0) {
@@ -367,6 +405,11 @@ int
 pdu_encode(const char* service_center_number, const char* phone_number, const char* sms_text,
 	   unsigned char* output_buffer, int buffer_size)
 {	
+	char normalized[22];
+	if (sms_normalize_number(phone_number, normalized, sizeof(normalized)) != 0)
+		return -1;
+	const int international = normalized[0] == '+';
+	phone_number = normalized + international;
 	if (buffer_size < 2)
 		return -1;
 
@@ -394,11 +437,8 @@ pdu_encode(const char* service_center_number, const char* phone_number, const ch
 	// 3. Set phone number.
 	output_buffer[output_buffer_length] = strlen(phone_number);
 
-	if (strlen(phone_number) < 6) {
-		output_buffer[output_buffer_length + 1] = TYPE_OF_ADDRESS_UNKNOWN;
-	} else {
-		output_buffer[output_buffer_length + 1] = TYPE_OF_ADDRESS_INTERNATIONAL_PHONE;
-	}
+	output_buffer[output_buffer_length + 1] = international ?
+		TYPE_OF_ADDRESS_INTERNATIONAL_PHONE : TYPE_OF_ADDRESS_UNKNOWN;
 
 	length = EncodePhoneNumber(phone_number,
 				   output_buffer + output_buffer_length + 2,
@@ -471,11 +511,16 @@ int pdu_encode_ucs2_parts(const char *phone_number, const char *utf8_text,
 			  unsigned char pdus[][SMS_MAX_PDU_LENGTH], int lengths[],
 			  int max_parts, unsigned int reference)
 {
+	char normalized[22];
 	unsigned short units[SMS_MAX_PARTS * 67];
 	int unit_count, total, offset = 0;
 	if (!phone_number || !*phone_number || !utf8_text || !pdus || !lengths ||
 	    max_parts < 1 || max_parts > SMS_MAX_PARTS)
 		return -1;
+	if (sms_normalize_number(phone_number, normalized, sizeof(normalized)) != 0)
+		return -1;
+	const int international = normalized[0] == '+';
+	phone_number = normalized + international;
 	unit_count = utf8_to_utf16(utf8_text, units, (int)(sizeof(units) / sizeof(units[0])));
 	if (unit_count < 0)
 		return -1;
@@ -506,7 +551,7 @@ int pdu_encode_ucs2_parts(const char *phone_number, const char *utf8_text,
 		out[1] = SMS_SUBMIT | (total > 1 ? 0x40 : 0);
 		out[2] = 0;
 		out[3] = (unsigned char)strlen(phone_number);
-		out[4] = strlen(phone_number) < 6 ? TYPE_OF_ADDRESS_UNKNOWN : TYPE_OF_ADDRESS_INTERNATIONAL_PHONE;
+		out[4] = international ? TYPE_OF_ADDRESS_INTERNATIONAL_PHONE : TYPE_OF_ADDRESS_UNKNOWN;
 		length = EncodePhoneNumber(phone_number, out + 5, SMS_MAX_PDU_LENGTH - 5);
 		if (length < 0)
 			return -1;

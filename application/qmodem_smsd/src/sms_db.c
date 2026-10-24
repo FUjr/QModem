@@ -111,6 +111,17 @@ static int apply_migrations(sqlite3 *sql)
             return -1;
         }
     }
+    if (version < 4) {
+        if (exec_sql(sql, "BEGIN IMMEDIATE") != 0)
+            return -1;
+        if (exec_sql(sql, "ALTER TABLE messages ADD COLUMN conversation_contact TEXT") != 0 ||
+            exec_sql(sql, "INSERT OR REPLACE INTO schema_migrations "
+                          "VALUES(4,strftime('%s','now'))") != 0 ||
+            exec_sql(sql, "COMMIT") != 0) {
+            exec_sql(sql, "ROLLBACK");
+            return -1;
+        }
+    }
     return 0;
 }
 

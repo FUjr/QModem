@@ -32,6 +32,7 @@ struct modem_config {
     char mode[32];
     char storage[8];
     char legacy_dir[256];
+    char country_code[8];
     int use_ubus;
     int auto_delete;
     int forwarding;
@@ -86,6 +87,8 @@ enum {
     ARG_SUCCESS,
     ARG_ERROR,
     ARG_REQUEST_ID,
+    ARG_CONVERSATION_CONTACT,
+    ARG_COUNTRY_CODE,
     __ARG_MAX
 };
 
@@ -108,6 +111,8 @@ static const struct blobmsg_policy policy[] = {
     [ARG_SUCCESS] = { .name = "success", .type = BLOBMSG_TYPE_BOOL },
     [ARG_ERROR] = { .name = "error", .type = BLOBMSG_TYPE_STRING },
     [ARG_REQUEST_ID] = { .name = "request_id", .type = BLOBMSG_TYPE_STRING },
+    [ARG_CONVERSATION_CONTACT] = { .name = "conversation_contact", .type = BLOBMSG_TYPE_STRING },
+    [ARG_COUNTRY_CODE] = { .name = "country_code", .type = BLOBMSG_TYPE_STRING },
 };
 
 static int valid_id(const char *value)
@@ -225,6 +230,8 @@ static int load_config(const char *section_name, struct modem_config *cfg)
              option_string(uci, section, "sms_storage_mem1", "SM"));
     snprintf(cfg->legacy_dir, sizeof(cfg->legacy_dir), "%s",
              option_string(uci, section, "sms_db_path", "/etc/qmodem"));
+    snprintf(cfg->country_code, sizeof(cfg->country_code), "%s",
+             option_string(uci, section, "sms_country_code", ""));
     cfg->auto_delete = strcmp(option_string(uci, section,
                               "sms_auto_delete_from_sim", "1"), "0") != 0;
     cfg->forwarding = !strcmp(option_string(uci, section, "sms_forwarding", "0"), "1");
@@ -609,7 +616,7 @@ static int configure_method(struct ubus_context *ctx, struct ubus_object *obj,
     struct modem_config cfg;
     struct blob_buf b = {};
     const char *section, *mode_name;
-    const char *options[5], *values[5];
+    const char *options[6], *values[6];
     char number[24];
     size_t option_count = 0;
     int pending = 0;
@@ -642,15 +649,24 @@ static int configure_method(struct ubus_context *ctx, struct ubus_object *obj,
         options[option_count] = "sms_auto_delete_from_sim";
         values[option_count++] = blobmsg_get_bool(tb[ARG_AUTO_DELETE]) ? "1" : "0";
     }
+    if (tb[ARG_COUNTRY_CODE]) {
+        const char *code = blobmsg_get_string(tb[ARG_COUNTRY_CODE]);
+        char checked[22];
+        if (*code && sms_resolve_number("1", code, checked, sizeof(checked)) != 0)
+            return UBUS_STATUS_INVALID_ARGUMENT;
+        options[option_count] = "sms_country_code"; values[option_count++] = code;
+    }
     if (option_count && set_uci_options(section, options, values, option_count) != 0)
         goto error;
     if (load_config(section, &cfg) != 0)
         goto error;
-    if (apply_modem_settings(section) != 0)
+    if ((tb[ARG_MODE] || tb[ARG_POLL_INTERVAL] || tb[ARG_FORWARDING] || tb[ARG_AUTO_DELETE]) &&
+        apply_modem_settings(section) != 0)
         pending = 1;
     blob_buf_init(&b, 0);
     blobmsg_add_string(&b, "status", pending ? "pending" : "success");
     blobmsg_add_string(&b, "mode", cfg.mode);
+    blobmsg_add_string(&b, "country_code", cfg.country_code);
     blobmsg_add_u32(&b, "use_ubus", cfg.use_ubus);
     blobmsg_add_u32(&b, "poll_interval", cfg.poll_interval);
     ubus_send_reply(ctx, req, b.head);
@@ -680,6 +696,7 @@ static int config_get_method(struct ubus_context *ctx, struct ubus_object *obj,
     blobmsg_add_u8(&b, "auto_delete", cfg.auto_delete);
     blobmsg_add_u8(&b, "forwarding", cfg.forwarding);
     blobmsg_add_u32(&b, "poll_interval", cfg.poll_interval);
+    blobmsg_add_string(&b, "country_code", cfg.country_code);
     ubus_send_reply(ctx, req, b.head);
     blob_buf_free(&b);
     return UBUS_STATUS_OK;
@@ -725,7 +742,7 @@ static int list_method(struct ubus_context *ctx, struct ubus_object *obj,
         free(output);
     } else {
         const char *query =
-            "SELECT id,direction,sender,recipient,timestamp,content,complete,revision,is_read,send_success "
+            "SELECT id,direction,sender,recipient,timestamp,content,complete,revision,is_read,send_success,conversation_contact "
             "FROM messages WHERE modem_id=? ORDER BY timestamp DESC,id DESC LIMIT ? OFFSET ?";
         if (prepare_database_mode(&cfg) != 0) {
             blob_buf_free(&b);
@@ -753,6 +770,8 @@ static int list_method(struct ubus_context *ctx, struct ubus_object *obj,
             blobmsg_add_u8(&b, "is_read", sqlite3_column_int(stmt, 8));
             if (sqlite3_column_type(stmt, 9) != SQLITE_NULL)
                 blobmsg_add_u8(&b, "success", sqlite3_column_int(stmt, 9));
+            if (sqlite3_column_type(stmt, 10) != SQLITE_NULL)
+                blobmsg_add_string(&b, "conversation_contact", (const char *)sqlite3_column_text(stmt, 10));
             blobmsg_close_table(&b, entry);
         }
         blobmsg_close_array(&b, array);
@@ -784,7 +803,7 @@ static int get_method(struct ubus_context *ctx, struct ubus_object *obj,
         return UBUS_STATUS_INVALID_ARGUMENT;
     section = blobmsg_get_string(tb[ARG_MODEM]);
     if (sqlite3_prepare_v2(app.db.sql,
-            "SELECT id,direction,sender,recipient,timestamp,content,complete,revision,is_read,send_success "
+            "SELECT id,direction,sender,recipient,timestamp,content,complete,revision,is_read,send_success,conversation_contact "
             "FROM messages WHERE id=? AND modem_id=?", -1, &stmt, NULL) != SQLITE_OK)
         goto error;
     sqlite3_bind_int64(stmt, 1, id);
@@ -807,6 +826,8 @@ static int get_method(struct ubus_context *ctx, struct ubus_object *obj,
     blobmsg_add_u8(&b, "is_read", sqlite3_column_int(stmt, 8));
     if (sqlite3_column_type(stmt, 9) != SQLITE_NULL)
         blobmsg_add_u8(&b, "success", sqlite3_column_int(stmt, 9));
+    if (sqlite3_column_type(stmt, 10) != SQLITE_NULL)
+        blobmsg_add_string(&b, "conversation_contact", (const char *)sqlite3_column_text(stmt, 10));
     sqlite3_finalize(stmt);
     ubus_send_reply(ctx, req, b.head);
     blob_buf_free(&b);
@@ -826,7 +847,8 @@ static int send_method(struct ubus_context *ctx, struct ubus_object *obj,
     unsigned char pdus[SMS_MAX_PARTS][SMS_MAX_PDU_LENGTH];
     int lengths[SMS_MAX_PARTS];
     char hex[SMS_MAX_PDU_LENGTH * 2 + 1];
-    const char *recipient, *content, *number, *request_id = NULL;
+    const char *recipient, *content, *request_id = NULL;
+    char number[22], conversation_contact[22] = {0};
     int parts, success = 1, managed, managed_record_created = 0;
     char *output = NULL;
     sqlite3_stmt *stmt = NULL;
@@ -852,12 +874,22 @@ static int send_method(struct ubus_context *ctx, struct ubus_object *obj,
         goto error;
     recipient = blobmsg_get_string(tb[ARG_RECIPIENT]);
     content = blobmsg_get_string(tb[ARG_CONTENT]);
-    number = recipient[0] == '+' ? recipient + 1 : recipient;
-    if (!*number || strlen(number) > 20)
+    const char *country_code = tb[ARG_COUNTRY_CODE] ? blobmsg_get_string(tb[ARG_COUNTRY_CODE]) : cfg.country_code;
+    if (sms_resolve_number(recipient, country_code, number, sizeof(number)) != 0)
         return UBUS_STATUS_INVALID_ARGUMENT;
-    for (const char *p = number; *p; p++)
-        if (*p < '0' || *p > '9')
+    if (tb[ARG_CONVERSATION_CONTACT]) {
+        const char *contact = blobmsg_get_string(tb[ARG_CONVERSATION_CONTACT]);
+        if (sms_normalize_number(contact, conversation_contact, sizeof(conversation_contact)) != 0)
             return UBUS_STATUS_INVALID_ARGUMENT;
+        /* An explicit reply may add a country code, never alias an unrelated
+         * destination or a different complete international address. */
+        size_t contact_length = strlen(conversation_contact), number_length = strlen(number);
+        if (strcmp(number, conversation_contact) &&
+            (number[0] != '+' || conversation_contact[0] == '+' ||
+             number_length <= contact_length ||
+             strcmp(number + number_length - contact_length, conversation_contact)))
+            return UBUS_STATUS_INVALID_ARGUMENT;
+    }
     parts = pdu_encode_ucs2_parts(number, content, pdus, lengths, SMS_MAX_PARTS,
                                   (unsigned int)time(NULL));
     if (parts < 1)
@@ -922,14 +954,18 @@ static int send_method(struct ubus_context *ctx, struct ubus_object *obj,
     }
     if (strcmp(cfg.mode, "direct")) {
         if (sqlite3_prepare_v2(app.db.sql,
-                "INSERT INTO messages(modem_id,direction,recipient,timestamp,content,complete,send_success,created_at,updated_at) "
-                "VALUES(?,'sent',?,strftime('%s','now'),?,1,?,strftime('%s','now'),strftime('%s','now'))",
+                "INSERT INTO messages(modem_id,direction,recipient,timestamp,content,complete,send_success,created_at,updated_at,conversation_contact) "
+                "VALUES(?,'sent',?,strftime('%s','now'),?,1,?,strftime('%s','now'),strftime('%s','now'),?)",
                 -1, &stmt, NULL) != SQLITE_OK)
             goto error;
         sqlite3_bind_text(stmt, 1, cfg.section, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 2, recipient, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, number, -1, SQLITE_TRANSIENT);
         sqlite3_bind_text(stmt, 3, content, -1, SQLITE_TRANSIENT);
         sqlite3_bind_int(stmt, 4, success);
+        if (conversation_contact[0])
+            sqlite3_bind_text(stmt, 5, conversation_contact, -1, SQLITE_TRANSIENT);
+        else
+            sqlite3_bind_null(stmt, 5);
         if (sqlite3_step(stmt) != SQLITE_DONE)
             goto error;
         sqlite3_finalize(stmt); stmt = NULL;
@@ -952,6 +988,7 @@ static int send_method(struct ubus_context *ctx, struct ubus_object *obj,
     }
     blob_buf_init(&b, 0);
     blobmsg_add_string(&b, "status", success ? "success" : "error");
+    blobmsg_add_string(&b, "recipient", number);
     blobmsg_add_u32(&b, "parts", parts);
     if (output && *output)
         blobmsg_add_string(&b, "modem_response", output);

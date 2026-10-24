@@ -4,6 +4,7 @@
 'require ui';
 'require dom';
 'require qmodem.sms as smsService';
+'require qmodem.sms-address as smsAddress';
 
 // Load CSS
 document.head.appendChild(E('link', {
@@ -175,6 +176,8 @@ return view.extend({
 
 		// Get selected modem
 		var selectedModem = select.value;
+		this.replyModem = selectedModem;
+		this.replyRecipient = contact;
 
 		// Reply form
 		var replyForm = this.createReplyForm(contact, selectedModem, messagesArea, loadingDiv, select);
@@ -185,6 +188,9 @@ return view.extend({
 
 		// Selector change handler
 		select.addEventListener('change', function() {
+			self.replyModem = select.value;
+			self.replyRecipient = contact;
+			self.replyAddress.load();
 			var loading = E('div', { 'class': 'spinning' }, _('Loading...'));
 			dom.content(messagesArea, loading);
 			self.loadConversation(messagesArea, loading, select.value, contact);
@@ -225,6 +231,9 @@ return view.extend({
 		var fieldset = E('fieldset', { 'class': 'cbi-section' });
 		var legend = E('legend', {}, _('Send Message'));
 		fieldset.appendChild(legend);
+		this.replyAddress = smsAddress.create(function() { return self.replyRecipient || contact; },
+			function() { return select ? select.value : configSection; });
+		fieldset.appendChild(this.replyAddress.node);
 
 		// Message input
 		var inputDiv = E('div', { 'class': 'cbi-value' });
@@ -325,6 +334,12 @@ return view.extend({
 		var self = this;
 		var message = textarea.value.trim();
 		var encoding = encodingSelect.value;
+		var recipient;
+		try { recipient = this.replyAddress.recipient(); }
+		catch (err) {
+			ui.addNotification(null, E('p', _(err.message)), 'error');
+			return;
+		}
 
 		if (!message) {
 			ui.addNotification(null, E('p', _('Please enter a message')), 'error');
@@ -335,7 +350,7 @@ return view.extend({
 		sendBtn.disabled = true;
 		sendBtn.textContent = _('Sending...');
 
-		smsService.sendSms(configSection, contact, message, encoding).then(function(result) {
+		smsService.sendSms(configSection, recipient, message, encoding, self.replyRecipient || contact).then(function(result) {
 			sendBtn.disabled = false;
 			sendBtn.textContent = _('Send');
 
@@ -345,6 +360,8 @@ return view.extend({
 			}
 
 			if (result.success) {
+				if (self.replyModem !== configSection) return;
+				self.replyRecipient = result.recipient || recipient;
 				ui.addNotification(null, E('p', _('Message sent successfully')), 'info');
 				textarea.value = '';
 				textarea.dispatchEvent(new Event('input'));
@@ -364,6 +381,11 @@ return view.extend({
 		var self = this;
 
 		smsService.getConversation(configSection, contact).then(function(result) {
+			if (self.replyModem !== configSection) return;
+			if (!result.error) {
+				self.replyRecipient = result.contact || self.replyRecipient || contact;
+				self.replyAddress.update();
+			}
 			// Auto-mark all received messages as read
 			if (result.messages && result.messages.length > 0) {
 				var unreadIds = [];
@@ -428,7 +450,10 @@ return view.extend({
 		var self = this;
 		
 		smsService.getConversation(configSection, contact).then(function(result) {
+			if (self.replyModem !== configSection) return;
 			if (!result.error && result.messages) {
+				self.replyRecipient = result.contact || self.replyRecipient || contact;
+				self.replyAddress.update();
 				// Adjust timestamps if UTC offset is enabled (based on message type)
 				if (result.messages.length > 0) {
 					var needsReSort = false;

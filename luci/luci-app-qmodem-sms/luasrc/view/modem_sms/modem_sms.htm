@@ -253,9 +253,16 @@ pduParser.generate = function(message) {
 
     pdu += '00'; //TODO: Reference Number;
 
-    var receiverSize = ('00'+(parseInt(message.receiver.length, 10).toString(16))).slice(-2);
-    var receiver = pduParser.swapNibbles(message.receiver);
-    var receiverType = 81; //TODO: NOT-Hardcoded PDU generation. Please note that Hamrah1 doesnt work if we set it to 91 (International).
+    var number = message.receiver.replace(/[ \t()\-]/g, '');
+    if (!/^\+?[0-9]+$/.test(number) || /[^+0-9]/.test(number)) throw new Error('<%:Invalid phone number%>');
+    var international = number.charAt(0) === '+';
+    if (international && !/^\+[1-9][0-9]{0,14}$/.test(number))
+        throw new Error('<%:Invalid international phone number%>');
+    if (international) number = number.substring(1);
+    if (number.length > 20) throw new Error('<%:Invalid phone number%>');
+    var receiverSize = ('00' + number.length.toString(16)).slice(-2);
+    var receiver = pduParser.swapNibbles(number);
+    var receiverType = international ? '91' : '81';
 
     pdu += receiverSize.toString(16) + receiverType + receiver;
 
@@ -530,6 +537,31 @@ class LuciTable{
         }
     }
 
+
+/* No country is inferred from a number, locale or SIM. */
+function normalizeCode(code) {
+	code = (code || '').trim();
+	if (code && !/^\+?[1-9][0-9]{0,2}$/.test(code)) throw new Error('<%:Invalid country calling code%>');
+	return code.replace(/^\+/, '');
+}
+
+function normalize(number, countryCode) {
+	if (typeof number !== 'string') throw new Error('<%:Invalid phone number%>');
+	number = number.replace(/[ \t()\-]/g, '');
+	if (!/^\+?[0-9]+$/.test(number) || /[^+0-9]/.test(number)) throw new Error('<%:Invalid phone number%>');
+	if (number.charAt(0) !== '+' && countryCode) {
+		countryCode = normalizeCode(countryCode);
+		if (countryCode) number = '+' + countryCode + number;
+	}
+	if (number.charAt(0) === '+') {
+		if (!/^\+[1-9][0-9]{0,14}$/.test(number)) throw new Error('<%:Invalid international phone number%>');
+	} else if (number.length > 20) {
+		throw new Error('<%:Invalid phone number%>');
+	}
+	return number;
+}
+
+
 class ModemSMS {
     constructor() {
         this.data = null;
@@ -638,16 +670,48 @@ class ModemSMS {
     create_modem_cfg_selector(){
         var selector = document.createElement('select');
         selector.addEventListener('change', (event) => {
-            this.update();
             this.cfg_id = event.target.value;
-            console.log(this.cfg_id);
+            this.load_country_code();
+            this.update();
         });
         this.modem_selector.appendChild(selector);
         this.selector = selector;
         this.poll_info();
     }
 
+    load_country_code(){
+        const selected = this.cfg_id;
+        const sequence = this.country_code_sequence = (this.country_code_sequence || 0) + 1;
+        this.country_code_pending = true;
+        this.country_code.value = '';
+        this.country_code.disabled = this.save_country_code.disabled = true;
+        this.update_recipient();
+        XHR.get('<%=luci.dispatcher.build_url("admin", "modem", "qmodem", "sms_country_code")%>', {cfg: selected}, (x, data) => {
+            if (sequence !== this.country_code_sequence) return;
+            this.country_code_pending = false;
+            this.country_code.disabled = this.save_country_code.disabled = false;
+            try {
+                if (!data || data.error) throw new Error(data && data.error || "<%:Failed to load country calling code%>");
+                const code = normalizeCode(data.country_code);
+                this.country_code.value = code ? '+' + code : '';
+            } catch (err) { this.warn_msg(err.message, 5000); }
+            this.update_recipient();
+        });
+    }
+
+    recipient(){
+        if (this.country_code_pending) throw new Error("<%:Loading country calling code%>");
+        return normalize(this.phone_number.value, this.country_code.value);
+    }
+
+    update_recipient(){
+        try { this.recipient_preview.textContent = this.recipient(); }
+        catch (err) { this.recipient_preview.textContent = this.phone_number.value ? err.message : '—'; }
+    }
+
     send(){
+        try { this.recipient(); }
+        catch (err) { this.warn_msg(err.message, 5000); return; }
         //if content contain non-ascii char, use raw pdu
         var content = this.message_content.value;
         var is_ascii = /^[\x00-\x7F]*$/.test(content);
@@ -660,11 +724,12 @@ class ModemSMS {
     }
 
     send_gsm(){
-        var phone_number = this.phone_number.value;
+        var phone_number = this.recipient();
         var message_content = this.message_content.value;
         XHR.get('<%=luci.dispatcher.build_url("admin", "modem", "qmodem", "send_sms")%>',{
             "cfg": this.cfg_id,
             "phone_number": phone_number,
+            "country_code": "",
             "message_content": message_content,
         },(x,data)=>{
             this.update();
@@ -675,7 +740,8 @@ class ModemSMS {
     send_raw_pdu(){
         XHR.get('<%=luci.dispatcher.build_url("admin", "modem", "qmodem", "send_sms")%>',{
             "cfg": this.cfg_id,
-			"phone_number": this.phone_number.value,
+			"phone_number": this.recipient(),
+            "country_code": "",
 			"message_content": this.message_content.value,
         },(x,data)=>{
             this.update();
@@ -732,6 +798,40 @@ class ModemSMS {
         send_button.addEventListener('click',()=>{
             this.send();
         });
+        const country_code = document.createElement('input');
+        country_code.type = 'text';
+        country_code.maxLength = 4;
+        country_code.placeholder = "<%:As entered%>";
+        const country_field = document.createElement('div');
+        const save_country_code = document.createElement('input');
+        save_country_code.type = 'button';
+        save_country_code.value = "<%:Save for this modem%>";
+        country_field.appendChild(country_code);
+        country_field.appendChild(save_country_code);
+        const help = document.createElement('div');
+        help.className = 'cbi-value-description';
+        help.textContent = "<%:Leave empty to send as entered, including service numbers. Use + for a complete international number. When adding a country code, omit the domestic trunk prefix.%>";
+        country_field.appendChild(help);
+        const recipient_preview = document.createElement('span');
+        this.country_code = country_code;
+        this.save_country_code = save_country_code;
+        this.recipient_preview = recipient_preview;
+        this.country_code_pending = true;
+        country_code.addEventListener('input', () => this.update_recipient());
+        phone_number.addEventListener('input', () => this.update_recipient());
+        save_country_code.addEventListener('click', () => {
+            let code;
+            try { code = normalizeCode(country_code.value); }
+            catch (err) { this.warn_msg(err.message, 5000); return; }
+            const selected = this.cfg_id;
+            save_country_code.disabled = true;
+            XHR.post('<%=luci.dispatcher.build_url("admin", "modem", "qmodem", "set_sms_country_code")%>',
+                {token: '<%=token%>', cfg: selected, country_code: code}, (x, data) => {
+                    if (this.cfg_id === selected) save_country_code.disabled = false;
+                    if (data && !data.error) this.log_msg("<%:Configuration saved%>", 3000);
+                    else this.warn_msg(data && data.error || "<%:Failed to save country calling code%>", 5000);
+                });
+        });
         this.phone_number = phone_number;
         this.message_content = message_content;
         this.sms_send_table.data = [
@@ -739,6 +839,16 @@ class ModemSMS {
                 "col": 2,
                 "left": document.createTextNode("<%:Phone Number%>"),
                 "right": phone_number,
+            },
+            {
+                "col": 2,
+                "left": document.createTextNode("<%:Country calling code (optional)%>"),
+                "right": country_field,
+            },
+            {
+                "col": 2,
+                "left": document.createTextNode("<%:Send to:%>"),
+                "right": recipient_preview,
             },
             {
                 "col": 2,
@@ -937,6 +1047,7 @@ class ModemSMS {
             }
         }
         this.cfg_id = this.selector.value;
+        this.load_country_code();
         this.modem_cfg_list = value;
         this.update();
     }

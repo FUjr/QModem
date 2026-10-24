@@ -5,7 +5,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
+
+/* The fixture uses synthetic timestamps; retention must use the same clock. */
+time_t time(time_t *value)
+{
+    if (value) *value = 2000;
+    return 2000;
+}
 
 static int scalar(sqlite3 *sql, const char *query)
 {
@@ -16,6 +24,43 @@ static int scalar(sqlite3 *sql, const char *query)
         value = sqlite3_column_int(stmt, 0);
     sqlite3_finalize(stmt);
     return value;
+}
+
+static void test_v3_upgrade(void)
+{
+    char path[] = "/tmp/qmodem-sms-upgrade-XXXXXX";
+    sms_db_t db;
+    sqlite3_stmt *stmt = NULL;
+    int fd = mkstemp(path);
+    assert(fd >= 0);
+    close(fd);
+    assert(sms_db_open(&db, path) == 0);
+    /* Recreate a v3 database with an existing read message and stable ID. */
+    assert(sqlite3_exec(db.sql,
+        "INSERT INTO modems(id) VALUES('modem_1');"
+        "INSERT INTO messages(id,modem_id,direction,sender,timestamp,content,complete,is_read,created_at,updated_at) "
+        "VALUES(42,'modem_1','received','2025550123',100,'keep',1,1,100,100);"
+        "ALTER TABLE messages DROP COLUMN conversation_contact;"
+        "DELETE FROM schema_migrations WHERE version=4;", NULL, NULL, NULL) == SQLITE_OK);
+    sms_db_close(&db);
+    assert(sms_db_open(&db, path) == 0);
+    assert(scalar(db.sql, "SELECT MAX(version) FROM schema_migrations") == 4);
+    assert(scalar(db.sql, "SELECT is_read FROM messages WHERE id=42 AND content='keep' AND sender='2025550123'") == 1);
+    assert(scalar(db.sql, "SELECT COUNT(*) FROM messages WHERE conversation_contact IS NULL") == 1);
+    assert(sqlite3_exec(db.sql,
+        "INSERT INTO messages(modem_id,direction,recipient,conversation_contact,timestamp,content,complete,created_at,updated_at) "
+        "VALUES('modem_1','sent','+12025550123','2025550123',101,'reply',1,101,101);",
+        NULL, NULL, NULL) == SQLITE_OK);
+    sms_db_close(&db);
+    assert(sms_db_open(&db, path) == 0);
+    assert(sqlite3_prepare_v2(db.sql,
+        "SELECT recipient,conversation_contact FROM messages WHERE direction='sent'", -1, &stmt, NULL) == SQLITE_OK);
+    assert(sqlite3_step(stmt) == SQLITE_ROW);
+    assert(!strcmp((const char *)sqlite3_column_text(stmt, 0), "+12025550123"));
+    assert(!strcmp((const char *)sqlite3_column_text(stmt, 1), "2025550123"));
+    sqlite3_finalize(stmt);
+    sms_db_close(&db);
+    unlink(path);
 }
 
 int main(void)
@@ -37,10 +82,11 @@ int main(void)
         .content = "world", .reference = 42, .total_parts = 2, .part_number = 2,
     };
 
+    test_v3_upgrade();
     assert(fd >= 0);
     close(fd);
     assert(sms_db_open(&db, path) == 0);
-    assert(scalar(db.sql, "SELECT MAX(version) FROM schema_migrations") == 3);
+    assert(scalar(db.sql, "SELECT MAX(version) FROM schema_migrations") == 4);
     assert(scalar(db.sql, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='managed_sends'") == 1);
     assert(sms_db_record_event(&db, "usb-1-1", 10, 1, &gap) == 0 && !gap);
     assert(sms_db_record_event(&db, "usb-1-1", 10, 2, &gap) == 0 && !gap);
