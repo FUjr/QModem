@@ -17,6 +17,7 @@ static void usage(FILE *out)
 		"  modem_scanc disable <slot> [delay_seconds]\n"
 		"  modem_scanc scan [usb|pcie|all] [delay_seconds]\n"
 		"  modem_scanc set-log-level <debug|info|notice|warn|err>\n"
+		"  modem_scanc check <section>\n"
 		"  modem_scanc status\n");
 }
 
@@ -78,12 +79,12 @@ int main(int argc, char **argv)
 			return 1;
 		}
 		snprintf(line, sizeof(line), "add %s %s %s", argv[2], argv[3], argc == 5 ? argv[4] : "0");
-	} else if (!strcmp(argv[1], "remove")) {
+	} else if (!strcmp(argv[1], "remove") || !strcmp(argv[1], "check")) {
 		if (argc != 3 && argc != 4) {
 			usage(stderr);
 			return 1;
 		}
-		snprintf(line, sizeof(line), "remove %s %s", argv[2], argc == 4 ? argv[3] : "0");
+		snprintf(line, sizeof(line), "%s %s %s", argv[1], argv[2], argc == 4 ? argv[3] : "0");
 	} else if (!strcmp(argv[1], "disable")) {
 		if (argc != 3 && argc != 4) {
 			usage(stderr);

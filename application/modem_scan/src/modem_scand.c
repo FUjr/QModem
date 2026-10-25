@@ -22,11 +22,22 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifndef QMODEM_READY_HELPER
+#define QMODEM_READY_HELPER "/usr/share/qmodem/modem_ready.sh"
+#endif
+#ifndef QMODEM_NETWORK_INIT
+#define QMODEM_NETWORK_INIT "/etc/init.d/qmodem_network"
+#endif
+#ifndef QMODEM_CONFIG_LOCK
+#define QMODEM_CONFIG_LOCK "/var/lock/qmodem-config.lock"
+#endif
+
 enum event_type {
 	EV_ADD,
 	EV_REMOVE,
 	EV_DISABLE,
 	EV_SCAN,
+	EV_CHECK,
 };
 
 enum log_level {
@@ -126,7 +137,7 @@ static void log_msg(enum log_level level, const char *fmt, ...);
 static void config_lock(void) {
     pthread_mutex_lock(&uci_lock);
     mkdir("/var/lock", 0755);
-    config_fd = open("/var/lock/qmodem-config.lock", O_CREAT|O_RDWR|O_CLOEXEC, 0600);
+    config_fd = open(QMODEM_CONFIG_LOCK, O_CREAT|O_RDWR|O_CLOEXEC, 0600);
     if (config_fd < 0 || flock(config_fd, LOCK_EX)) {
         log_msg(LOG_L_ERR, "cannot acquire config transaction lock");
         abort();
@@ -401,10 +412,10 @@ static int uci_add_list(const char *key, const char *value)
 	return run_exec(argv, 3);
 }
 
-static void uci_commit(const char *config)
+static int uci_commit(const char *config)
 {
 	char *argv[] = { "uci", "commit", (char *)config, NULL };
-	run_exec(argv, 5);
+	return run_exec(argv, 5);
 }
 
 static int find_slot_section(const char *slot, char *section, size_t len)
@@ -1071,18 +1082,109 @@ static void exec_post_init(const char *section)
 
 static void reload_network(void)
 {
-	char *argv[] = { "/etc/init.d/qmodem_network", "reload", NULL };
+	char *argv[] = { QMODEM_NETWORK_INIT, "reload", NULL };
 	run_exec(argv, 60);
+}
+
+/* Only the scanner publishes presence; the dial service consumes it. */
+static void revoke_ready(const char *section)
+{
+    char path[256];
+    snprintf(path, sizeof(path), QMODEM_RUN_DIR "/%s_dir/ready", section);
+    unlink(path);
+}
+
+static int ready_command(const char *action, const char *section)
+{
+    char *argv[] = { QMODEM_READY_HELPER, (char *)action, (char *)section, NULL };
+    return run_exec(argv, 10);
+}
+
+static int disable_section(const char *section)
+{
+    char key[256], existing[64], state[32];
+    int rc = 0;
+    pthread_mutex_lock(&g.queue_lock);
+    if (!event_current()) { pthread_mutex_unlock(&g.queue_lock); return 0; }
+    revoke_ready(section);
+    config_lock();
+    snprintf(key, sizeof(key), "qmodem.%s", section);
+    if (uci_get(key, existing, sizeof(existing)) || strcmp(existing, "modem-device")) {
+        config_unlock(); pthread_mutex_unlock(&g.queue_lock); return 0;
+    }
+    snprintf(key, sizeof(key), "qmodem.%s.state", section);
+    uci_get(key, state, sizeof(state));
+    if (strcmp(state, "disabled")) rc = uci_set(key, "disabled");
+    rc |= uci_commit("qmodem");
+    config_unlock();
+    pthread_mutex_unlock(&g.queue_lock);
+    char *stop[] = { QMODEM_NETWORK_INIT, "offline", (char *)section, NULL };
+    rc |= run_exec(stop, 60);
+    log_msg(rc ? LOG_L_ERR : LOG_L_INFO, "disable section=%s %s", section,
+            rc ? "incomplete" : "host cleanup complete");
+    return rc;
+}
+
+static int confirm_section(const char *section)
+{
+    char key[256], state[32];
+    int rc;
+    pthread_mutex_lock(&g.queue_lock);
+    if (!event_current()) { pthread_mutex_unlock(&g.queue_lock); return 0; }
+    config_lock();
+    rc = ready_command("confirm", section);
+    if (!rc) {
+        snprintf(key, sizeof(key), "qmodem.%s.state", section);
+        uci_get(key, state, sizeof(state));
+        if (strcmp(state, "enabled")) rc = uci_set(key, "enabled");
+        rc |= uci_commit("qmodem");
+    }
+    if (rc) revoke_ready(section);
+    config_unlock();
+    pthread_mutex_unlock(&g.queue_lock);
+    return rc;
+}
+
+static int check_modem(const char *section)
+{
+    char key[256], existing[64];
+    snprintf(key, sizeof(key), "qmodem.%s", section);
+    if (uci_get(key, existing, sizeof(existing)) || strcmp(existing, "modem-device")) return 0;
+    if (!ready_command("check", section)) return 0;
+    if (disable_section(section)) return 1;
+    if (confirm_section(section)) return 1;
+    reload_network();
+    return 0;
+}
+
+static void check_configured(const char *type)
+{
+    char out[32768], *save = NULL, *line;
+    char *argv[] = { "uci", "-q", "show", "qmodem", NULL };
+    if (capture_exec(argv, out, sizeof(out), 5)) return;
+    for (line = strtok_r(out, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+        char *end, key[256], interface[32];
+        if (strncmp(line, "qmodem.", 7)) continue;
+        end = strchr(line + 7, '=');
+        if (!end || strcmp(end, "=modem-device")) continue;
+        *end = 0;
+        const char *section = line + 7;
+        if (!*section || strspn(section, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_") != strlen(section)) continue;
+        snprintf(key, sizeof(key), "qmodem.%s.data_interface", section);
+        uci_get(key, interface, sizeof(interface));
+        if (strcmp(type, "all") && strcmp(type, interface)) continue;
+        enqueue_event(EV_CHECK, section, NULL, 0);
+    }
 }
 
 static int add_modem(const char *slot, const char *slot_type)
 {
 	struct scan_result res;
 	struct modem_profile profile;
-	char section[128], key[256], existing[64], fixed[16];
+	char section[128], key[256], existing[64], fixed[16], manual[16];
 	char orig_network[512] = "", orig_at[128] = "", orig_state[64] = "", orig_name[128] = "";
 	char net_join[512], default_alias[128] = "", default_metric[32] = "";
-	int existed;
+	int existed, write_rc = 0, changed;
 
 	memset(&res, 0, sizeof(res));
 	sl_init(&res.net_devices);
@@ -1091,13 +1193,17 @@ static int add_modem(const char *slot, const char *slot_type)
 	sl_init(&res.valid_at_ports);
 	section_from_slot(slot, section, sizeof(section));
 
-	snprintf(key, sizeof(key), "qmodem.%s.fixed_device", section);
-	uci_get(key, fixed, sizeof(fixed));
-	if (!strcmp(fixed, "1")) {
-		log_msg(LOG_L_INFO, "skip fixed device slot=%s section=%s", slot, section);
-		exec_post_init(section);
-		goto out_success;
-	}
+    uci_get("qmodem.main.block_auto_probe", manual, sizeof(manual));
+    snprintf(key, sizeof(key), "qmodem.%s.fixed_device", section);
+    uci_get(key, fixed, sizeof(fixed));
+    if (!strcmp(fixed, "1") || !strcmp(manual, "1")) {
+        int rc = check_modem(section);
+        if (rc) goto out_fail;
+        if (strcmp(manual, "1") && !ready_command("check", section)) exec_post_init(section);
+        goto out_success;
+    }
+    /* A cached port must not survive a failed rescan or re-enumeration. */
+    if (ready_command("check", section) && disable_section(section)) goto out_fail;
 
 	if (!strcmp(slot_type, "usb")) {
 		scan_usb_slot(slot, &res);
@@ -1148,7 +1254,7 @@ static int add_modem(const char *slot, const char *slot_type)
 		snprintf(key, sizeof(key), "qmodem.%s.ports", section); uci_del(key);
 		snprintf(key, sizeof(key), "qmodem.%s.voice_pcm_port", section); uci_del(key);
 		snprintf(key, sizeof(key), "qmodem.%s.voice_pcm_interface", section); uci_del(key);
-		snprintf(key, sizeof(key), "qmodem.%s.state", section); uci_set(key, "enabled");
+		snprintf(key, sizeof(key), "qmodem.%s.state", section); write_rc |= uci_set(key, "disabled");
 	} else {
 		char modem_count_s[32] = "", metric[32];
 		int modem_count = 0;
@@ -1159,57 +1265,60 @@ static int add_modem(const char *slot, const char *slot_type)
 			modem_count = atoi(modem_count_s);
 		modem_count++;
 		snprintf(modem_count_s, sizeof(modem_count_s), "%d", modem_count);
-		uci_set("qmodem.main.modem_count", modem_count_s);
-		snprintf(key, sizeof(key), "qmodem.%s", section); uci_set(key, "modem-device");
-		if (default_alias[0] && strcmp(default_alias, "-")) { snprintf(key, sizeof(key), "qmodem.%s.alias", section); uci_set(key, default_alias); }
+		write_rc |= uci_set("qmodem.main.modem_count", modem_count_s);
+		snprintf(key, sizeof(key), "qmodem.%s", section); write_rc |= uci_set(key, "modem-device");
+		if (default_alias[0] && strcmp(default_alias, "-")) { snprintf(key, sizeof(key), "qmodem.%s.alias", section); write_rc |= uci_set(key, default_alias); }
 		snprintf(metric, sizeof(metric), "%d", modem_count + 10);
 		if (default_metric[0])
 			snprintf(metric, sizeof(metric), "%s", default_metric);
-		snprintf(key, sizeof(key), "qmodem.%s.path", section); uci_set(key, res.modem_path);
-		snprintf(key, sizeof(key), "qmodem.%s.data_interface", section); uci_set(key, slot_type);
-		snprintf(key, sizeof(key), "qmodem.%s.enable_dial", section); uci_set(key, "1");
-		snprintf(key, sizeof(key), "qmodem.%s.use_ubus", section); uci_set(key, "1");
-		snprintf(key, sizeof(key), "qmodem.%s.soft_reboot", section); uci_set(key, "1");
-		snprintf(key, sizeof(key), "qmodem.%s.extend_prefix", section); uci_set(key, "1");
-		snprintf(key, sizeof(key), "qmodem.%s.pdp_type", section); uci_set(key, "ipv4v6");
-		snprintf(key, sizeof(key), "qmodem.%s.state", section); uci_set(key, "enabled");
-		snprintf(key, sizeof(key), "qmodem.%s.metric", section); uci_set(key, metric);
+		snprintf(key, sizeof(key), "qmodem.%s.path", section); write_rc |= uci_set(key, res.modem_path);
+		snprintf(key, sizeof(key), "qmodem.%s.data_interface", section); write_rc |= uci_set(key, slot_type);
+		snprintf(key, sizeof(key), "qmodem.%s.enable_dial", section); write_rc |= uci_set(key, "1");
+		snprintf(key, sizeof(key), "qmodem.%s.use_ubus", section); write_rc |= uci_set(key, "1");
+		snprintf(key, sizeof(key), "qmodem.%s.soft_reboot", section); write_rc |= uci_set(key, "1");
+		snprintf(key, sizeof(key), "qmodem.%s.extend_prefix", section); write_rc |= uci_set(key, "1");
+		snprintf(key, sizeof(key), "qmodem.%s.pdp_type", section); write_rc |= uci_set(key, "ipv4v6");
+		snprintf(key, sizeof(key), "qmodem.%s.state", section); write_rc |= uci_set(key, "disabled");
+		snprintf(key, sizeof(key), "qmodem.%s.metric", section); write_rc |= uci_set(key, metric);
 	}
 
-	snprintf(key, sizeof(key), "qmodem.%s.name", section); uci_set(key, profile.name);
-	snprintf(key, sizeof(key), "qmodem.%s.network", section); uci_set(key, net_join);
-	snprintf(key, sizeof(key), "qmodem.%s.manufacturer", section); uci_set(key, profile.manufacturer);
-	snprintf(key, sizeof(key), "qmodem.%s.platform", section); uci_set(key, profile.platform);
-	snprintf(key, sizeof(key), "qmodem.%s.suggest_pdp_index", section); uci_set(key, profile.pdp_index);
-	if (profile.wcdma_band[0]) { snprintf(key, sizeof(key), "qmodem.%s.wcdma_band", section); uci_set(key, profile.wcdma_band); }
-	if (profile.lte_band[0]) { snprintf(key, sizeof(key), "qmodem.%s.lte_band", section); uci_set(key, profile.lte_band); }
-	if (profile.nsa_band[0]) { snprintf(key, sizeof(key), "qmodem.%s.nsa_band", section); uci_set(key, profile.nsa_band); }
-	if (profile.sa_band[0]) { snprintf(key, sizeof(key), "qmodem.%s.sa_band", section); uci_set(key, profile.sa_band); }
+	snprintf(key, sizeof(key), "qmodem.%s.name", section); write_rc |= uci_set(key, profile.name);
+	snprintf(key, sizeof(key), "qmodem.%s.network", section); write_rc |= uci_set(key, net_join);
+	snprintf(key, sizeof(key), "qmodem.%s.manufacturer", section); write_rc |= uci_set(key, profile.manufacturer);
+	snprintf(key, sizeof(key), "qmodem.%s.platform", section); write_rc |= uci_set(key, profile.platform);
+	snprintf(key, sizeof(key), "qmodem.%s.suggest_pdp_index", section); write_rc |= uci_set(key, profile.pdp_index);
+	if (profile.wcdma_band[0]) { snprintf(key, sizeof(key), "qmodem.%s.wcdma_band", section); write_rc |= uci_set(key, profile.wcdma_band); }
+	if (profile.lte_band[0]) { snprintf(key, sizeof(key), "qmodem.%s.lte_band", section); write_rc |= uci_set(key, profile.lte_band); }
+	if (profile.nsa_band[0]) { snprintf(key, sizeof(key), "qmodem.%s.nsa_band", section); write_rc |= uci_set(key, profile.nsa_band); }
+	if (profile.sa_band[0]) { snprintf(key, sizeof(key), "qmodem.%s.sa_band", section); write_rc |= uci_set(key, profile.sa_band); }
 	for (size_t i = 0; i < profile.modes.len; i++) {
 		snprintf(key, sizeof(key), "qmodem.%s.modes", section);
-		uci_add_list(key, profile.modes.items[i]);
+		write_rc |= uci_add_list(key, profile.modes.items[i]);
 	}
 	for (size_t i = 0; i < res.valid_at_ports.len; i++) {
 		snprintf(key, sizeof(key), "qmodem.%s.valid_at_ports", section);
-		uci_add_list(key, res.valid_at_ports.items[i]);
+		write_rc |= uci_add_list(key, res.valid_at_ports.items[i]);
 	}
 	snprintf(key, sizeof(key), "qmodem.%s.at_port", section);
-	uci_set(key, res.preferred_at[0] ? res.preferred_at : res.valid_at_ports.items[0]);
+	write_rc |= uci_set(key, res.preferred_at[0] ? res.preferred_at : res.valid_at_ports.items[0]);
 	for (size_t i = 0; i < res.at_ports.len; i++) {
 		snprintf(key, sizeof(key), "qmodem.%s.ports", section);
-		uci_add_list(key, res.at_ports.items[i]);
+		write_rc |= uci_add_list(key, res.at_ports.items[i]);
 	}
 	if (res.voice_pcm_port[0]) {
 		snprintf(key, sizeof(key), "qmodem.%s.voice_pcm_port", section);
-		uci_set(key, res.voice_pcm_port);
+		write_rc |= uci_set(key, res.voice_pcm_port);
 		snprintf(key, sizeof(key), "qmodem.%s.voice_pcm_interface", section);
-		uci_set(key, res.voice_pcm_interface);
+		write_rc |= uci_set(key, res.voice_pcm_interface);
 	}
 	if (res.option_driver) {
 		snprintf(key, sizeof(key), "qmodem.%s.option_driver", section);
-		uci_set(key, "1");
+		write_rc |= uci_set(key, "1");
 	}
-	uci_commit("qmodem");
+    changed = !existed || strcmp(orig_network, net_join) || strcmp(orig_at, res.preferred_at) ||
+        strcmp(orig_state, "enabled") || strcmp(orig_name, profile.name);
+    if (changed || write_rc) revoke_ready(section);
+    int commit_rc = uci_commit("qmodem") | write_rc;
 	config_unlock();
     pthread_mutex_unlock(&g.queue_lock);
 
@@ -1219,9 +1328,14 @@ static int add_modem(const char *slot, const char *slot_type)
 		mkdir(QMODEM_RUN_DIR, 0755);
 		mkdir(rundir, 0755);
 	}
+    if (changed && disable_section(section)) commit_rc = 1;
+    if (commit_rc || confirm_section(section)) {
+        disable_section(section);
+        sl_free(&profile.modes);
+        goto out_fail;
+    }
 	exec_post_init(section);
-	if (!existed || strcmp(orig_network, net_join) || strcmp(orig_at, res.preferred_at) ||
-	    strcmp(orig_state, "enabled") || strcmp(orig_name, profile.name))
+	if (changed)
 		reload_network();
 
 	log_msg(LOG_L_INFO, "added modem section=%s name=%s type=%s ports=%zu valid=%zu",
@@ -1249,7 +1363,7 @@ static void remove_modem(const char *section)
 	snprintf(key, sizeof(key), "qmodem.%s", section);
 	if (uci_get(key, existing, sizeof(existing)) || !existing[0])
 		return;
-	{ char *stop[] = { "/etc/init.d/qmodem_network", "hang", (char *)section, NULL };
+	{ char *stop[] = { QMODEM_NETWORK_INIT, "hang", (char *)section, NULL };
       if (run_exec(stop, 60)) { log_msg(LOG_L_ERR,"refuse remove: could not stop section=%s",section); return; } }
 	config_lock();
 	uci_get("qmodem.main.modem_count", count_s, sizeof(count_s));
@@ -1267,20 +1381,11 @@ static void remove_modem(const char *section)
 	log_msg(LOG_L_INFO, "removed modem section=%s", section);
 }
 
-static void disable_slot(const char *slot)
+static int disable_slot(const char *slot)
 {
-	char section[128], key[256];
-	char *argv_reorder[] = { "uci", "-q", "reorder", key, NULL };
-	section_from_slot(slot, section, sizeof(section));
-	config_lock();
-	snprintf(key, sizeof(key), "qmodem.%s=1", section);
-	run_exec(argv_reorder, 3);
-	snprintf(key, sizeof(key), "qmodem.%s.state", section);
-	uci_set(key, "disabled");
-	uci_commit("qmodem");
-	config_unlock();
-	{ char *stop[] = { "/etc/init.d/qmodem_network", "hang", section, NULL }; run_exec(stop, 60); }
-	log_msg(LOG_L_INFO, "disabled slot=%s section=%s", slot, section);
+    char section[128];
+    section_from_slot(slot, section, sizeof(section));
+    return disable_section(section);
 }
 
 static void scan_usb_all(void)
@@ -1368,6 +1473,7 @@ static int event_key(enum event_type type, const char *a, const char *b, char *o
 	case EV_ADD: return snprintf(out, len, "add:%s:%s", b, a);
 	case EV_REMOVE: return snprintf(out, len, "remove:%s", a);
 	case EV_DISABLE: return snprintf(out, len, "disable:%s", a);
+	case EV_CHECK: return snprintf(out, len, "check:%s", a);
 	case EV_SCAN: return snprintf(out, len, "scan:%s", a && *a ? a : "all");
 	}
 	return -1;
@@ -1434,6 +1540,11 @@ static int associated_pcie_slot(const char *usb, char *owner, size_t len)
 static int enqueue_event_ex(enum event_type type, const char *arg, const char *slot_type, int delay_sec, int attempts)
 {
     char owner[128]="";
+    const char *allowed = (type == EV_CHECK || type == EV_REMOVE)
+        ? "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
+        : "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.:-";
+    if (!arg || !*arg || strlen(arg) >= 128 || strspn(arg, allowed) != strlen(arg)) return -1;
+    if (type == EV_ADD && (!slot_type || (strcmp(slot_type, "usb") && strcmp(slot_type, "pcie")))) return -1;
     if (type == EV_ADD || type == EV_DISABLE) {
         int associated=associated_pcie_slot(arg,owner,sizeof(owner));
         if (associated<0) { log_msg(LOG_L_ERR,"ambiguous associated USB slot=%s",arg); return -1; }
@@ -1444,8 +1555,8 @@ static int enqueue_event_ex(enum event_type type, const char *arg, const char *s
 		return -1;
 	e->type = type;
 	if (arg)
-		snprintf(type == EV_REMOVE ? e->section : e->slot,
-			 type == EV_REMOVE ? sizeof(e->section) : sizeof(e->slot),
+		snprintf((type == EV_REMOVE || type == EV_CHECK) ? e->section : e->slot,
+			 (type == EV_REMOVE || type == EV_CHECK) ? sizeof(e->section) : sizeof(e->slot),
 			 "%s", arg);
 	if (slot_type)
 		snprintf(e->slot_type, sizeof(e->slot_type), "%s", slot_type);
@@ -1471,6 +1582,7 @@ static int enqueue_event_ex(enum event_type type, const char *arg, const char *s
     }
     if (!attempts) ++*generation;
     e->generation = *generation;
+    if (type == EV_DISABLE || type == EV_REMOVE) revoke_ready(e->section);
 	if (!g.queue_head || e->not_before < g.queue_head->not_before) {
 		e->next = g.queue_head;
 		g.queue_head = e;
@@ -1575,9 +1687,40 @@ static void process_event(struct event *e)
 		remove_modem(e->section);
 		break;
 	case EV_DISABLE:
-		disable_slot(e->slot);
-		break;
-	case EV_SCAN:
+        if (disable_slot(e->slot)) {
+            if (e->attempts < g.add_retry_max)
+                enqueue_event_ex(EV_DISABLE, e->slot, NULL, g.add_retry_delay, e->attempts + 1);
+            else
+                log_msg(LOG_L_ERR, "disable slot=%s exhausted retries; remains unready", e->slot);
+        }
+        break;
+    case EV_CHECK:
+        if (check_modem(e->section) && e->attempts < g.add_retry_max) {
+            char key[256], manual[16], fixed[16], path[256], type[16], section[128];
+            uci_get("qmodem.main.block_auto_probe", manual, sizeof(manual));
+            snprintf(key, sizeof(key), "qmodem.%s.fixed_device", e->section);
+            uci_get(key, fixed, sizeof(fixed));
+            snprintf(key, sizeof(key), "qmodem.%s.path", e->section);
+            uci_get(key, path, sizeof(path));
+            size_t len = strlen(path);
+            while (len && path[len - 1] == '/') path[--len] = 0;
+            const char *slot = strrchr(path, '/');
+            slot = slot ? slot + 1 : path;
+            section_from_slot(slot, section, sizeof(section));
+            snprintf(key, sizeof(key), "qmodem.%s.data_interface", e->section);
+            uci_get(key, type, sizeof(type));
+            if (strcmp(manual, "1") && strcmp(fixed, "1") && !strcmp(section, e->section) &&
+                    (!strcmp(type, "usb") || !strcmp(type, "pcie")))
+                enqueue_event_ex(EV_ADD, slot, type, g.add_retry_delay, e->attempts + 1);
+            else
+                enqueue_event_ex(EV_CHECK, e->section, NULL, g.add_retry_delay, e->attempts + 1);
+        }
+        break;
+    case EV_SCAN:
+        check_configured(e->slot);
+        { char manual[16];
+          uci_get("qmodem.main.block_auto_probe", manual, sizeof(manual));
+          if (!strcmp(manual, "1")) break; }
 		if (!strcmp(e->slot, "usb"))
 			scan_usb_all();
 		else if (!strcmp(e->slot, "pcie"))
@@ -1630,6 +1773,8 @@ static void handle_client(int fd)
 	} else if (!strcmp(cmd, "disable") && a[0]) {
 		delay_sec = b[0] ? atoi(b) : 0;
 		rc = enqueue_event(EV_DISABLE, a, NULL, delay_sec);
+	} else if (!strcmp(cmd, "check") && a[0]) {
+        rc = enqueue_event(EV_CHECK, a, NULL, 0);
 	} else if (!strcmp(cmd, "scan")) {
 		delay_sec = b[0] ? atoi(b) : 0;
 		rc = enqueue_event(EV_SCAN, a[0] ? a : "all", NULL, delay_sec);
@@ -1740,6 +1885,9 @@ int main(int argc, char **argv)
 		syslog(LOG_ERR, "failed to setup socket %s: %s", QMODEM_SCAND_SOCKET, strerror(errno));
 		return 1;
 	}
+
+    /* Validate every saved section, even with discovery disabled. */
+    check_configured("all");
 
 	threads = calloc((size_t)g.scan_workers, sizeof(*threads));
 	if (!threads)
