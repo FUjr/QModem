@@ -7,6 +7,8 @@ USE_PROCD=1
 
 start_service() {
 	config_load qmodem
+    config_get block_auto_probe main block_auto_probe 0
+    [ "$block_auto_probe" -eq 1 ] || config_foreach _prepare_pcie_slot modem-slot
     _start_scand
     config_foreach _mk_rundir modem-device
     config_get block_auto_probe main block_auto_probe 0
@@ -53,6 +55,19 @@ _try_vendor_preset_pcie()
 {
     config_foreach _try_pcie_device modem-device
     config_foreach _try_pcie_slot modem-slot
+}
+
+_prepare_pcie_slot()
+{
+    local type slot driver id
+    config_get type "$1" type
+    [ "$type" = pcie ] || return 0
+    config_get driver "$1" pci_driver
+    [ -n "$driver" ] || return 0
+    config_get slot "$1" slot
+    config_get id "$1" pci_id
+    /usr/share/qmodem/modem_pcie.sh "$slot" "$driver" "$id" || \
+        logger -t modem_init "Unable to prepare PCIe driver for slot $slot"
 }
 
 _try_pcie_slot()

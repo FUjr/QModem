@@ -91,6 +91,7 @@ printf '%s\n' "$board_json" | jq -e '
     .qmodem.slots as $slots | .qmodem_led.modem_status as $leds |
     ($slots | keys) == ["pcie0", "usb0"] and
     $slots.usb0.slot == "2-1" and $slots.pcie0.slot == "0002:01:00.0" and
+    $slots.pcie0.pci_driver == "mhi_q" and $slots.pcie0.pci_id == "17cb:0308" and
     ($slots[] | has("associated_usb") | not) and
     $slots.usb0.gpio == "5g1_en" and $slots.pcie0.gpio == "5g2_en" and
     ($slots[] | .gpio_up == "1" and .gpio_down == "0") and
