@@ -91,7 +91,12 @@ qmodem_record_testcase_file()
 }
 
 at()
-{
+(
+  local port_key
+  port_key=$(printf '%s' "$1" | tr -c 'A-Za-z0-9_' '_')
+  [ -n "$port_key" ] || exit 2
+  mkdir -p /var/lock
+  exec 6>"/var/lock/qmodem-at-$port_key.lock"; flock -x 6 || exit 1
   local at_port=$1
   local new_str="${2/[$]/$}"
   local atcmd="${new_str/\"/\"}"
@@ -123,10 +128,15 @@ at()
   else
    tom_modem $use_ubus_flag  -d $at_port -o a -c "$atcmd" $options
   fi
-}
+)
 
 fastat()
-{
+(
+  local port_key
+  port_key=$(printf '%s' "$1" | tr -c 'A-Za-z0-9_' '_')
+  [ -n "$port_key" ] || exit 2
+  mkdir -p /var/lock
+  exec 6>"/var/lock/qmodem-at-$port_key.lock"; flock -x 6 || exit 1
   local at_port=$1
   local new_str="${2/[$]/$}"
   local atcmd="${new_str/\"/\"}"
@@ -157,7 +167,7 @@ fastat()
   else
    tom_modem -d $at_port -o a -c "$atcmd" -t 1
   fi
-}
+)
 
 log2file()
 {

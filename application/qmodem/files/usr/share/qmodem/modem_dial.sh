@@ -5,11 +5,14 @@ MODEM_RUNDIR="/var/run/qmodem"
 SCRIPT_DIR="${QMODEM_HOME:-/usr/share/qmodem}"
 
 modem_config=$1
+. "$SCRIPT_DIR/instance.sh"
+qmodem_valid_instance "$modem_config" || exit 2
 mkdir -p "${MODEM_RUNDIR}/${modem_config}_dir"
 log_file="${MODEM_RUNDIR}/${modem_config}_dir/dial_log"
 debug_subject="modem_dial"
 source "${SCRIPT_DIR}/generic.sh"
 source "${SCRIPT_DIR}/cmds/modem_dial.sh"
+. "${SCRIPT_DIR}/bridge_port_policy.sh"
 touch $log_file
 
 exec_pre_dial()
@@ -258,6 +261,15 @@ ensure_bridge_device()
     local current_type
     local current_name
     local current_ports
+    local confirmed_ethernet=''
+
+    if [ -n "$wwan_port" ]; then
+        if [ -n "${ethernet_check:-}" ] && [ "$wwan_port" = "${ethernet_5g:-}" ]; then
+            confirmed_ethernet="$wwan_port"
+        fi
+        qmodem_bridge_port_apply "$modem_config" "$wwan_port" "$modem_path" "$confirmed_ethernet" || return 1
+        [ "$QMODEM_BRIDGE_PORT_CHANGED" != 1 ] || bridge_network_dirty=1
+    fi
 
     bridge_section=$(get_bridge_device_section)
     bridge_device_section="$bridge_section"
@@ -292,7 +304,7 @@ ensure_bridge_passthrough()
     bridge_device_name=""
     bridge_device_section=$(get_bridge_device_section)
     remove_selected_bridge_ports
-    ensure_bridge_device "$wwan_port"
+    ensure_bridge_device "$wwan_port" || return 1
 }
 
 get_bridge_management_section()
@@ -390,6 +402,9 @@ cleanup_bridge_passthrough()
 
     bridge_network_dirty=0
     bridge_qmodem_dirty=0
+
+    qmodem_bridge_port_restore "$modem_config" || return 1
+    [ "$QMODEM_BRIDGE_PORT_CHANGED" != 1 ] || bridge_network_dirty=1
 
     config_load qmodem
     config_foreach restore_bridge_port_backup bridge-port-backup
@@ -585,6 +600,10 @@ update_config()
 
 check_dial_prepare()
 {
+    sim_fullfill=0
+    config_fullfill=0
+    netdev_fullfill=0
+    qmodem_port_owned "$modem_config" "$at_port" || return 0
     cpin=$(cmd_dial_cpin_query "$at_port")
     get_sim_status "$cpin"
     [ "$manufacturer" = "neoway" ] && {
@@ -624,7 +643,7 @@ check_dial_prepare()
         netdev_fullfill=0
     fi
 
-    if [ "$enable_dial" = "1" ] && [ "$sim_fullfill" = "1" ] && [ "$state" != "disabled" ] ;then
+    if [ "$enable_dial" = "1" ] && [ "$sim_fullfill" = "1" ] && [ "$state" != "disabled" ] && [ "$global_dial" != 0 ];then
         config_fullfill=1
     fi
     if [ "$config_fullfill" = "1" ] && [ "$sim_fullfill" = "1" ] && [ "$netdev_fullfill" = "1" ] ;then
@@ -753,6 +772,12 @@ remove_from_fw_zone()
 
 set_if()
 {
+    qmodem_config_lock || return 1
+    if ! qmodem_interface_owned "$interface_name" || ! qmodem_interface_owned "$interface6_name"; then
+        m_debug "interface alias belongs to another owner: $interface_name"
+        qmodem_config_unlock
+        return 1
+    fi
     firewall_reload_flag=0
     dhcp_reload_flag=0
     network_reload_flag=0
@@ -784,6 +809,9 @@ set_if()
                 esac
             ;;
     esac
+    if [ "$bridge_enabled" != "1" ] && [ "$managed_ipv4" = 1 ]; then
+        proto="qmodem_runtime"
+    fi
     if [ "$bridge_enabled" = "1" ]; then
         proto="none"
         protov6="none"
@@ -808,7 +836,12 @@ set_if()
     fi
     interface=$(uci -q get network.$interface_name)
     interfacev6=$(uci -q get network.$interface6_name)
-    num=$(uci show firewall | grep "name='wan'" | wc -l)
+    if [ -n "$interface" ] && [ "$(uci -q get network.$interface_name.proto)" != "$proto" ]; then
+        uci set network.$interface_name.proto="$proto"
+        network_reload_flag=1
+    fi
+    num=$(qmodem_wan_zone)
+    [ -n "$num" ] || { qmodem_config_unlock; return 1; }
     if [ "$env4" -eq 1 ];then
         if [ -z "$interface" ];then
             uci set network.${interface_name}=interface
@@ -825,7 +858,7 @@ set_if()
             else
                 uci del network.${interface_name}.peerdns
             fi
-            local wwan_num=$(uci -q get firewall.@zone[$num].network | grep -w "${interface_name}" | wc -l)
+            local wwan_num=$(uci -q get firewall.$num.network | grep -w "${interface_name}" | wc -l)
             if [ "$wwan_num" = "0" ]; then
                 append_to_fw_zone $num ${interface_name}
             fi
@@ -851,7 +884,7 @@ set_if()
             uci set network.${interface6_name}.device="@${interface_name}"
             uci set network.${interface6_name}.metric="${metric}"
             
-            local wwan6_num=$(uci -q get firewall.@zone[$num].network | grep -w "${interface6_name}" | wc -l)
+            local wwan6_num=$(uci -q get firewall.$num.network | grep -w "${interface6_name}" | wc -l)
             if [ "$wwan6_num" = "0" ]; then
                 append_to_fw_zone $num ${interface6_name}
             fi
@@ -910,24 +943,30 @@ set_if()
             if ! external_bridge_manager apply "$set_modem_netcard"; then
                 ifdown "${interface_name}" >/dev/null 2>&1
                 m_debug "managed bridge setup failed; interface remains down"
+                qmodem_config_unlock
                 return 1
             fi
             target_netcard="$bridge_device_name"
         else
             if ! external_bridge_manager release "$set_modem_netcard"; then
                 m_debug "managed bridge release failed"
+                qmodem_config_unlock
                 return 1
             fi
             target_netcard="$set_modem_netcard"
         fi
     elif [ "$bridge_enabled" = "1" ]; then
-        ensure_bridge_passthrough "$set_modem_netcard"
+        if ! ensure_bridge_passthrough "$set_modem_netcard"; then
+            m_debug "modem bridge port policy failed; interface remains down"
+            qmodem_config_unlock
+            return 1
+        fi
         if ! ensure_bridge_management_interface; then
             m_debug "invalid bridge management IP: $bridge_management_ip"
         fi
         target_netcard="$bridge_device_name"
     else
-        cleanup_bridge_passthrough
+        cleanup_bridge_passthrough || { qmodem_config_unlock; return 1; }
         target_netcard="$set_modem_netcard"
     fi
     [ -z "$target_netcard" ] && target_netcard="$set_modem_netcard"
@@ -956,46 +995,36 @@ set_if()
         m_debug "set interface $interface_name to $target_netcard"
     fi
 
-    if [ "$bridge_qmodem_dirty" -eq 1 ]; then
-        uci commit qmodem
+    [ "$bridge_qmodem_dirty" -eq 0 ] || uci commit qmodem
+    if [ "$network_reload_flag" -eq 1 ] || [ "$interface_update_flag" -eq 1 ] || [ "$bridge_network_dirty" -eq 1 ]; then uci commit network; fi
+    [ "$firewall_reload_flag" -eq 0 ] || uci commit firewall
+    [ "$dhcp_reload_flag" -eq 0 ] || uci commit dhcp
+    qmodem_config_unlock
+    if [ "$network_reload_flag" -eq 1 ] || [ "$interface_update_flag" -eq 1 ] || [ "$bridge_network_dirty" -eq 1 ]; then
+        if [ "$bridge_network_dirty" -eq 1 ]; then /etc/init.d/network restart
+        else ifup "$interface_name"; [ "$env6" != 1 ] || ifup "$interface6_name"; fi
     fi
-    if [ "$network_reload_flag" -eq 1 ] || [ "$interface_update_flag" -eq 1 ] || [ "$bridge_network_dirty" -eq 1 ];then
-        uci commit network
-        if [ "$bridge_network_dirty" -eq 1 ]; then
-            /etc/init.d/network restart
-            m_debug "network restart"
-        else
-            ifup ${interface_name}
-            ifup ${interface6_name}
-            m_debug "network reload"
-        fi
+    if [ "$bridge_enabled" = 1 ] && [ -n "$set_modem_netcard" ]; then
+        qmodem_bridge_port_activate "$set_modem_netcard" || { ifdown "$interface_name"; return 1; }
     fi
-    if [ "$firewall_reload_flag" -eq 1 ];then
-        uci commit firewall
-        /etc/init.d/firewall restart
-        m_debug "firewall reload"
-    fi
-    if [ "$dhcp_reload_flag" -eq 1 ];then
-        uci commit dhcp
-        /etc/init.d/dhcp restart
-        m_debug "dhcp reload"
-    fi
+    [ "$firewall_reload_flag" -eq 0 ] || /etc/init.d/firewall restart
+    [ "$dhcp_reload_flag" -eq 0 ] || /etc/init.d/dhcp restart
+    return 0
 }
 
 flush_if()
 {
+    qmodem_config_lock || return 1
     network_reload_needed=0
     qmodem_reload_needed=0
     firewall_reload_flag=0
-    ifdown ${interface_name} >/dev/null 2>&1
-    ifdown ${interface6_name} >/dev/null 2>&1
     config_load network
     remove_target="$modem_config"
     config_foreach flush_ip_cb "interface"
     if [ "$bridge_manager" = "misectel-interface-v1" ] || [ "$bridge_manager" = "misectel-interface-v2" ]; then
         external_bridge_manager release "" || m_debug "managed bridge release failed during flush"
     else
-        cleanup_bridge_passthrough
+        cleanup_bridge_passthrough || { qmodem_config_unlock; return 1; }
         [ "$bridge_network_dirty" -eq 1 ] && network_reload_needed=1
         [ "$bridge_qmodem_dirty" -eq 1 ] && qmodem_reload_needed=1
     fi
@@ -1004,13 +1033,15 @@ flush_if()
     m_debug "delete interface $interface_name"
     uci commit network
     uci commit dhcp
+    [ "$firewall_reload_flag" -eq 0 ] || uci commit firewall
     [ "$qmodem_reload_needed" -eq 1 ] && uci commit qmodem
+    qmodem_config_unlock
     if [ "$firewall_reload_flag" -eq 1 ]; then
-        uci commit firewall
         /etc/init.d/firewall restart
     fi
     if [ "$network_reload_needed" -eq 1 ]; then
-        /etc/init.d/network restart
+        if [ "$bridge_network_dirty" -eq 1 ]; then /etc/init.d/network restart
+        else /etc/init.d/network reload; fi
     fi
 }
 
@@ -1020,6 +1051,12 @@ flush_ip_cb()
     local bind_modem_config
     config_get bind_modem_config "$network_cfg" modem_config
     if [ "$remove_target" = "$bind_modem_config" ];then
+        ifdown "$network_cfg" >/dev/null 2>&1
+        local zone
+        for zone in $(uci -q show firewall | sed -n "s/^firewall\.\(.*\)=zone$/\1/p"); do
+            remove_from_fw_zone "$zone" "$network_cfg" && firewall_reload_flag=1
+        done
+        uci -q delete dhcp.$network_cfg
         uci delete network.$network_cfg
         network_reload_needed=1
     fi
@@ -1027,15 +1064,41 @@ flush_ip_cb()
 }
 
 dial(){
+    exec 7>"$MODEM_RUNDIR/${modem_config}_dir/dial.lock"
+    flock -n 7 || return 1
     update_config
+    [ "$state" != disabled ] && [ "$enable_dial" = 1 ] && [ "$global_dial" != 0 ] || return 1
+    export QMODEM_INSTANCE="$modem_config" QMODEM_INTERFACE="$interface_name"
+    QMODEM_GENERATION="$$-$(date +%s)"
+    export QMODEM_GENERATION
+    ( exec 9>"$MODEM_RUNDIR/${modem_config}_dir/event.lock"; flock -x 9
+      printf '%s\n' "$QMODEM_GENERATION" > "$MODEM_RUNDIR/${modem_config}_dir/generation" )
+    managed_ipv4=0
+    case "$driver" in qmi|mbim|mhi)
+        if [ "$bridge_enabled" != 1 ] && [ -x /usr/bin/quectel-CM-M ]; then
+            if [ "$(uci -q get "qmodem.$modem_config.host_ipv4_owner")" = netifd ] ||
+                { [ -x /usr/libexec/qmodem-host-ipv4-owner ] && /usr/libexec/qmodem-host-ipv4-owner "$modem_config"; }; then
+                managed_ipv4=1
+            fi
+        fi;;
+    esac
     m_debug "modem_path=$modem_path,driver=$driver,interface=$interface_name,at_port=$at_port,using_sim_slot:$sim_slot,dns_list:$dns_list,bridge_enabled:$bridge_enabled,bridge_ports:$bridge_ports_selected,bridge_management_ip:$bridge_management_ip"
     while [ "$dial_prepare" != 1 ] ; do
         sleep 5
         update_config
+        [ "$state" != disabled ] && [ "$enable_dial" = 1 ] && [ "$global_dial" != 0 ] || return 1
         check_dial_prepare
         dial_prepare=$?
     done
-    set_if
+    set_if || return 1
+    export QMODEM_INTERFACE="$interface_name"
+    host_owner=unsupported
+    [ "$proto" != dhcp ] || host_owner=netifd
+    case "$driver" in qmi|mhi|mbim) host_owner=legacy;; esac
+    [ "$managed_ipv4" != 1 ] || host_owner=netifd
+    jq -n --arg driver "$driver" --arg owner "$host_owner" --arg generation "$QMODEM_GENERATION" \
+        '{driver:$driver,ipv4_owner:$owner,generation:$generation}' > "$MODEM_RUNDIR/${modem_config}_dir/backend.json.tmp"
+    mv "$MODEM_RUNDIR/${modem_config}_dir/backend.json.tmp" "$MODEM_RUNDIR/${modem_config}_dir/backend.json"
     m_debug "dialing $modem_path driver $driver"
     exec_pre_dial $modem_config
     case $driver in
@@ -1068,11 +1131,25 @@ dial(){
 
 wwan_hang()
 {
-    pid=$(cat "${MODEM_RUNDIR}/${modem_config}_dir/$modem_config.pid")
-    m_debug "wwan_hang, pid = $pid"
-    if [ -n $pid ]; then
-        kill $pid
+    local pid expected actual attempt state
+    pid=$(cat "${MODEM_RUNDIR}/${modem_config}_dir/$modem_config.pid" 2>/dev/null)
+    expected=$(cat "${MODEM_RUNDIR}/${modem_config}_dir/cm.start" 2>/dev/null)
+    case "$pid" in ''|*[!0-9]*) return 0;; esac
+    actual=$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null)
+    if [ -n "$expected" ] && [ "$actual" = "$expected" ]; then
+        kill "$pid" 2>/dev/null || :
+        attempt=0
+        while [ "$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null)" = "$expected" ]; do
+            state=$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null)
+            [ "$state" != Z ] || break
+            attempt=$((attempt+1))
+            if [ "$attempt" -eq 10 ]; then kill -KILL "$pid" 2>/dev/null || :; fi
+            [ "$attempt" -lt 15 ] || return 1
+            sleep 1
+        done
     fi
+    rm -f "${MODEM_RUNDIR}/${modem_config}_dir/$modem_config.pid" "${MODEM_RUNDIR}/${modem_config}_dir/cm.start"
+
 }
 
 ecm_hang()
@@ -1146,13 +1223,13 @@ hang()
             ecm_hang
             ;;
         "qmi")
-            wwan_hang
+            wwan_hang || return 1
             ;;
         "mbim")
-            wwan_hang
+            wwan_hang || return 1
             ;;
         "mhi")
-            wwan_hang
+            wwan_hang || return 1
             ;;
     esac
     flush_if
@@ -1219,6 +1296,7 @@ qmi_dial()
     fi
     if [ -e "/usr/bin/quectel-CM-M" ];then
         [ -n "$metric" ] && cmd_line="$cmd_line -d -M $metric"
+        [ "$managed_ipv4" = 1 ] && cmd_line="$cmd_line -E"
         [ "$force_set_apn" == "1" ] && cmd_line="$cmd_line -F"
     else
         [ -n "$metric" ] && cmd_line="$cmd_line"
@@ -1227,9 +1305,13 @@ qmi_dial()
     while true; do
         m_debug "dialing: $cmd_line"
         $cmd_line &
-        echo "$!" > "${MODEM_RUNDIR}/${modem_config}_dir/$modem_config.pid"
+        local cm_pid=$!
+        echo "$cm_pid" > "${MODEM_RUNDIR}/${modem_config}_dir/$modem_config.pid"
+        awk '{print $22}' "/proc/$cm_pid/stat" > "${MODEM_RUNDIR}/${modem_config}_dir/cm.start"
         m_debug "pid: $!"
-        wait
+        wait "$cm_pid"
+        [ "$(cat "$MODEM_RUNDIR/${modem_config}_dir/generation" 2>/dev/null)" = "$QMODEM_GENERATION" ] || return
+        sleep 5
         m_debug "quectel-CM exited, retrying dial"
     done
 }
@@ -1779,6 +1861,9 @@ at_dial_monitor()
 
 case "$2" in
     "hang")
+        ( mkdir -p "$MODEM_RUNDIR/${modem_config}_dir"
+          exec 9>"$MODEM_RUNDIR/${modem_config}_dir/event.lock"; flock -x 9
+          rm -f "$MODEM_RUNDIR/${modem_config}_dir/generation" "$MODEM_RUNDIR/${modem_config}_dir/ipv4.json" "$MODEM_RUNDIR/${modem_config}_dir/backend.json" )
         debug_subject="modem_hang"
         update_config
         hang;;

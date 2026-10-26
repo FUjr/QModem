@@ -919,6 +919,10 @@ static int parse_user_input(int argc, char **argv, PROFILE_T *profile) {
                 profile->enable_ipv6 = 1;
             break;
 
+            case 'E':
+                profile->managed_ipv4 = 1;
+            break;
+
             case 'd':
                 profile->no_dhcp = 1;
             break;
