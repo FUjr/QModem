@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <json-c/json.h>
 #include <pthread.h>
 #include <signal.h>
@@ -692,13 +693,62 @@ static void scan_associated_usb(const char *pcie_slot, struct scan_result *res)
 	}
 }
 
+/* Resolve WWAN ports by ancestry: controller and WWAN indices are independent. */
+#ifndef QMODEM_SYSFS_ROOT
+#define QMODEM_SYSFS_ROOT "/sys"
+#endif
+
+static int pcie_owned_path(const char *slot_path, const char *path)
+{
+    char slot_real[PATH_MAX], real[PATH_MAX];
+    if (!realpath(slot_path, slot_real) || !realpath(path, real))
+        return 0;
+    size_t n = strlen(slot_real);
+    return !strncmp(real, slot_real, n) && real[n] == '/';
+}
+
+static void scan_pcie_wwan(const char *slot_path, struct scan_result *res)
+{
+    const char *classes[] = { QMODEM_SYSFS_ROOT "/class/net", QMODEM_SYSFS_ROOT "/class/wwan" };
+    for (size_t i = 0; i < sizeof(classes) / sizeof(classes[0]); i++) {
+        DIR *d = opendir(classes[i]);
+        struct dirent *de;
+        if (!d) continue;
+        while ((de = readdir(d))) {
+            char path[PATH_MAX], real[PATH_MAX];
+            if (de->d_name[0] == '.') continue;
+            snprintf(path, sizeof(path), "%s/%s", classes[i], de->d_name);
+            if (!pcie_owned_path(slot_path, path) || !realpath(path, real)) continue;
+            if (i == 0) {
+                /* IP_SW0 is an auxiliary data path, not a second cellular NIC. */
+                if (strstr(real, "_IP_SW")) continue;
+                sl_add(&res->net_devices, de->d_name);
+            } else {
+                char type[32] = "", dev[160];
+                size_t n = strlen(path);
+                if (n + sizeof("/type") > sizeof(path)) continue;
+                memcpy(path + n, "/type", sizeof("/type"));
+                FILE *fp = fopen(path, "r");
+                if (!fp) continue;
+                if (fgets(type, sizeof(type), fp) && !strcmp(type, "AT\n")) {
+                    snprintf(dev, sizeof(dev), "/dev/%.127s", de->d_name);
+                    sl_add(&res->at_ports, dev);
+                    sl_add(&res->pcie_at_ports, dev);
+                }
+                fclose(fp);
+            }
+        }
+        closedir(d);
+    }
+}
+
 static void scan_pcie_slot(const char *slot, struct scan_result *res)
 {
 	char slot_path[256], path[512], short_slot[128];
 	DIR *d;
 	struct dirent *de;
 
-	snprintf(slot_path, sizeof(slot_path), "/sys/bus/pci/devices/%s", slot);
+	snprintf(slot_path, sizeof(slot_path), QMODEM_SYSFS_ROOT "/bus/pci/devices/%s", slot);
 	if (!is_dir(slot_path))
 		return;
 	snprintf(res->modem_path, sizeof(res->modem_path), "/sys/bus/pci/devices/%s/", slot);
@@ -744,46 +794,7 @@ static void scan_pcie_slot(const char *slot, struct scan_result *res)
 		closedir(d);
 	}
 
-	snprintf(path, sizeof(path), "%s/mhi0/wwan/wwan0", slot_path);
-	if (is_dir(path)) {
-		struct str_list ats;
-		sl_init(&ats);
-		list_child_matching(path, "wwan0at", &ats);
-		for (size_t i = 0; i < ats.len; i++) {
-			char dev[160];
-			snprintf(dev, sizeof(dev), "/dev/%s", ats.items[i]);
-			sl_add(&res->at_ports, dev);
-			sl_add(&res->pcie_at_ports, dev);
-		}
-		sl_free(&ats);
-	}
-
-	snprintf(path, sizeof(path), "%s/wwan", slot_path);
-	if (is_dir(path)) {
-		DIR *wd = opendir(path);
-		if (wd) {
-			while ((de = readdir(wd))) {
-				char wwan_path[512];
-				if (strncmp(de->d_name, "wwan", 4))
-					continue;
-				sl_add(&res->net_devices, de->d_name);
-				snprintf(wwan_path, sizeof(wwan_path), "%s/%s", path, de->d_name);
-				struct str_list ats;
-				sl_init(&ats);
-				list_child_matching(wwan_path, de->d_name, &ats);
-				for (size_t i = 0; i < ats.len; i++) {
-					if (strstr(ats.items[i], "at")) {
-						char dev[160];
-						snprintf(dev, sizeof(dev), "/dev/%s", ats.items[i]);
-						sl_add(&res->at_ports, dev);
-						sl_add(&res->pcie_at_ports, dev);
-					}
-				}
-				sl_free(&ats);
-			}
-			closedir(wd);
-		}
-	}
+	scan_pcie_wwan(slot_path, res);
 }
 
 static int at_command(const char *port, const char *cmd, int fast, int timeout, char *out, size_t out_len)
@@ -1341,7 +1352,8 @@ static void scan_pcie_all(void)
 		char dev_path[512], real[512], tmp[512], *save = NULL, *tok, last[128] = "";
 		if (de->d_name[0] == '.')
 			continue;
-		if (strncmp(de->d_name, "rmnet", 5) && strncmp(de->d_name, "wwan", 4))
+		if (strncmp(de->d_name, "rmnet", 5) && strncmp(de->d_name, "wwan", 4) &&
+            strncmp(de->d_name, "mhi_hwip", 8))
 			continue;
 		snprintf(dev_path, sizeof(dev_path), "/sys/class/net/%s/device", de->d_name);
 		if (!realpath(dev_path, real))
