@@ -158,7 +158,7 @@ class GenericMhi(unittest.TestCase):
         (self.slot / "vendor").write_text("0x17cb\n")
         mockbin = self.root / "bin"
         mockbin.mkdir(exist_ok=True)
-        for name, body in {"uci": "echo 0", "logger": 'echo "$*"'}.items():
+        for name, body in {"uci": 'case "$*" in *block_auto_probe) exit 1;; *) echo 0;; esac', "logger": 'echo "$*"'}.items():
             script = mockbin / name
             script.write_text("#!/bin/sh\n" + body + "\n")
             script.chmod(0o755)
