@@ -41,9 +41,15 @@ cc -ffunction-sections -fdata-sections \
 
 拓扑测试覆盖不同 MHI/WWAN 编号、HW/SW 双通道、控制口归属、缺失与重复控制口、原生 MBIM 默认链路和旧厂商驱动。协议测试检查 raw-IP、禁用 QoS/聚合以及不带 mux-id 的 PCIe WDS 绑定。
 
-## 2026-10-26 验证范围
+## 本次验收标准
 
-使用 Misectel M02K88、RM520N-GL、ImmortalWrt 25.12.1 / Linux 6.12.94 验证 generic QMI。设备通过 `mhi-pci-generic`、`mhi_net` 和 `mhi_wwan_ctrl` 工作，PCIe 无 AT 口，通过显式关联的 USB AT 口识别模块。main 和 stable 均验证了 IPv4/IPv6 地址、路由、DNS 配置与绑定 `mhi_hwip0` 的公网连通性。main 的一次拨号进程终止测试成功自动重拨；stable 的后续同类测试发生下述 AER 故障，未通过自动重拨验收。
+本次以控制面适配完成为验收标准：设备扫描与型号识别、按控制器归属匹配控制口、显式关联 USB AT 口，以及 generic QMI 的控制协议交互。main、stable 已完成上述适配，并通过主机回归与 ARM64 APK SDK 编译；当前设备已验证 QMI 控制交互。
+
+原生 MBIM 适配通过拓扑回归与编译，当前设备不具备相应数据通道，未完成 MBIM 硬件协议交互验证。数据面吞吐、长期连通性、自动重拨稳定性及 PCIe AER 恢复不作为本次完成条件；下列实测结果保留用于后续定位。
+
+## 2026-10-26 验证记录
+
+使用 Misectel M02K88、RM520N-GL、ImmortalWrt 25.12.1 / Linux 6.12.94 验证 generic QMI。设备通过 `mhi-pci-generic`、`mhi_net` 和 `mhi_wwan_ctrl` 工作，PCIe 无 AT 口，通过显式关联的 USB AT 口识别模块。main 和 stable 均验证了 IPv4/IPv6 地址、路由、DNS 配置与绑定 `mhi_hwip0` 的公网连通性。main 的一次拨号进程终止测试成功自动重拨；stable 的后续同类测试发生下述 AER 故障，自动重拨稳定性尚未确认，不影响本次控制面适配完成结论。
 
 构建采用校验 SHA256 的 OpenWrt snapshot mediatek/filogic ARM64 APK SDK（GCC 14.4.0），分别编译 qmodem、modem_scan、quectel-CM-5G-M。设备保留原有内核，部署用户态适配文件进行验证。
 
