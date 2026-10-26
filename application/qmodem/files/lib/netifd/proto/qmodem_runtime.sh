@@ -1,6 +1,8 @@
 #!/bin/sh
 [ -n "$INCLUDE_ONLY" ] || { . /lib/functions.sh; . ../netifd-proto.sh; init_proto "$@"; }
-proto_qmodem_runtime_init_config() { proto_config_add_string modem_config; available=1; no_device=0; no_proto_task=1; }
+# CM creates the PDP before its event attaches the data device. Waiting for
+# that device's carrier here can tear down setup before the event is replayed.
+proto_qmodem_runtime_init_config() { proto_config_add_string modem_config; available=1; no_device=1; no_proto_task=1; }
 proto_qmodem_runtime_setup() {
     local interface="$1" instance
     instance=$(uci -q get "network.$interface.modem_config")

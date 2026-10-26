@@ -8,14 +8,16 @@
 static jmp_buf published;
 static int commands, dns_updates, events;
 static const char *expected_action;
+static const char *expected_device = "testmodem0";
+static char last_command[256];
 static pid_t fake_fork(void) { return 0; }
-static int fake_system(const char *cmd) { (void)cmd; commands++; return 0; }
+static int fake_system(const char *cmd) { snprintf(last_command, sizeof(last_command), "%s", cmd); commands++; return 0; }
 static int fake_execl(const char *path, const char *arg0, ...) {
     va_list args;
     va_start(args,arg0);
     assert(!strcmp(path,"/usr/libexec/qmodem-ipv4-event"));
     assert(!strcmp(va_arg(args,const char *),expected_action));
-    assert(!strcmp(va_arg(args,const char *),"testmodem0"));
+    assert(!strcmp(va_arg(args,const char *),expected_device));
     assert(!strcmp(va_arg(args,const char *),"10.1.2.3"));
     assert(!strcmp(va_arg(args,const char *),"255.255.255.0"));
     assert(!strcmp(va_arg(args,const char *),"10.1.2.1"));
@@ -47,6 +49,16 @@ int main(void) {
     expected_action="down";
     if (!setjmp(published)) udhcpc_stop(&p);
     assert(events==2 && commands==0 && dns_updates==0);
+    /* Managed QMAP starts only its parent; child address/routes/DNS stay netifd-owned. */
+    strcpy(p.qmapnet_adapter,"testmodem0_1");
+    expected_device=p.qmapnet_adapter;
+    expected_action="up";
+    if (!setjmp(published)) udhcpc_start(&p);
+    assert(commands==1 && strstr(last_command,"testmodem0 up") && dns_updates==0);
+    expected_action="down";
+    if (!setjmp(published)) udhcpc_stop(&p);
+    assert(events==4 && commands==1 && dns_updates==0);
+    p.qmapnet_adapter[0]=0;
     /* Opt-out retains the existing CM-owned address/DNS implementation. */
     p.managed_ipv4=0;
     udhcpc_start(&p);

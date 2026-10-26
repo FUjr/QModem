@@ -1003,6 +1003,10 @@ set_if()
     if [ "$network_reload_flag" -eq 1 ] || [ "$interface_update_flag" -eq 1 ] || [ "$bridge_network_dirty" -eq 1 ]; then
         if [ "$bridge_network_dirty" -eq 1 ]; then /etc/init.d/network restart
         else ifup "$interface_name"; [ "$env6" != 1 ] || ifup "$interface6_name"; fi
+    elif [ "$proto" = qmodem_runtime ] && [ "$env4" = 1 ]; then
+        # A redial may leave unchanged UCI settings but a torn-down protocol.
+        # Rearm setup/replay before CM publishes this generation's IPv4 event.
+        ifup "$interface_name"
     fi
     if [ "$bridge_enabled" = 1 ] && [ -n "$set_modem_netcard" ]; then
         qmodem_bridge_port_activate "$set_modem_netcard" || { ifdown "$interface_name"; return 1; }
