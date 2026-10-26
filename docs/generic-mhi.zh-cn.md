@@ -43,10 +43,10 @@ cc -ffunction-sections -fdata-sections \
 
 ## 2026-10-26 验证范围
 
-使用 Misectel M02K88、RM520N-GL、ImmortalWrt 25.12.1 / Linux 6.12.94 验证 generic QMI。设备通过 `mhi-pci-generic`、`mhi_net` 和 `mhi_wwan_ctrl` 工作，PCIe 无 AT 口，通过显式关联的 USB AT 口识别模块。验证 IPv4/IPv6 地址、路由、DNS 与绑定 `mhi_hwip0` 的公网连通性，以及拨号进程终止后的自动重拨。
+使用 Misectel M02K88、RM520N-GL、ImmortalWrt 25.12.1 / Linux 6.12.94 验证 generic QMI。设备通过 `mhi-pci-generic`、`mhi_net` 和 `mhi_wwan_ctrl` 工作，PCIe 无 AT 口，通过显式关联的 USB AT 口识别模块。main 和 stable 均验证了 IPv4/IPv6 地址、路由、DNS 配置与绑定 `mhi_hwip0` 的公网连通性。main 的一次拨号进程终止测试成功自动重拨；stable 的后续同类测试发生下述 AER 故障，未通过自动重拨验收。
 
 构建采用校验 SHA256 的 OpenWrt snapshot mediatek/filogic ARM64 APK SDK（GCC 14.4.0），分别编译 qmodem、modem_scan、quectel-CM-5G-M。设备保留原有内核，部署用户态适配文件进行验证。
 
 该设备未提供原生 MBIM 数据通道，MBIM 验证限于拓扑回归和 SDK 编译，不代表完成 MBIM 硬件拨号验收。OpenWrt 23.05.5 IPK 不在本次验证范围。
 
-复测中还观察到 PCIe AER `CmpltTO` 和下游链路失活，MHI 通道随之消失。该故障需要继续定位，不能将上述短时连通性结果作为长期稳定性结论。
+复测中还观察到 PCIe AER `CmpltTO` 和下游链路失活，MHI 通道随之消失。该故障在重新打开拨号通道的测试中重复出现，但触发原因尚未确定，需要继续定位。不能将上述短时连通性结果作为长期稳定性结论。
