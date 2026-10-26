@@ -373,6 +373,17 @@ _out:
 }
 
 int ql_qmap_mode_detect(PROFILE_T *profile) {
+    if (profile->generic_mhi) {
+        /* Upstream drivers do not implement Quectel QMAP ioctls. Native MBIM
+         * uses the kernel's default session 0 link; raw QMI has no mux header. */
+        profile->qmap_mode = 0;
+        profile->qmapnet_adapter[0] = '\0';
+        profile->rawIP = 1;
+        profile->no_dhcp = 1; /* configure the address returned by the control protocol */
+        snprintf(profile->driver_name, sizeof(profile->driver_name), "%s",
+                 profile->generic_mhi == 1 ? "mhi_net" : "mhi_wwan_mbim");
+        return 0;
+    }
     if (profile->software_interface == SOFTWARE_MBIM) {
         if (profile->hardware_interface == HARDWARE_USB)
             return ql_mbim_usb_vlan_mode_detect(profile);

@@ -1,9 +1,9 @@
 name: Uplink runtime regression
 on:
   push:
-    paths: ['application/qmodem_uplink_manager/**', 'application/qmodem/**', 'application/modem_scan/**', 'application/quectel_CM_5G_M/**', 'luci/luci-app-qmodem-uplink/**', '.github/workflows/uplink-runtime.yml']
+    paths: ['application/qmodem_uplink_manager/**', 'application/qmodem/**', 'application/modem_scan/**', 'application/quectel_CM_5G_M/**', 'tests/test_generic_mhi.py', 'luci/luci-app-qmodem-uplink/**', '.github/workflows/uplink-runtime.yml']
   pull_request:
-    paths: ['application/qmodem_uplink_manager/**', 'application/qmodem/**', 'application/modem_scan/**', 'application/quectel_CM_5G_M/**', 'luci/luci-app-qmodem-uplink/**', '.github/workflows/uplink-runtime.yml']
+    paths: ['application/qmodem_uplink_manager/**', 'application/qmodem/**', 'application/modem_scan/**', 'application/quectel_CM_5G_M/**', 'tests/test_generic_mhi.py', 'luci/luci-app-qmodem-uplink/**', '.github/workflows/uplink-runtime.yml']
 jobs:
   packets:
     runs-on: ubuntu-24.04
@@ -19,6 +19,10 @@ jobs:
           node --check luci/luci-app-qmodem-uplink/htdocs/luci-static/resources/view/qmodem/uplink.js
           sh application/qmodem_uplink_manager/tests/test_health.sh
           sh application/qmodem/tests/test_bridge_passthrough.sh
+          sh application/qmodem/tests/test_modem_netdev.sh
+          python3 tests/test_generic_mhi.py
+          cc -ffunction-sections -fdata-sections application/quectel_CM_5G_M/tests/test_mhi_format.c -Wl,--gc-sections -lpthread -o /tmp/test-mhi-format
+          /tmp/test-mhi-format
           cc -pthread application/modem_scan/tests/test_scheduler.c -ljson-c -o /tmp/test-scheduler
           /tmp/test-scheduler
           cc -pthread application/quectel_CM_5G_M/tests/test_managed_ipv4.c -o /tmp/test-managed
