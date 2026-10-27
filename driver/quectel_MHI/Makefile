@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=pcie_mhi
 PKG_VERSION:=1.4
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/package.mk
@@ -18,7 +18,9 @@ define KernelPackage/pcie_mhi
   SUBMENU:=WWAN Support
   TITLE:=Kernel pcie driver for MHI device
   FILES:=$(PKG_BUILD_DIR)/pcie_mhi.ko
-# AUTOLOAD:=$(call AutoLoad,90,pcie_mhi)
+  # Claim supported endpoints before the unnumbered mhi-pci-generic AutoProbe.
+  # Generic MHI remains available for endpoints outside this driver's PCI IDs.
+  AUTOLOAD:=$(call AutoLoad,18,pcie_mhi)
 endef
 
 define KernelPackage/pcie_mhi/description
