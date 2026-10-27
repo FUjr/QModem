@@ -715,27 +715,27 @@ check_ip()
 
 append_to_fw_zone()
 {
-    local fw_zone=$1
-    local if_name=$2
-    local fw_zone_path
-    source /etc/os-release
-    local os_version=${VERSION_ID:0:2}
+    local fw_zone=$1 if_name=$2 fw_zone_path origin_line network retained=""
+    # UCI represents a legacy space-separated scalar as one quoted list item
+    # after add_list. Normalize it before mixing modem and wired memberships.
+    case "$if_name" in ''|*[!A-Za-z0-9_-]*) return 2;; esac
     case "$fw_zone" in
-        ''|*[!0-9]*) fw_zone_path="firewall.${fw_zone}" ;;
-        *) fw_zone_path="firewall.@zone[${fw_zone}]" ;;
+        ''|*[!0-9]*) fw_zone_path="firewall.${fw_zone}";;
+        *) fw_zone_path="firewall.@zone[${fw_zone}]";;
     esac
-    origin_line=$(uci -q get ${fw_zone_path}.network)
-    for i in $origin_line; do
-        [ "$i" = "$if_name" ] && return
+    origin_line=$(uci -q get "${fw_zone_path}.network" | tr -d '\047\134')
+    for network in $origin_line "$if_name"; do
+        case "$network" in ''|*[!A-Za-z0-9_-]*) continue;; esac
+        case " $retained " in *" $network "*) continue;; esac
+        retained="${retained:+$retained }$network"
     done
-    if [ "$os_version" -le 21 ];then
-        if [ -n "$origin_line" ];then
-            uci set ${fw_zone_path}.network="${origin_line} ${if_name}"
-        elif [ -z "$origin_line" ];then
-            uci set ${fw_zone_path}.network="${if_name}"
-        fi
+    . /etc/os-release
+    local os_version=${VERSION_ID:0:2}
+    if [ "$os_version" -le 21 ]; then
+        uci set "${fw_zone_path}.network=$retained"
     else
-        uci add_list ${fw_zone_path}.network=${if_name}
+        uci -q delete "${fw_zone_path}.network"
+        for network in $retained; do uci -q add_list "${fw_zone_path}.network=$network"; done
     fi
 }
 
@@ -753,7 +753,7 @@ remove_from_fw_zone()
         ''|*[!0-9]*) fw_zone_path="firewall.${fw_zone}" ;;
         *) fw_zone_path="firewall.@zone[${fw_zone}]" ;;
     esac
-    origin_line=$(uci -q get ${fw_zone_path}.network)
+    origin_line=$(uci -q get "${fw_zone_path}.network" | tr -d '\047\134')
     for network in $origin_line; do
         if [ "$network" = "$if_name" ]; then
             found=1
