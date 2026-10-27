@@ -14,7 +14,6 @@ define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=quectel-CM-5G app building test with metric option ( -M )
-  DEPENDS:=+libjson-c
 endef
 
 define Package/$(PKG_NAME)/description
