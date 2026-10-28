@@ -39,11 +39,10 @@ int main(int argc, char **argv)
 	app->start_enabled = strcmp(argv[10], "1") == 0;
 	(void)snprintf(app->media_socket_path, sizeof(app->media_socket_path),
 		"%s", socket_path);
-	if (qmodem_voip_profile_load(&app->media.profile, QMODEM_VOIP_PROFILE_PATH,
-		"RM520N-GL", "2c7c:0801") != 0)
-		qmodem_voip_profile_default(&app->media.profile);
+	qmodem_voip_profile_select(&app->media.profile, QMODEM_VOIP_PROFILE_PATH);
 	syslog(LOG_INFO,
-		"profile adb_unlock=%u voice_server_media_gate=%u voice_server_restart=%u",
+		"profile %s method=%s adb_unlock=%u voice_server_media_gate=%u voice_server_restart=%u",
+		app->media.profile.model, app->media.profile.method,
 		app->media.profile.adb_unlock,
 		app->media.profile.voice_server_media_gate,
 		app->media.profile.voice_server_restart);

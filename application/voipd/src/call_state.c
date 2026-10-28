@@ -45,7 +45,8 @@ static int endpoint_is_source(enum qmodem_voip_endpoint endpoint)
 {
 	return endpoint == QMODEM_VOIP_ENDPOINT_BROWSER ||
 	       endpoint == QMODEM_VOIP_ENDPOINT_LAN_SIP ||
-	       endpoint == QMODEM_VOIP_ENDPOINT_EXTERNAL_SIP;
+	       endpoint == QMODEM_VOIP_ENDPOINT_EXTERNAL_SIP ||
+	       endpoint == QMODEM_VOIP_ENDPOINT_RJ11;
 }
 
 static int valid_number(const char *number)
@@ -179,6 +180,8 @@ int qmodem_voip_endpoint_parse(const char *value,
 		*endpoint = QMODEM_VOIP_ENDPOINT_CELLULAR;
 	else if (strcmp(value, "external_sip") == 0)
 		*endpoint = QMODEM_VOIP_ENDPOINT_EXTERNAL_SIP;
+	else if (strcmp(value, "rj11") == 0)
+		*endpoint = QMODEM_VOIP_ENDPOINT_RJ11;
 	else
 		return -1;
 	return 0;
@@ -209,6 +212,7 @@ const char *qmodem_voip_endpoint_name(enum qmodem_voip_endpoint endpoint)
 	case QMODEM_VOIP_ENDPOINT_LAN_SIP: return "lan_sip";
 	case QMODEM_VOIP_ENDPOINT_CELLULAR: return "cellular";
 	case QMODEM_VOIP_ENDPOINT_EXTERNAL_SIP: return "external_sip";
+	case QMODEM_VOIP_ENDPOINT_RJ11: return "rj11";
 	default: return "none";
 	}
 }
@@ -344,6 +348,20 @@ int qmodem_voip_poll_active(struct qmodem_voip_call *call,
 	return 0;
 }
 
+int qmodem_voip_poll_idle(struct qmodem_voip_call *call,
+			  qmodem_voip_command_fn command, void *opaque)
+{
+	if (!call || !call->enabled || call->state != QMODEM_VOIP_IDLE ||
+	    call->reconcile_pending)
+		return -1;
+	call->reconcile_pending = 1;
+	call->reconcile_command_id = 0;
+	call->reconcile_saw_data = 0;
+	call->idle_poll = 1;
+	issue(command, opaque, "AT+CLCC");
+	return 0;
+}
+
 static int has_prefix(const char *line, const char *prefix)
 {
 	return strncmp(line, prefix, strlen(prefix)) == 0;
@@ -461,9 +479,26 @@ int qmodem_voip_line(struct qmodem_voip_call *call, const char *port,
 		notify(event, call, "caller_id", opaque);
 		return 0;
 	}
+	if (call->reconcile_pending && correlation == QMODEM_VOIP_CORR_TERMINAL &&
+	    command_id != 0 && (has_prefix(raw, "ERROR") || has_prefix(raw, "+CME ERROR")) &&
+	    (call->reconcile_command_id == 0 || command_id == call->reconcile_command_id)) {
+		call->idle_poll = 0;
+		call->reconcile_pending = 0;
+		call->reconcile_command_id = 0;
+		call->reconcile_saw_data = 0;
+		return 0;
+	}
 	if (call->reconcile_pending && strcmp(raw, "OK") == 0 &&
 	    correlation == QMODEM_VOIP_CORR_TERMINAL && command_id != 0 &&
 	    (call->reconcile_command_id == 0 || command_id == call->reconcile_command_id)) {
+		if (call->idle_poll && call->state == QMODEM_VOIP_IDLE) {
+			call->idle_poll = 0;
+			call->reconcile_pending = 0;
+			call->reconcile_command_id = 0;
+			call->reconcile_saw_data = 0;
+			return 0;
+		}
+		call->idle_poll = 0;
 		if ((call->state == QMODEM_VOIP_OUTGOING_SETUP ||
 		     call->state == QMODEM_VOIP_INCOMING_RINGING ||
 		     call->state == QMODEM_VOIP_EARLY_MEDIA ||
@@ -544,11 +579,16 @@ int qmodem_voip_line(struct qmodem_voip_call *call, const char *port,
 		}
 		call->reconcile_pending = 0;
 		call->reconcile_voice_misses = 0;
+		call->idle_poll = 0;
 		switch (status) {
 		case 0: mark_call_active(call); break;
 		case 1: case 2: call->state = QMODEM_VOIP_OUTGOING_SETUP; break;
 		case 3: call->state = QMODEM_VOIP_EARLY_MEDIA; break;
-		case 4: case 5: call->state = QMODEM_VOIP_INCOMING_RINGING; break;
+		case 4: case 5:
+			if (call->answer_owner == QMODEM_VOIP_ENDPOINT_NONE ||
+			    call->state != QMODEM_VOIP_ACTIVE)
+				call->state = QMODEM_VOIP_INCOMING_RINGING;
+			break;
 		default: break;
 		}
 		/* The revision identifies a call lifecycle for media ownership.  A
@@ -557,6 +597,9 @@ int qmodem_voip_line(struct qmodem_voip_call *call, const char *port,
 		 * between issuance and their handshake. */
 		if (call->state != previous_state)
 			notify(event, call, "call_state", opaque);
+		if (previous_state == QMODEM_VOIP_IDLE &&
+		    call->state == QMODEM_VOIP_INCOMING_RINGING)
+			notify(event, call, "ring", opaque);
 		return 0;
 	}
 	if (has_prefix(raw, "RING")) {

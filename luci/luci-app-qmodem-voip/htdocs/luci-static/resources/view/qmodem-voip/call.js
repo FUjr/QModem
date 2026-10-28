@@ -415,7 +415,7 @@ return view.extend({
 		const statusText = STATE_LABELS[model.state] || _('Unknown state');
 		this.refs.support.textContent = model.capabilityPending ? _('Waiting') : (model.supported ? _('Supported') : _('Unsupported'));
 		this.refs.support.className = `label ${model.capabilityPending ? '' : (model.supported ? 'success' : 'warning')}`.trim();
-		this.refs.capability.textContent = model.capabilityPending ? _('Waiting for modem discovery and the read-only safety probe.') : (model.supported ? _('RM520N-GL passed the safety probe.') : _('The read-only hardware probe did not pass. Call controls stay unavailable.'));
+		this.refs.capability.textContent = model.capabilityPending ? _('Waiting for modem discovery and the read-only safety probe.') : (model.supported ? (model.hardware ? _('%s passed the safety probe.').format(model.hardware) : _('The modem passed the safety probe.')) : _('The read-only hardware probe did not pass. Call controls stay unavailable.'));
 		this.refs.serviceStatus.textContent = model.enabled ? _('Running') : _('Stopped');
 		this.refs.serviceStatus.className = `label ${model.enabled ? 'success' : ''}`.trim();
 		this.refs.serviceDetail.textContent = model.enabled ? _('The runtime is ready for calls.') : _('Use the UCI switch below, then Save & Apply.');

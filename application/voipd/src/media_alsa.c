@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "media.h"
+#include "media_pcm_socket.h"
 #include "media_serial.h"
 
 #include <dirent.h>
@@ -162,6 +163,8 @@ int qmodem_voip_media_capture(struct qmodem_voip_media_engine *engine,
 {
 	if (engine && engine->backend == QMODEM_VOIP_MEDIA_BACKEND_SERIAL)
 		return qmodem_voip_serial_capture(engine, timestamp_ms);
+	if (engine && engine->backend == QMODEM_VOIP_MEDIA_BACKEND_PCM_SOCKET)
+		return qmodem_voip_pcm_socket_capture(engine, timestamp_ms);
 #ifdef QMODEM_VOIP_HOST_TEST
 	(void)engine;
 	(void)timestamp_ms;
@@ -197,6 +200,8 @@ int qmodem_voip_media_playback(struct qmodem_voip_media_engine *engine,
 {
 	if (engine && engine->backend == QMODEM_VOIP_MEDIA_BACKEND_SERIAL)
 		return qmodem_voip_serial_playback(engine, timestamp_ms);
+	if (engine && engine->backend == QMODEM_VOIP_MEDIA_BACKEND_PCM_SOCKET)
+		return qmodem_voip_pcm_socket_playback(engine, timestamp_ms);
 #ifdef QMODEM_VOIP_HOST_TEST
 	(void)engine;
 	(void)timestamp_ms;
@@ -326,6 +331,14 @@ int qmodem_voip_media_engine_start(struct qmodem_voip_media_engine *engine)
 		if (qmodem_voip_serial_start(engine, sysfs, devices, slot)) {
 			qmodem_voip_media_release(engine);
 			syslog(LOG_ERR, "qmodem_voip media: serial PCM interface-01 discovery failed");
+			return -1;
+		}
+		return 0;
+	}
+	if (strcmp(method, "pcm_socket") == 0) {
+		if (qmodem_voip_pcm_socket_start(engine)) {
+			qmodem_voip_media_release(engine);
+			syslog(LOG_ERR, "qmodem_voip media: PCM socket path missing from profile");
 			return -1;
 		}
 		return 0;

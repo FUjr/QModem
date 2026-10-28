@@ -114,6 +114,8 @@ struct consumer {
 	char outbound_realm[128];
 	char incoming_number[64];
 	int incoming_caller_id_withheld;
+	int incoming_ringing;
+	int invite_alerted;
 	unsigned outbound_port;
 	unsigned outbound_interval;
 	int outbound_registered;
@@ -158,6 +160,7 @@ static int g711_bridge_decode(enum qmodem_voip_media_codec codec,
 static struct consumer app;
 static volatile sig_atomic_t running = 1;
 static void stop_media(void);
+static void resend_incoming_invite(void);
 static int rtp_open(void);
 static int attach_media(void);
 static void outbound_register(void);
@@ -497,6 +500,8 @@ static void register_contact(pjsip_rx_data *request)
 	add_string_header(response, "X-QModem-Binding",
 			  app.binding[0] ? app.binding : "none");
 	(void)pjsip_endpt_send_response2(app.endpoint, request, response, NULL, NULL);
+	if (app.binding[0])
+		resend_incoming_invite();
 }
 
 static int binding_active(void)
@@ -885,6 +890,21 @@ static void send_dialog_bye(void)
 		syslog(LOG_WARNING, "qmodem_voip sip: cellular release BYE send failed");
 }
 
+static void send_invite_cancel(void)
+{
+	pjsip_tx_data *cancel = NULL;
+
+	if (!app.call.active || app.call.established ||
+	    app.call.origin != QMODEM_VOIP_SIP_CALL_CELLULAR || !app.outbound_invite)
+		return;
+	if (pjsip_endpt_create_cancel(app.endpoint, app.outbound_invite, &cancel) != PJ_SUCCESS)
+		return;
+	if (pjsip_endpt_send_request(app.endpoint, cancel, 30000, NULL, NULL) == PJ_SUCCESS)
+		syslog(LOG_INFO, "qmodem_voip sip: call offer to the SIP phone cancelled");
+	else
+		syslog(LOG_WARNING, "qmodem_voip sip: cellular release CANCEL send failed");
+}
+
 static pj_status_t send_outbound_ack(pjsip_tx_data *invite,
 		pjsip_rx_data *response)
 {
@@ -920,6 +940,8 @@ static pj_status_t send_outbound_ack(pjsip_tx_data *invite,
 	return status;
 }
 
+static pj_bool_t on_response(pjsip_rx_data *response);
+
 static void outbound_invite_cb(void *token, pjsip_event *event)
 {
 	pjsip_transaction *transaction;
@@ -948,7 +970,55 @@ static void outbound_invite_cb(void *token, pjsip_event *event)
 			(int)status);
 		(void)ubus_action("reject", NULL);
 		qmodem_voip_sip_call_release(&app.call);
+	} else if (event->body.tsx_state.type == PJSIP_EVENT_RX_MSG) {
+		(void)on_response(event->body.tsx_state.src.rdata);
 	}
+}
+
+static void incoming_invite_cb(void *token, pjsip_event *event)
+{
+	pjsip_transaction *transaction;
+	pjsip_cid_hdr *cid;
+	char call_id[QMODEM_VOIP_SIP_CALL_ID_SIZE];
+	(void)token;
+	if (!event || event->type != PJSIP_EVENT_TSX_STATE ||
+	    !(transaction = event->body.tsx_state.tsx))
+		return;
+	if (event->body.tsx_state.type == PJSIP_EVENT_RX_MSG) {
+		if (transaction->status_code < 200)
+			app.invite_alerted = 1;
+		else
+			(void)on_response(event->body.tsx_state.src.rdata);
+		return;
+	}
+	if (transaction->state != PJSIP_TSX_STATE_TERMINATED ||
+	    transaction->status_code < 300 || !transaction->last_tx ||
+	    !app.call.active || app.call.established)
+		return;
+	cid = (pjsip_cid_hdr *)pjsip_msg_find_hdr(transaction->last_tx->msg,
+						  PJSIP_H_CALL_ID, NULL);
+	if (!cid || copy_pj_string(call_id, sizeof(call_id), &cid->id) != 0 ||
+	    strcmp(call_id, app.call.call_id) != 0)
+		return;
+	qmodem_voip_sip_call_release(&app.call);
+	remember_outbound_invite(NULL);
+}
+
+static void send_incoming_invite(void);
+
+static void resend_incoming_invite(void)
+{
+	if (app.outbound || !app.incoming_ringing || app.call.established)
+		return;
+	if (app.call.active) {
+		if (app.invite_alerted)
+			return;
+		send_invite_cancel();
+		qmodem_voip_sip_call_release(&app.call);
+		remember_outbound_invite(NULL);
+	}
+	syslog(LOG_INFO, "qmodem_voip sip: SIP phone registered while ringing, offering the call again");
+	send_incoming_invite();
 }
 
 static void send_incoming_invite(void)
@@ -988,15 +1058,16 @@ static void send_incoming_invite(void)
 	    qmodem_voip_sip_call_begin(&app.call, QMODEM_VOIP_SIP_CALL_CELLULAR,
 		call_id, pending_tag, pending_branch, 1) != 0)
 		return;
-	if (app.outbound)
-		remember_outbound_invite(request);
+	remember_outbound_invite(request);
 	app.dialog_contact[0] = '\0';
+	app.invite_alerted = 0;
 	if (pjsip_endpt_send_request(app.endpoint, request, 30000, NULL,
-		app.outbound ? &outbound_invite_cb : NULL) != PJ_SUCCESS) {
-		if (app.outbound)
-			remember_outbound_invite(NULL);
+		app.outbound ? &outbound_invite_cb : &incoming_invite_cb) != PJ_SUCCESS) {
+		remember_outbound_invite(NULL);
 		app.dialog_contact[0] = '\0';
 		qmodem_voip_sip_call_release(&app.call);
+	} else {
+		syslog(LOG_INFO, "qmodem_voip sip: call offered to the SIP phone");
 	}
 }
 
@@ -1012,9 +1083,13 @@ static pj_bool_t on_response(pjsip_rx_data *response)
 	if (status == PJSIP_SC_UNAUTHORIZED ||
 	    status == PJSIP_SC_PROXY_AUTHENTICATION_REQUIRED)
 		return PJ_FALSE;
+	if (app.call.established) {
+		if (status >= 200 && status < 300)
+			(void)send_outbound_ack(app.outbound_invite, response);
+		return PJ_FALSE;
+	}
 	if (status >= 200 && status < 300) {
-		pj_status_t ack_status = app.outbound ?
-			send_outbound_ack(app.outbound_invite, response) : PJ_SUCCESS;
+		pj_status_t ack_status = send_outbound_ack(app.outbound_invite, response);
 		char remote_tag[QMODEM_VOIP_SIP_TAG_SIZE];
 		pjsip_msg_body *body = response->msg_info.msg->body;
 		struct qmodem_voip_sip_media media;
@@ -1044,6 +1119,11 @@ static pj_bool_t on_response(pjsip_rx_data *response)
 				&response->msg_info.to->tag) == 0)
 				(void)qmodem_voip_sip_call_establish(&app.call, remote_tag);
 			else {
+				if (response->msg_info.to &&
+				    copy_pj_string(remote_tag, sizeof(remote_tag),
+					&response->msg_info.to->tag) == 0 &&
+				    qmodem_voip_sip_call_establish(&app.call, remote_tag) == 0)
+					send_dialog_bye();
 				stop_media();
 				qmodem_voip_sip_call_release(&app.call);
 			}
@@ -1052,10 +1132,13 @@ static pj_bool_t on_response(pjsip_rx_data *response)
 			qmodem_voip_sip_call_release(&app.call);
 		}
 	} else if (status >= 300) {
-		(void)ubus_action("reject", NULL);
+		syslog(LOG_INFO, "qmodem_voip sip: SIP phone declined the call (%d)", status);
+		if (status == PJSIP_SC_BUSY_HERE || status == PJSIP_SC_BUSY_EVERYWHERE ||
+		    status == PJSIP_SC_DECLINE)
+			(void)ubus_action("reject", NULL);
+		app.incoming_ringing = 0;
 		qmodem_voip_sip_call_release(&app.call);
-		if (app.outbound)
-			remember_outbound_invite(NULL);
+		remember_outbound_invite(NULL);
 	}
 	return PJ_FALSE;
 }
@@ -1079,13 +1162,18 @@ static void end_call(pjsip_rx_data *request, int cancel)
 	 * it with 401 leaves the cellular leg active and the caller stuck waiting;
 	 * identity and Via-branch matching below still prevent unrelated calls from
 	 * being cancelled.  BYE remains Digest-authenticated. */
-	if (!cancel && !trusted_outbound_request(request) && !authenticate(request))
-		return;
 	if (request_identity(request, call_id, sizeof(call_id), remote_tag,
 		    sizeof(remote_tag), branch, sizeof(branch), &cseq) != 0) {
 		send_response(request, PJSIP_SC_BAD_REQUEST, PJ_FALSE, PJ_FALSE);
 		return;
 	}
+	if (!cancel && !trusted_outbound_request(request) &&
+	    !(app.call.active && app.call.established &&
+	      app.call.origin == QMODEM_VOIP_SIP_CALL_CELLULAR &&
+	      strcmp(call_id, app.call.call_id) == 0 &&
+	      strcmp(remote_tag, app.call.remote_tag) == 0) &&
+	    !authenticate(request))
+		return;
 	syslog(LOG_INFO,
 		"qmodem_voip sip: received %s call-id=%s tag=%s branch=%s cseq=%u stored-active=%u stored-origin=%u stored-tag=%s stored-branch=%s stored-cseq=%u established=%u",
 		cancel ? "CANCEL" : "BYE", call_id, remote_tag, branch, cseq,
@@ -1435,7 +1523,7 @@ static uint32_t monotonic_ms(void)
 		(uint64_t)now.tv_nsec / 1000000U);
 }
 
-static void stop_media(void)
+static void detach_media(void)
 {
 	if (app.media_fd_event.fd >= 0) {
 		uloop_fd_delete(&app.media_fd_event);
@@ -1450,6 +1538,11 @@ static void stop_media(void)
 	}
 	app.media_attached = 0;
 	app.rtp_attached = 0;
+}
+
+static void stop_media(void)
+{
+	detach_media();
 	(void)ubus_action("hangup", NULL);
 }
 
@@ -1746,9 +1839,12 @@ static void consumer_event(struct ubus_context *context,
 		{ .name = "state", .type = BLOBMSG_TYPE_STRING },
 		{ .name = "revision", .type = BLOBMSG_TYPE_UNSPEC },
 		{ .name = "remote_number", .type = BLOBMSG_TYPE_STRING },
-		{ .name = "caller_id_withheld", .type = BLOBMSG_TYPE_UNSPEC }
+		{ .name = "caller_id_withheld", .type = BLOBMSG_TYPE_UNSPEC },
+		{ .name = "answer_owner", .type = BLOBMSG_TYPE_STRING }
 	};
 	struct blob_attr *values[ARRAY_SIZE(policy)] = { 0 };
+	const char *event, *state, *owner;
+	int ended;
 	(void)context;
 	(void)handler;
 	(void)type;
@@ -1767,14 +1863,18 @@ static void consumer_event(struct ubus_context *context,
 		else
 			app.media_revision = blobmsg_get_u32(values[2]);
 	}
-	if (strcmp(blobmsg_get_string(values[0]), "call_state") == 0 &&
-	    strcmp(blobmsg_get_string(values[1]), "active") == 0 &&
-	    app.call.active) {
-		if (app.pending_lan_response && !app.media_attach_timeout.pending) {
-			app.media_attach_attempts = 0;
-			uloop_timeout_set(&app.media_attach_timeout, 0);
-		}
-	} else if (strcmp(blobmsg_get_string(values[0]), "release") == 0) {
+	event = blobmsg_get_string(values[0]);
+	state = blobmsg_get_string(values[1]);
+	owner = values[5] ? blobmsg_get_string(values[5]) : "none";
+	app.incoming_ringing = strcmp(state, "incoming_ringing") == 0;
+	ended = strcmp(event, "release") == 0 ||
+		(app.call.active && (strcmp(state, "idle") == 0 ||
+		 strcmp(state, "disabled") == 0 || strcmp(state, "fault") == 0)) ||
+		(app.call.active && !app.call.established &&
+		 app.call.origin == QMODEM_VOIP_SIP_CALL_CELLULAR &&
+		 strcmp(owner, "none") != 0 &&
+		 strcmp(owner, app.outbound ? "external_sip" : "lan_sip") != 0);
+	if (ended) {
 		app.incoming_number[0] = '\0';
 		app.incoming_caller_id_withheld = 0;
 		uloop_timeout_cancel(&app.media_attach_timeout);
@@ -1789,13 +1889,19 @@ static void consumer_event(struct ubus_context *context,
 			app.pending_lan_response = NULL;
 			release_pending_lan_response();
 		}
+		send_invite_cancel();
 		send_dialog_bye();
-		stop_media();
+		detach_media();
 		qmodem_voip_sip_call_release(&app.call);
-		if (app.outbound)
-			remember_outbound_invite(NULL);
+		remember_outbound_invite(NULL);
 		app.dialog_contact[0] = '\0';
-	} else if (strcmp(blobmsg_get_string(values[0]), "ring") == 0)
+	} else if (strcmp(event, "call_state") == 0 && strcmp(state, "active") == 0 &&
+		   app.call.active) {
+		if (app.pending_lan_response && !app.media_attach_timeout.pending) {
+			app.media_attach_attempts = 0;
+			uloop_timeout_set(&app.media_attach_timeout, 0);
+		}
+	} else if (strcmp(event, "ring") == 0)
 		send_incoming_invite();
 }
 

@@ -24,7 +24,8 @@ enum qmodem_voip_endpoint {
 	QMODEM_VOIP_ENDPOINT_BROWSER,
 	QMODEM_VOIP_ENDPOINT_LAN_SIP,
 	QMODEM_VOIP_ENDPOINT_CELLULAR,
-	QMODEM_VOIP_ENDPOINT_EXTERNAL_SIP
+	QMODEM_VOIP_ENDPOINT_EXTERNAL_SIP,
+	QMODEM_VOIP_ENDPOINT_RJ11
 };
 
 enum qmodem_voip_correlation {
@@ -53,6 +54,7 @@ struct qmodem_voip_call {
 	int reconcile_pending;
 	int reconcile_saw_data;
 	unsigned reconcile_voice_misses;
+	int idle_poll;
 	enum qmodem_voip_endpoint answer_owner;
 	struct {
 		uint64_t started_at;
@@ -115,6 +117,8 @@ int qmodem_voip_start_recovery(struct qmodem_voip_call *call,
 			       qmodem_voip_command_fn command, void *opaque);
 int qmodem_voip_poll_active(struct qmodem_voip_call *call,
 			    qmodem_voip_command_fn command, void *opaque);
+int qmodem_voip_poll_idle(struct qmodem_voip_call *call,
+			  qmodem_voip_command_fn command, void *opaque);
 int qmodem_voip_line(struct qmodem_voip_call *call, const char *port,
 			    uint64_t epoch,
 			    uint64_t sequence, const char *raw,

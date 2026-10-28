@@ -342,6 +342,74 @@ void qmodem_voip_issue_at(const char *command, void *opaque)
 		context->command_failed = 1;
 }
 
+static void idle_at_data(struct ubus_request *request, int type,
+			 struct blob_attr *message)
+{
+	static const struct blobmsg_policy policy[] = {
+		{ .name = "status", .type = BLOBMSG_TYPE_STRING }
+	};
+	struct blob_attr *values[ARRAY_SIZE(policy)] = { 0 };
+	struct qmodem_voip_context *app = request->priv;
+	(void)type;
+	if (!message)
+		return;
+	blobmsg_parse(policy, ARRAY_SIZE(policy), values, blob_data(message),
+		      blob_len(message));
+	app->idle_at_reply_ok = qmodem_voip_at_direct_reply_ok(
+		values[0] ? blobmsg_get_string(values[0]) : NULL);
+}
+
+static void idle_at_failed(struct qmodem_voip_context *app)
+{
+	qmodem_voip_at_direct_done(&app->idle_at, 0);
+	if (app->call.idle_poll) {
+		app->call.idle_poll = 0;
+		app->call.reconcile_pending = 0;
+		app->call.reconcile_command_id = 0;
+	}
+}
+
+static void idle_at_complete(struct ubus_request *request, int result)
+{
+	struct qmodem_voip_context *app = request->priv;
+	if (result == 0 && app->idle_at_reply_ok)
+		qmodem_voip_at_direct_done(&app->idle_at, 1);
+	else
+		idle_at_failed(app);
+}
+
+static void qmodem_voip_issue_idle_at(const char *command, void *opaque)
+{
+	struct qmodem_voip_context *context = opaque;
+	static struct blob_buf buffer;
+	uint32_t object;
+	if (!qmodem_voip_at_direct_ready(&context->idle_at, context->call.at_port)) {
+		if (run_at(command) != 0) {
+			context->command_failed = 1;
+			return;
+		}
+		if (ubus_lookup_id(context->ubus, "at-daemon", &object) == 0)
+			qmodem_voip_at_direct_learn(&context->idle_at,
+						    context->call.at_port, object);
+		return;
+	}
+	blob_buf_init(&buffer, 0);
+	blobmsg_add_string(&buffer, "at_port", context->idle_at.port);
+	blobmsg_add_string(&buffer, "at_cmd", command);
+	context->idle_at_reply_ok = 0;
+	if (ubus_invoke_async(context->ubus, context->idle_at.object, "sendat",
+			      buffer.head, &context->idle_at_request) != 0) {
+		qmodem_voip_at_direct_done(&context->idle_at, 0);
+		context->command_failed = 1;
+		return;
+	}
+	context->idle_at_request.data_cb = idle_at_data;
+	context->idle_at_request.complete_cb = idle_at_complete;
+	context->idle_at_request.priv = context;
+	qmodem_voip_at_direct_begin(&context->idle_at);
+	ubus_complete_request_async(context->ubus, &context->idle_at_request);
+}
+
 void qmodem_voip_cancel_serial_prepare(void)
 {
 	struct qmodem_voip_context *app = &qmodem_voip_ctxt;
@@ -590,7 +658,7 @@ static int capabilities_method(struct ubus_context *ubus,
 	blobmsg_add_string(&buffer, "reason",
 			   supported ? "probe_passed" : "hardware_probe_failed");
 	blobmsg_add_u8(&buffer, "enabled", app->call.enabled);
-	blobmsg_add_string(&buffer, "hardware", "RM520N-GL");
+	blobmsg_add_string(&buffer, "hardware", app->media.profile.model);
 	blobmsg_add_string(&buffer, "external_sip", "unsupported");
 	qmodem_voip_media_status(&buffer);
 	(void)ubus_send_reply(ubus, request, buffer.head);
@@ -633,6 +701,7 @@ static int activate_runtime(struct qmodem_voip_context *app)
 	}
 	if (run_safety("enable", 0) != 0)
 		return QMODEM_VOIP_ACTIVATION_FAILED;
+	qmodem_voip_profile_select(&app->media.profile, QMODEM_VOIP_PROFILE_PATH);
 	if (qmodem_voip_media_engine_start(&app->media) != 0) {
 		(void)run_safety("disable", 0);
 		return QMODEM_VOIP_ACTIVATION_FAILED;
@@ -1020,6 +1089,29 @@ void qmodem_voip_call_timer(struct uloop_timeout *timeout)
 		if (app->command_failed) {
 			app->call.reconcile_pending = 0;
 			app->call.reconcile_command_id = 0;
+		}
+	} else if (app->call.enabled && app->call.state == QMODEM_VOIP_IDLE &&
+		   app->media.profile.idle_clcc_poll) {
+		static unsigned idle_poll_waits;
+		if (app->call.reconcile_pending && app->call.idle_poll &&
+		    ++idle_poll_waits >= 5U) {
+			if (app->idle_at.pending) {
+				ubus_abort_request(app->ubus, &app->idle_at_request);
+				qmodem_voip_at_direct_done(&app->idle_at, 0);
+			}
+			app->call.idle_poll = 0;
+			app->call.reconcile_pending = 0;
+			app->call.reconcile_command_id = 0;
+		}
+		if (!app->call.reconcile_pending) {
+			idle_poll_waits = 0;
+			app->command_failed = 0;
+			(void)qmodem_voip_poll_idle(&app->call, qmodem_voip_issue_idle_at, app);
+			if (app->command_failed) {
+				app->call.idle_poll = 0;
+				app->call.reconcile_pending = 0;
+				app->call.reconcile_command_id = 0;
+			}
 		}
 	}
 	uloop_timeout_set(&app->call_timer, 1000);

@@ -52,10 +52,11 @@ define Build/Compile
 		-o $(PKG_BUILD_DIR)/qmodem_voip \
 		$(PKG_BUILD_DIR)/main.c $(PKG_BUILD_DIR)/daemon_core.c \
 		$(PKG_BUILD_DIR)/media_manager.c $(PKG_BUILD_DIR)/call_state.c \
-		$(PKG_BUILD_DIR)/modem_profile.c \
+		$(PKG_BUILD_DIR)/modem_profile.c $(PKG_BUILD_DIR)/at_direct.c \
 		$(PKG_BUILD_DIR)/call_history.c \
 		$(PKG_BUILD_DIR)/media_core.c $(PKG_BUILD_DIR)/media_alsa.c \
-		$(PKG_BUILD_DIR)/media_serial.c $(PKG_BUILD_DIR)/browser_media.c \
+		$(PKG_BUILD_DIR)/media_serial.c $(PKG_BUILD_DIR)/media_pcm_socket.c \
+		$(PKG_BUILD_DIR)/browser_media.c \
 		$(PKG_BUILD_DIR)/media_socket.c \
 		$(PKG_BUILD_DIR)/rtp_transport.c \
 		$(TARGET_LDFLAGS) \

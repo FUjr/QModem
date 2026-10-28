@@ -173,6 +173,7 @@ function viewModel(state) {
 	return Object.assign({
 		supported,
 		capabilityPending,
+		hardware: typeof capabilities.hardware === 'string' ? capabilities.hardware : '',
 		enabled,
 		stable,
 		disabledReason,
