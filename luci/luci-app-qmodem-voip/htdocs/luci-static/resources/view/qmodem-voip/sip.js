@@ -113,14 +113,26 @@ return view.extend({
 		const inboundUser = inbound.option(form.Value, 'username', _('SIP account'));
 		inboundUser.rmempty = false;
 		inboundUser.depends('enabled', '1');
-		option = inbound.option(form.Value, 'password', _('SIP password'));
+		option = inbound.option(form.Value, 'password', _('SIP password'),
+			_('At least 8 characters, no spaces. Use Generate for a strong one.'));
 		option.password = true;
 		option.rmempty = false;
 		option.depends('enabled', '1');
+		option.validate = (sectionId, value) => {
+			if (!value)
+				return true;
+			if (value.length < 8)
+				return _('The password must have at least 8 characters.');
+			if (value.length > 127)
+				return _('The password can have at most 127 characters.');
+			if (!/^[\x21-\x7e]+$/.test(value))
+				return _('The password can only use letters, numbers and symbols, without spaces.');
+			return true;
+		};
 		option = inbound.option(form.Button, '_generate', _('Generate credentials'));
 		option.inputstyle = 'apply';
 		option.inputtitle = _('Generate');
-		option.onclick = async (sectionId) => {
+		option.onclick = async (ev, sectionId) => {
 			const username = inboundUser.formvalue(sectionId);
 			if (!username) {
 				ui.addNotification(null, E('p', {}, [ _('Enter a SIP account first.') ]), 'warning');

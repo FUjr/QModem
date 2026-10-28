@@ -1,5 +1,6 @@
 .qvoip-page {
-	max-width: 1180px;
+	width: 100%;
+	max-width: none;
 }
 
 .qvoip-page > .cbi-map-descr {
