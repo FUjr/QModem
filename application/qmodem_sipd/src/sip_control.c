@@ -244,8 +244,11 @@ static void stop_handler(int signo)
 
 int main(void)
 {
+	char username[QMODEM_VOIP_SIP_USERNAME_SIZE];
+
 	signal(SIGINT, stop_handler);
 	signal(SIGTERM, stop_handler);
+	(void)qmodem_voip_sip_credentials_sync(username);
 	if (uloop_init() != 0)
 		return 1;
 	ubus = ubus_connect(NULL);
