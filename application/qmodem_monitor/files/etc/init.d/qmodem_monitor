@@ -6,7 +6,7 @@ service="$(basename ${basescript:-$initscript})"
 . $IPKG_INSTROOT/lib/functions.sh
 service_triggers()
 {
-	procd_add_reload_trigger "qmodem"
+	procd_add_reload_trigger "qmodem" "qmodem_uplink"
 
 }
 

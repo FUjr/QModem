@@ -11,7 +11,45 @@ function shell(command)
 	return odp
 end
 
+local function country_code_get(modem_id)
+	local uci = require("luci.model.uci").cursor()
+	if not modem_id or not uci:get("qmodem", modem_id) then
+		return { error = "Failed to get modem configuration" }
+	end
+	return { country_code = uci:get("qmodem", modem_id, "sms_country_code") or "" }
+end
+
+local function country_code_set(modem_id, code)
+	if code == "+" then return { error = "Invalid country calling code" } end
+	code = code:gsub("^%+", "")
+	if code ~= "" and (not code:match("^[1-9]%d*$") or #code > 3) then
+		return { error = "Invalid country calling code" }
+	end
+	local uci = require("luci.model.uci").cursor()
+	if not modem_id or not uci:get("qmodem", modem_id) then
+		return { error = "Failed to get modem configuration" }
+	end
+	if not uci:set("qmodem", modem_id, "sms_country_code", code) or not uci:commit("qmodem") then
+		return { error = "Failed to save country calling code" }
+	end
+	return { country_code = code }
+end
+
+function getCountryCode()
+	local result = country_code_get(http.formvalue("cfg"))
+	http.prepare_content("application/json")
+	http.write_json(result)
+end
+
+function setCountryCode()
+	local result = country_code_set(http.formvalue("cfg"), http.formvalue("country_code") or "")
+	http.prepare_content("application/json")
+	http.write_json(result)
+end
+
 function index()
+	entry({"admin", "modem", "qmodem", "sms_country_code"}, call("getCountryCode"), nil).leaf = true
+	entry({"admin", "modem", "qmodem", "set_sms_country_code"}, post("setCountryCode"), nil).leaf = true
     --sim卡配置
 	entry({"admin", "modem", "qmodem", "modem_sms"},template("modem_sms/modem_sms"), luci.i18n.translate("SMS"), 11).leaf = true
 	entry({"admin", "modem", "qmodem", "send_sms"}, call("sendSMS"), nil).leaf = true

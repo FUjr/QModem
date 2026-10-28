@@ -1,0 +1,133 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_Hans\n"
+
+msgid "Uplink Balancing"
+msgstr "上行负载均衡"
+
+msgid "Mode"
+msgstr "模式"
+
+msgid "Load balancing"
+msgstr "负载均衡"
+
+msgid "Failover"
+msgstr "故障切换"
+
+msgid "Enable manager"
+msgstr "启用管理器"
+
+msgid "Disabled"
+msgstr "已停用"
+
+msgid "Policy pending"
+msgstr "策略待应用"
+
+msgid "Policy applied"
+msgstr "策略已应用"
+
+msgid "Healthy"
+msgstr "健康"
+
+msgid "Unavailable"
+msgstr "不可用"
+
+msgid "Participating"
+msgstr "参与分流"
+
+msgid "Standby"
+msgstr "备用"
+
+msgid "Effective weight"
+msgstr "生效权重"
+
+msgid "Weight"
+msgstr "权重"
+
+msgid "Priority"
+msgstr "优先级"
+
+msgid "Priority (lower first)"
+msgstr "优先级（数值越小越优先）"
+
+msgid "Uplinks"
+msgstr "上行链路"
+
+msgid "Cellular"
+msgstr "蜂窝网络"
+
+msgid "Interface or modem instance"
+msgstr "网络接口或模组实例"
+
+msgid "Fixed exit rules"
+msgstr "固定出口规则"
+
+msgid "Fixed exit"
+msgstr "固定出口"
+
+msgid "Source IPv4/CIDR"
+msgstr "源 IPv4/网段"
+
+msgid "Destination IPv4/CIDR"
+msgstr "目标 IPv4/网段"
+
+msgid "Source port"
+msgstr "源端口"
+
+msgid "Destination port"
+msgstr "目标端口"
+
+msgid "Protocol"
+msgstr "协议"
+
+msgid "Actions"
+msgstr "操作"
+
+msgid "Add rule"
+msgstr "添加规则"
+
+msgid "Remove"
+msgstr "删除"
+
+msgid "Not sampled"
+msgstr "尚未检测"
+
+msgid "Not applied"
+msgstr "未应用"
+
+msgid "Probe targets"
+msgstr "探测目标"
+
+msgid "Probe interval (s)"
+msgstr "探测间隔（秒）"
+
+msgid "Probe timeout (s)"
+msgstr "探测超时（秒）"
+
+msgid "Failures before removal"
+msgstr "移除前失败次数"
+
+msgid "Successes before recovery"
+msgstr "恢复前成功次数"
+
+msgid "Recovery stability (s)"
+msgstr "恢复稳定时间（秒）"
+
+msgid "Participating IPv4 uplinks: %s"
+msgstr "参与分流的 IPv4 上行：%s"
+
+msgid "Network settings saved; uplink policy applies in the background"
+msgstr "网络设置已保存；上行策略正在后台应用"
+
+msgid "First matching rule wins. An unavailable fixed exit blocks matching connections. Rules affect new connections."
+msgstr "按顺序匹配首条规则。固定出口不可用时阻断匹配的连接。规则对新连接生效。"
+
+msgid "Lower priority values win; healthy members at the same priority share new connections by weight. Keep offline members to preserve their configuration."
+msgstr "优先使用较小的优先级；相同优先级的健康链路按权重分配新连接。离线成员保留其配置。"
+
+msgid "Share new IPv4 connections across WAN and cellular uplinks. Each connection keeps its exit. Software forwarding is used while enabled; disable mwan3 first."
+msgstr "在 WAN 和蜂窝上行之间分配新的 IPv4 连接，每条连接保持原出口。启用后使用软件转发，请先停用 mwan3。"
+
+msgid "Distribute new IPv4 connections across WAN and cellular uplinks. Each connection keeps its exit. Software forwarding is used while enabled. Disable mwan3 before enabling this manager."
+msgstr "在 WAN 和蜂窝上行之间分配新的 IPv4 连接，每条连接保持原出口。启用后使用软件转发。请先停用 mwan3。"

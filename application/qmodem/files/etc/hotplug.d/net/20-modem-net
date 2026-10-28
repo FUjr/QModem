@@ -1,7 +1,8 @@
 #!/bin/sh
 # Copyright (C) 2024 Tom <fjrcn@outlook.com>
+sysroot="${QMODEM_SYSFS_ROOT:-/sys}"
 manual=$(uci -q get qmodem.main.block_auto_probe)
-[ "${manual}" -eq 1 ] && exit
+[ "$manual" = 1 ] && exit 0
 
 logger -t modem_hotplug "net slot: ${DEVPATH} action: ${ACTION}"
 hotplug_add_delay=$(uci -q get qmodem.main.hotplug_add_delay || echo 8)
@@ -10,18 +11,22 @@ hotplug_add_delay=$(uci -q get qmodem.main.hotplug_add_delay || echo 8)
 #网络设备路径不存在，退出
 [ -z "${DEVPATH}" ] && exit
 
-slot_path=$(readlink -f "/sys/${DEVPATH}/device")
-[ -z "${slot_path}" ] && exit
-
-slot=$(basename "$(dirname "${slot_path}")")
-
-if [ -d "/sys/bus/usb/devices/${slot}" ]; then
-    slot_type="usb"
-elif [ -d "/sys/bus/pci/devices/${slot}" ]; then
-    slot_type="pcie"
-else
-    exit
-fi
+# Net devices can be nested below MHI controllers or QMI mux parents.
+case "$DEVPATH" in *_IP_SW*) exit 0;; esac
+slot_path=$(readlink -f "$sysroot/${DEVPATH}/device")
+[ -n "$slot_path" ] || slot_path="$sysroot/${DEVPATH}"
+while [ "$slot_path" != / ] && [ "$slot_path" != "$sysroot" ]; do
+    slot=$(basename "$slot_path")
+    if [ -f "$sysroot/bus/usb/devices/$slot/idVendor" ]; then
+        slot_type=usb
+        break
+    elif [ -f "$sysroot/bus/pci/devices/$slot/vendor" ]; then
+        slot_type=pcie
+        break
+    fi
+    slot_path=$(dirname "$slot_path")
+done
+[ -n "$slot_type" ] || exit
 
 logger -t modem_hotplug "net slot: ${slot} action: ${ACTION} slot_type: ${slot_type}"
 case "${ACTION}" in

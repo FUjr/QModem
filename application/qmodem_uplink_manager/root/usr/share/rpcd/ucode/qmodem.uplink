@@ -1,0 +1,24 @@
+#!/usr/bin/ucode
+'use strict';
+import { readfile, popen } from 'fs';
+import { cursor } from 'uci';
+return { 'qmodem.uplink': { status: { call: function() {
+    let ctx = cursor();
+    let enabled = ctx.get('qmodem_uplink', 'main', 'enabled') == '1';
+    let desired = null;
+    let fd = popen('uci -q export qmodem_uplink | sha256sum', 'r');
+    if (fd) { desired = split(trim(fd.read('all') || ''), ' ')[0]; fd.close(); }
+    try {
+        let state = json(readfile('/var/run/qmodem-uplink/status.json'));
+        state.enabled = enabled;
+        if (desired) state.config_generation = desired;
+        let now = int(split(readfile('/proc/uptime'), '.')[0]);
+        if (!enabled || !state.valid_until || now >= state.valid_until) {
+            state.active = null;
+            state.active_members = [];
+            for (let member in state.members || []) member.selected = false;
+            state.reason = enabled ? 'stale_status' : 'disabled';
+        }
+        return state;
+    } catch (e) { return { enabled, active: null, members: [], reason: enabled ? 'not_running' : 'disabled', config_generation: desired, applied_generation: null }; }
+} } } };
