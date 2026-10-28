@@ -1,0 +1,7 @@
+#!/bin/sh
+
+[ -e /etc/rc.d/S100qmodem_voip_sipd ] || exit 0
+rm -f /etc/rc.d/S100qmodem_voip_sipd
+/etc/init.d/qmodem_voip_sipd enable
+
+exit 0

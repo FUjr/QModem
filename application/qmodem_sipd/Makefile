@@ -65,6 +65,7 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./files/etc/qmodem_voip/firewall.include $(1)/etc/qmodem_voip/
 	$(INSTALL_BIN) ./files/etc/uci-defaults/89-qmodem-sip-migrate $(1)/etc/uci-defaults/
 	$(INSTALL_BIN) ./files/etc/uci-defaults/90-qmodem-sip-firewall $(1)/etc/uci-defaults/
+	$(INSTALL_BIN) ./files/etc/uci-defaults/91-qmodem-sip-bootlink $(1)/etc/uci-defaults/
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
