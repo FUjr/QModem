@@ -8,6 +8,9 @@
 struct qmodem_voip_modem_profile {
 	char model[64];
 	char usb_id[32];
+	char method[16];
+	char socket_path[108];
+	unsigned idle_clcc_poll;
 	unsigned interface_number;
 	unsigned sample_rate;
 	unsigned frame_ms;
@@ -28,5 +31,7 @@ struct qmodem_voip_modem_profile {
 void qmodem_voip_profile_default(struct qmodem_voip_modem_profile *profile);
 int qmodem_voip_profile_load(struct qmodem_voip_modem_profile *profile,
 			     const char *path, const char *model, const char *usb_id);
+void qmodem_voip_profile_select(struct qmodem_voip_modem_profile *profile,
+				const char *path);
 
 #endif

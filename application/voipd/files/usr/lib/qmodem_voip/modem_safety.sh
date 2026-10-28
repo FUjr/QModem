@@ -67,6 +67,17 @@ qmodem_voip_load_capability()
 					media_interface=unused media_rate=unused media_frame_ms=unused
 					media_qdai=unused media_qpcmv_cfg=unused media_gps=none
 					;;
+				pcm_socket)
+					case $media_uac in false|0) ;; *)
+						qmodem_voip_fault 'PCM socket UAC capability invalid'; return 1 ;;
+					esac
+					[ "$media_adb_unlock" = 0 ] || {
+						qmodem_voip_fault 'PCM socket ADB capability invalid'; return 1
+					}
+					media_interface=unused media_rate=unused media_frame_ms=unused
+					media_qdai=unused media_qpcmv_cfg=unused media_qpcmv=unused
+					media_qaudmod=unused media_gps=none
+					;;
 				*) qmodem_voip_fault 'unknown modem media method'; return 1 ;;
 			esac
 		fi
@@ -140,7 +151,7 @@ qmodem_voip_read_journal()
 		qmodem_voip_fault 'journal field missing'; return 2
 	}
 	[ "$schema" = 2 ] || { qmodem_voip_fault 'journal schema unsupported'; return 2; }
-	case $media_method in serial_pcm|uac) ;; *) qmodem_voip_fault 'journal media method invalid'; return 2 ;; esac
+	case $media_method in serial_pcm|uac|pcm_socket) ;; *) qmodem_voip_fault 'journal media method invalid'; return 2 ;; esac
 }
 
 qmodem_voip_probe()
@@ -154,8 +165,10 @@ qmodem_voip_probe()
 	lte_status=$(qmodem_voip_value 'AT+CEREG?') || return 1
 	nr_status=$(qmodem_voip_value 'AT+C5GREG?') || return 1
 	case $lte_status:$nr_status in registered:*|*:registered) ;; *) return 1 ;; esac
-	case $(qmodem_voip_value 'AT+QMBNCFG="list"') in CMCC|CU) ;; *) return 1 ;; esac
-	case $(qmodem_voip_value 'AT+QCFG="ims"') in 0|1) ;; *) return 1 ;; esac
+	if [ "$media_method" != pcm_socket ]; then
+		case $(qmodem_voip_value 'AT+QMBNCFG="list"') in CMCC|CU) ;; *) return 1 ;; esac
+		case $(qmodem_voip_value 'AT+QCFG="ims"') in 0|1) ;; *) return 1 ;; esac
+	fi
 	qmodem_voip_adapter_rediscover "$slot" >/dev/null || return 1
 	printf 'SUPPORTED slot=%s\n' "$slot"
 }
@@ -212,6 +225,10 @@ qmodem_voip_reboot_and_wait()
 qmodem_voip_restore()
 {
 	qmodem_voip_read_journal || return $?
+	if [ "$media_method" = pcm_socket ]; then
+		rm -f "$QMODEM_VOIP_JOURNAL"
+		return 0
+	fi
 	qmodem_voip_adapter_rediscover "$slot" >/dev/null || return 1
 	qmodem_voip_at "AT+QCFG=\"ims\",$ims" >/dev/null || return 1
 	qmodem_voip_at "AT+QCALLCFG=\"voice_disable\",$voice_disable" >/dev/null || return 1
@@ -250,6 +267,12 @@ qmodem_voip_enable()
 		qmodem_voip_fault 'failed to enable the shared AT transport'
 		return 1
 	}
+	if [ "$media_method" = pcm_socket ]; then
+		ims=unused voice_disable=unused qpcmv=unused qpcmv_cfg=unused qdai=unused
+		qaudmod=unused gps_outport=unused usbcfg=unused
+		qmodem_voip_write_journal enabled
+		return $?
+	fi
 	qmodem_voip_capture_baseline || return 1
 	case $media_uac in false|0) requested_uac=0 ;; true|1) requested_uac=1 ;; *) return 1 ;; esac
 	audio_usbcfg=$(qmodem_voip_usbcfg_audio "$requested_uac") || { qmodem_voip_fault 'baseline USB tuple is not audio-toggleable'; return 1; }
@@ -277,6 +300,7 @@ qmodem_voip_verify()
 	qmodem_voip_read_journal || return $?
 	[ "$phase" = enabled ] || return 1
 	qmodem_voip_adapter_rediscover "$slot" >/dev/null || return 1
+	[ "$media_method" != pcm_socket ] || return 0
 	[ "$(qmodem_voip_value 'AT+QCFG="ims"')" = 1 ] || return 1
 	[ "$(qmodem_voip_value 'AT+QCALLCFG="voice_disable"')" = 2 ] || return 1
 	[ "$(qmodem_voip_value 'AT+QPCMV?')" = "$media_qpcmv" ] || return 1
@@ -295,6 +319,7 @@ qmodem_voip_arm()
 	qmodem_voip_read_journal || return $?
 	[ "$phase" = enabled ] || return 1
 	qmodem_voip_adapter_rediscover "$slot" >/dev/null || return 1
+	[ "$media_method" != pcm_socket ] || return 0
 	if [ "$media_method" = serial_pcm ]; then
 		# QDAI is reboot-applied. During a call, only accept its persisted baseline.
 		[ "$(qmodem_voip_value 'AT+QDAI?')" = "$media_qdai" ] || return 1
@@ -313,6 +338,7 @@ qmodem_voip_recover()
 	qmodem_voip_read_journal || return $?
 	if [ "$phase" = enabled ]; then
 		qmodem_voip_adapter_rediscover "$slot" >/dev/null || return 1
+		[ "$media_method" != pcm_socket ] || return 0
 		if [ "$media_method" = serial_pcm ]; then
 			current_usbcfg=$(qmodem_voip_value 'AT+QCFG="usbcfg"') || return 1
 			current_qdai=$(qmodem_voip_value 'AT+QDAI?') || return 1

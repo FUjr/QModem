@@ -1,6 +1,7 @@
 #ifndef QMODEM_VOIP_DAEMON_CORE_H
 #define QMODEM_VOIP_DAEMON_CORE_H
 
+#include "at_direct.h"
 #include "call_state.h"
 #include "media.h"
 #include "rtp_transport.h"
@@ -19,6 +20,9 @@ struct qmodem_voip_context {
 	struct ubus_event_handler at_events;
 	struct ubus_event_handler urc_events;
 	struct qmodem_voip_call call;
+	struct qmodem_voip_at_direct idle_at;
+	struct ubus_request idle_at_request;
+	int idle_at_reply_ok;
 	struct qmodem_voip_media_engine media;
 	struct qmodem_voip_rtp_transport rtp;
 	struct qmodem_voip_browser_media browser;

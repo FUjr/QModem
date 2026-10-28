@@ -35,6 +35,13 @@ while [ "$remaining" -gt 0 ]; do
 	if [ "$start_enabled" = 1 ]; then
 		at_device=$(qmodem_voip_adapter_endpoint 2>/dev/null) || at_device=
 		pcm_device=$(qmodem_voip_adapter_pcm_endpoint 2>/dev/null) || pcm_device=
+		if [ -z "$pcm_device" ]; then
+			usb_id=$(qmodem_voip_adapter_usb_id 2>/dev/null) || usb_id=
+			case $usb_id in *[!0-9a-fA-F:]*) usb_id= ;; esac
+			[ -z "$usb_id" ] || [ "$(jsonfilter -i /usr/share/qmodem/modem_supports.json \
+				-e "@.modems[@.usb_id='$usb_id'].audio.method" 2>/dev/null)" != pcm_socket ] ||
+				pcm_device=board
+		fi
 		[ -n "$at_device" ] && [ -n "$pcm_device" ] || modem_ready=0
 	fi
 	if [ "$modem_ready" = 1 ] &&

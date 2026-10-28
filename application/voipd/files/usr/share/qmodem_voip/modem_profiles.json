@@ -20,6 +20,18 @@
         "qpcmv": "1,0",
         "qpcmv_cfg": "8000,20"
       }
+    },
+    {
+      "model": "RG500Q-EA",
+      "usb_id": "2c7c:0800",
+      "adb_unlock": false,
+      "idle_clcc_poll": true,
+      "audio": {
+        "method": "pcm_socket",
+        "socket_path": "/var/run/fxsd/pcm.sock",
+        "sample_rate": 8000,
+        "frame_ms": 20
+      }
     }
   ]
 }

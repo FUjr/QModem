@@ -3,6 +3,7 @@
 #include "modem_profile.h"
 
 #include <ctype.h>
+#include <dirent.h>
 #include <json-c/json.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@ void qmodem_voip_profile_default(struct qmodem_voip_modem_profile *profile)
 	memset(profile, 0, sizeof(*profile));
 	snprintf(profile->model, sizeof(profile->model), "%s", "RM520N-GL");
 	snprintf(profile->usb_id, sizeof(profile->usb_id), "%s", "2c7c:0801");
+	snprintf(profile->method, sizeof(profile->method), "%s", "serial_pcm");
 	profile->interface_number = 1;
 	profile->sample_rate = 8000;
 	profile->frame_ms = 20;
@@ -124,7 +126,7 @@ int qmodem_voip_profile_load(struct qmodem_voip_modem_profile *profile,
 			entry_usb_id_text = json_object_get_string(usb_object);
 		if (model && entry_model_text && strcmp(entry_model_text, model) != 0)
 			continue;
-		if (model && entry_usb_id_text && usb_id && strcmp(entry_usb_id_text, usb_id) != 0)
+		if (entry_usb_id_text && usb_id && strcmp(entry_usb_id_text, usb_id) != 0)
 			continue;
 		if (!json_object_object_get_ex(entry, "audio", &audio) ||
 		    json_object_get_type(audio) != json_type_object) {
@@ -135,6 +137,14 @@ int qmodem_voip_profile_load(struct qmodem_voip_modem_profile *profile,
 			snprintf(profile->model, sizeof(profile->model), "%s", entry_model_text);
 		if (entry_usb_id_text)
 			snprintf(profile->usb_id, sizeof(profile->usb_id), "%s", entry_usb_id_text);
+		snprintf(profile->method, sizeof(profile->method), "%s", "serial_pcm");
+		if (json_object_object_get_ex(audio, "method", &property))
+			copy_string(profile->method, json_object_get_string(property), sizeof(profile->method));
+		if (json_object_object_get_ex(audio, "socket_path", &property))
+			copy_string(profile->socket_path, json_object_get_string(property),
+				sizeof(profile->socket_path));
+		if (json_object_object_get_ex(entry, "idle_clcc_poll", &property))
+			profile->idle_clcc_poll = json_unsigned(property) != 0;
 		if (json_object_object_get_ex(audio, "interface_number", &property))
 			profile->interface_number = (unsigned)json_object_get_int64(property);
 		if (json_object_object_get_ex(audio, "sample_rate", &property))
@@ -174,6 +184,15 @@ int qmodem_voip_profile_load(struct qmodem_voip_modem_profile *profile,
 		}
 		profile->frame_samples = profile->sample_rate * profile->frame_ms / 1000U;
 		profile->frame_bytes = profile->frame_samples * sizeof(int16_t);
+		if (strcmp(profile->method, "pcm_socket") == 0) {
+			if (profile->socket_path[0] != '/' || profile->sample_rate != 8000U ||
+			    profile->frame_ms != 20U) {
+				json_object_put(root);
+				return -1;
+			}
+			json_object_put(root);
+			return 0;
+		}
 		if (!profile->interface_number || !profile->sample_rate || !profile->frame_samples ||
 		    !profile->frame_bytes || !profile->transfer_bytes || !profile->transfer_interval_ms) {
 			json_object_put(root);
@@ -184,4 +203,101 @@ int qmodem_voip_profile_load(struct qmodem_voip_modem_profile *profile,
 	}
 	json_object_put(root);
 	return -1;
+}
+
+static int journal_slot(char *slot, size_t size)
+{
+	const char *journal = getenv("QMODEM_VOIP_JOURNAL");
+	char text[128];
+	FILE *file;
+	int found = 0;
+
+	if (!journal)
+		journal = "/var/lib/qmodem_voip/modem-safety.journal";
+	file = fopen(journal, "r");
+	if (!file)
+		return -1;
+	while (fgets(text, sizeof(text), file)) {
+		if (strncmp(text, "slot=", 5) != 0)
+			continue;
+		text[5 + strcspn(text + 5, "\r\n")] = '\0';
+		if (text[5] && strlen(text + 5) < size && strspn(text + 5, "0123456789.-") ==
+		    strlen(text + 5)) {
+			snprintf(slot, size, "%s", text + 5);
+			found = 1;
+		}
+	}
+	fclose(file);
+	return found ? 0 : -1;
+}
+
+static int sysfs_hex(const char *root, const char *slot, const char *name,
+		     char *value, size_t size)
+{
+	char path[256];
+	FILE *file;
+
+	snprintf(path, sizeof(path), "%s/%s/%s", root, slot, name);
+	file = fopen(path, "r");
+	if (!file)
+		return -1;
+	if (!fgets(value, (int)size, file)) {
+		fclose(file);
+		return -1;
+	}
+	fclose(file);
+	value[strcspn(value, "\r\n")] = '\0';
+	return value[0] && strspn(value, "0123456789abcdefABCDEF") == strlen(value) ? 0 : -1;
+}
+
+static int load_for_slot(struct qmodem_voip_modem_profile *profile, const char *path,
+			 const char *sysfs, const char *slot)
+{
+	char vendor[8];
+	char product[8];
+	char usb_id[32];
+
+	if (sysfs_hex(sysfs, slot, "idVendor", vendor, sizeof(vendor)) != 0 ||
+	    sysfs_hex(sysfs, slot, "idProduct", product, sizeof(product)) != 0)
+		return -1;
+	snprintf(usb_id, sizeof(usb_id), "%s:%s", vendor, product);
+	qmodem_voip_profile_default(profile);
+	return qmodem_voip_profile_load(profile, path, NULL, usb_id);
+}
+
+void qmodem_voip_profile_select(struct qmodem_voip_modem_profile *profile,
+				const char *path)
+{
+	struct qmodem_voip_modem_profile candidate;
+	const char *sysfs = getenv("QMODEM_VOIP_SYSFS_ROOT");
+	struct dirent *entry;
+	DIR *devices;
+	char slot[64];
+
+	if (!profile)
+		return;
+	if (!sysfs)
+		sysfs = "/sys/bus/usb/devices";
+	if (journal_slot(slot, sizeof(slot)) == 0 &&
+	    load_for_slot(&candidate, path, sysfs, slot) == 0) {
+		*profile = candidate;
+		return;
+	}
+	devices = opendir(sysfs);
+	while (devices && (entry = readdir(devices))) {
+		if (!entry->d_name[0] || strspn(entry->d_name, "0123456789.-") !=
+		    strlen(entry->d_name))
+			continue;
+		if (load_for_slot(&candidate, path, sysfs, entry->d_name) == 0) {
+			closedir(devices);
+			*profile = candidate;
+			return;
+		}
+	}
+	if (devices)
+		closedir(devices);
+	qmodem_voip_profile_default(&candidate);
+	if (qmodem_voip_profile_load(&candidate, path, "RM520N-GL", "2c7c:0801") != 0)
+		qmodem_voip_profile_default(&candidate);
+	*profile = candidate;
 }

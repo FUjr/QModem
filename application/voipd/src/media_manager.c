@@ -98,6 +98,8 @@ void qmodem_voip_media_status(struct blob_buf *buffer)
 		backend = "serial_pcm";
 	else if (app->media.backend == QMODEM_VOIP_MEDIA_BACKEND_UAC)
 		backend = "uac";
+	else if (app->media.backend == QMODEM_VOIP_MEDIA_BACKEND_PCM_SOCKET)
+		backend = "pcm_socket";
 	/* `media` is the stable capability consumed by LuCI.  Keep it tied to
 	 * the modem media engine, while `browser_media` continues to describe
 	 * the optional, call-scoped WebSocket attachment. */
@@ -143,6 +145,15 @@ void qmodem_voip_media_status(struct blob_buf *buffer)
 		atomic_load(&app->media.serial.write_errors));
 	blobmsg_add_u64(buffer, "serial_reopen_count",
 		atomic_load(&app->media.serial.reopen_count));
+	if (app->media.backend == QMODEM_VOIP_MEDIA_BACKEND_PCM_SOCKET) {
+		blobmsg_add_u8(buffer, "pcm_socket_connected", app->media.pcm_socket.fd >= 0);
+		blobmsg_add_u64(buffer, "pcm_socket_capture_frames",
+			app->media.pcm_socket.capture_frames);
+		blobmsg_add_u64(buffer, "pcm_socket_playback_frames",
+			app->media.pcm_socket.playback_frames);
+		blobmsg_add_u64(buffer, "pcm_socket_connects", app->media.pcm_socket.connects);
+		blobmsg_add_u64(buffer, "pcm_socket_errors", app->media.pcm_socket.errors);
+	}
 	blobmsg_add_u64(buffer, "rtp_receive_packets",
 		atomic_load(&app->media.rtp_received_packets));
 	blobmsg_add_u64(buffer, "rtp_send_packets",

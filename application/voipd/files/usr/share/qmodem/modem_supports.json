@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "audio_methods": ["serial_pcm", "uac"],
+  "audio_methods": ["serial_pcm", "uac", "pcm_socket"],
   "modems": [
     {
       "model": "RM520N-GL",
@@ -24,6 +24,22 @@
         "transfer_interval_ms": 60,
         "uac": false,
         "gps_outport": "none"
+      }
+    },
+    {
+      "model": "RG500Q-EA",
+      "firmware": "RG500QEAAAR13A01M4G",
+      "usb_id": "2c7c:0800",
+      "adb_unlock": false,
+      "idle_clcc_poll": true,
+      "audio": {
+        "method": "pcm_socket",
+        "socket_path": "/var/run/fxsd/pcm.sock",
+        "sample_rate": 8000,
+        "frame_ms": 20,
+        "qpcmv": "unused",
+        "qaudmod": "unused",
+        "uac": false
       }
     }
   ]

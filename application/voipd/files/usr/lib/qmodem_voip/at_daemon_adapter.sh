@@ -17,10 +17,13 @@ qmodem_voip_adapter_section()
 	match=
 	for section in $(uci -q show qmodem 2>/dev/null |
 		sed -n 's/^qmodem\.\([A-Za-z0-9_]*\)=modem-device$/\1/p'); do
-		[ "$(uci -q get "qmodem.$section.name")" = rm520n-gl ] || continue
+		case $(uci -q get "qmodem.$section.name") in
+			rm520n-gl) [ -n "$(uci -q get "qmodem.$section.voice_pcm_port")" ] || continue ;;
+			rg500q-ea) ;;
+			*) continue ;;
+		esac
 		[ "$(uci -q get "qmodem.$section.data_interface")" = usb ] || continue
 		[ -n "$(uci -q get "qmodem.$section.at_port")" ] || continue
-		[ -n "$(uci -q get "qmodem.$section.voice_pcm_port")" ] || continue
 		[ -z "$match" ] || return 1
 		match=$section
 	done
@@ -154,6 +157,8 @@ qmodem_voip_adapter_rediscover()
 	slot=$(qmodem_voip_adapter_usb_slot) || return 1
 	[ "$slot" = "$requested_slot" ] || return 1
 	qmodem_voip_adapter_endpoint || return 1
+	section=$(qmodem_voip_adapter_section) || return 1
+	[ -n "$(uci -q get "qmodem.$section.voice_pcm_port")" ] || return 0
 	qmodem_voip_adapter_pcm_endpoint
 }
 

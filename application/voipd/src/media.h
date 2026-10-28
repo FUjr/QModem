@@ -30,7 +30,8 @@ struct _snd_pcm;
 enum qmodem_voip_media_backend {
 	QMODEM_VOIP_MEDIA_BACKEND_NONE,
 	QMODEM_VOIP_MEDIA_BACKEND_UAC,
-	QMODEM_VOIP_MEDIA_BACKEND_SERIAL
+	QMODEM_VOIP_MEDIA_BACKEND_SERIAL,
+	QMODEM_VOIP_MEDIA_BACKEND_PCM_SOCKET
 };
 
 enum qmodem_voip_media_codec {
@@ -107,6 +108,16 @@ struct qmodem_voip_serial_state {
 	uint64_t next_playback_ms;
 };
 
+struct qmodem_voip_pcm_socket_state {
+	int fd;
+	uint64_t next_playback_ms;
+	uint64_t retry_at_ms;
+	uint64_t capture_frames;
+	uint64_t playback_frames;
+	uint64_t connects;
+	uint64_t errors;
+};
+
 struct qmodem_voip_rtp_endpoint {
 	uint32_t address;
 	uint16_t port;
@@ -132,6 +143,7 @@ struct qmodem_voip_media_engine {
 	struct _snd_pcm *capture_pcm;
 	struct _snd_pcm *playback_pcm;
 	struct qmodem_voip_serial_state serial;
+	struct qmodem_voip_pcm_socket_state pcm_socket;
 	enum qmodem_voip_media_backend backend;
 	int ready;
 	int browser_media_ready;
