@@ -770,6 +770,17 @@ remove_from_fw_zone()
     return 0
 }
 
+# Existing interfaces also need WAN-zone membership after configuration restore
+# or migration. Routing/probes alone do not enable LAN forwarding and SNAT.
+ensure_wan_membership()
+{
+    local zone=$1 interface=$2 networks
+    networks=$(uci -q get "firewall.$zone.network")
+    case " $networks " in *" $interface "*) return 0;; esac
+    append_to_fw_zone "$zone" "$interface" || return 1
+    firewall_reload_flag=1
+}
+
 set_if()
 {
     qmodem_config_lock || return 1
@@ -858,14 +869,11 @@ set_if()
             else
                 uci del network.${interface_name}.peerdns
             fi
-            local wwan_num=$(uci -q get firewall.$num.network | grep -w "${interface_name}" | wc -l)
-            if [ "$wwan_num" = "0" ]; then
-                append_to_fw_zone $num ${interface_name}
-            fi
             network_reload_flag=1
             firewall_reload_flag=1
             m_debug "create interface $interface_name with proto $proto and metric $metric"
         fi
+        ensure_wan_membership "$num" "$interface_name" || { qmodem_config_unlock; return 1; }
     else
         if [ -n "$interface" ];then
             uci delete network.${interface_name}
@@ -884,14 +892,11 @@ set_if()
             uci set network.${interface6_name}.device="@${interface_name}"
             uci set network.${interface6_name}.metric="${metric}"
             
-            local wwan6_num=$(uci -q get firewall.$num.network | grep -w "${interface6_name}" | wc -l)
-            if [ "$wwan6_num" = "0" ]; then
-                append_to_fw_zone $num ${interface6_name}
-            fi
             network_reload_flag=1
             firewall_reload_flag=1
             m_debug "create interface $interface6_name with proto $protov6 and metric $metric"
         fi
+        ensure_wan_membership "$num" "$interface6_name" || { qmodem_config_unlock; return 1; }
         if [ "$ra_master" = "1" ];then
             uci set dhcp.${interface6_name}='dhcp'
             uci set dhcp.${interface6_name}.interface="${interface6_name}"
