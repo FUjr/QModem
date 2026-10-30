@@ -1639,7 +1639,9 @@ static struct net_device * rmnet_vnd_register_device(struct mhi_netdev *pQmapDev
 	priv->pQmapDev = pQmapDev;
 	priv->qmap_version = pQmapDev->qmap_version;
 	priv->mux_id = mux_id;
-	sprintf(qmap_net->name, "%.12s.%d", real_dev->name, offset_id + 1);
+	//sprintf(qmap_net->name, "%.12s.%d", real_dev->name, offset_id + 1);
+	// no '.' in the name: netifd would otherwise treat it as an 8021q VLAN of real_dev
+	sprintf(qmap_net->name, "%.12s_%d", real_dev->name, offset_id + 1);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 	__dev_addr_set(qmap_net, real_dev->dev_addr, ETH_ALEN);
 #else
