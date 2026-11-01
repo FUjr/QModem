@@ -105,6 +105,7 @@ struct consumer {
 	pjsip_auth_clt_sess outbound_auth;
 	int outbound_auth_initialized;
 	pjsip_tx_data *outbound_invite;
+	pjsip_tx_data *lan_answer;
 	char dialog_contact[BINDING_SIZE];
 	char outbound_server[256];
 	char outbound_server_uri[384];
@@ -693,6 +694,15 @@ static int set_lan_answer(pjsip_rx_data *request, pjsip_tx_data *response,
 	return response->msg->body ? 0 : -1;
 }
 
+static void remember_lan_answer(pjsip_tx_data *response)
+{
+	if (app.lan_answer)
+		pjsip_tx_data_dec_ref(app.lan_answer);
+	app.lan_answer = response;
+	if (response)
+		pjsip_tx_data_add_ref(response);
+}
+
 static void invite_call(pjsip_rx_data *request)
 {
 	char number[64];
@@ -702,6 +712,7 @@ static void invite_call(pjsip_rx_data *request)
 	struct qmodem_voip_sip_media media;
 	unsigned cseq;
 	pjsip_tx_data *response = NULL;
+	pjsip_contact_hdr *contact;
 	if (!rate_allow(app.invite_rates, request, 5)) {
 		syslog(LOG_WARNING, "qmodem_voip sip: invite rate limit");
 		send_response(request, PJSIP_SC_SERVICE_UNAVAILABLE, PJ_FALSE, PJ_FALSE);
@@ -749,6 +760,15 @@ static void invite_call(pjsip_rx_data *request)
 		return;
 	}
 	app.media = media;
+	remember_lan_answer(NULL);
+	app.dialog_contact[0] = '\0';
+	contact = (pjsip_contact_hdr *)pjsip_msg_find_hdr(request->msg_info.msg,
+		PJSIP_H_CONTACT, NULL);
+	if (contact && contact->uri) {
+		int length = pjsip_uri_print(PJSIP_URI_IN_CONTACT_HDR, contact->uri,
+			app.dialog_contact, sizeof(app.dialog_contact) - 1);
+		app.dialog_contact[length > 0 ? length : 0] = '\0';
+	}
 	if (pjsip_endpt_create_response(app.endpoint, request, PJSIP_SC_OK, NULL,
 				       &response) != PJ_SUCCESS ||
 	    set_lan_answer(request, response, media.payload_type) != 0 ||
@@ -886,6 +906,30 @@ static void send_dialog_bye(void)
 		return;
 	remote_tag = pj_str(app.call.remote_tag);
 	pj_strdup(bye->pool, &PJSIP_MSG_TO_HDR(bye->msg)->tag, &remote_tag);
+	if (pjsip_endpt_send_request(app.endpoint, bye, 30000, NULL, NULL) != PJ_SUCCESS)
+		syslog(LOG_WARNING, "qmodem_voip sip: cellular release BYE send failed");
+}
+
+static void send_lan_bye(void)
+{
+	pjsip_method method;
+	pjsip_tx_data *bye = NULL;
+	pjsip_uri *target;
+
+	if (!app.call.active || !app.call.established ||
+	    app.call.origin != QMODEM_VOIP_SIP_CALL_LAN || !app.lan_answer ||
+	    !app.dialog_contact[0])
+		return;
+	pjsip_method_set(&method, PJSIP_BYE_METHOD);
+	target = pjsip_parse_uri(app.lan_answer->pool, app.dialog_contact,
+		strlen(app.dialog_contact), 0);
+	if (!target)
+		return;
+	if (pjsip_endpt_create_request_from_hdr(app.endpoint, &method, target,
+		(pjsip_from_hdr *)PJSIP_MSG_TO_HDR(app.lan_answer->msg),
+		(pjsip_to_hdr *)PJSIP_MSG_FROM_HDR(app.lan_answer->msg), NULL,
+		PJSIP_MSG_CID_HDR(app.lan_answer->msg), 1, NULL, &bye) != PJ_SUCCESS)
+		return;
 	if (pjsip_endpt_send_request(app.endpoint, bye, 30000, NULL, NULL) != PJ_SUCCESS)
 		syslog(LOG_WARNING, "qmodem_voip sip: cellular release BYE send failed");
 }
@@ -1196,6 +1240,7 @@ static void end_call(pjsip_rx_data *request, int cancel)
 			app.pending_lan_response = NULL;
 			release_pending_lan_response();
 		}
+		remember_lan_answer(NULL);
 		(void)stop_media();
 	}
 	send_response(request, status, PJ_FALSE, PJ_FALSE);
@@ -1811,11 +1856,13 @@ static void media_attach_retry(struct uloop_timeout *timeout)
 
 	response = app.pending_lan_response;
 	app.pending_lan_response = NULL;
+	remember_lan_answer(response);
 	send_status = pjsip_endpt_send_response(app.endpoint,
 		&app.pending_lan_response_addr, response, NULL, NULL);
 	if (send_status != PJ_SUCCESS) {
 		syslog(LOG_WARNING, "qmodem_voip sip: active response failed");
 		pjsip_tx_data_dec_ref(response);
+		remember_lan_answer(NULL);
 		stop_media();
 	} else {
 		char remote_tag[QMODEM_VOIP_SIP_TAG_SIZE];
@@ -1891,9 +1938,11 @@ static void consumer_event(struct ubus_context *context,
 		}
 		send_invite_cancel();
 		send_dialog_bye();
+		send_lan_bye();
 		detach_media();
 		qmodem_voip_sip_call_release(&app.call);
 		remember_outbound_invite(NULL);
+		remember_lan_answer(NULL);
 		app.dialog_contact[0] = '\0';
 	} else if (strcmp(event, "call_state") == 0 && strcmp(state, "active") == 0 &&
 		   app.call.active) {
@@ -2162,6 +2211,7 @@ int main(int argc, char **argv)
 	uloop_timeout_cancel(&app.outbound_register_retry);
 	stop_media();
 	remember_outbound_invite(NULL);
+	remember_lan_answer(NULL);
 	uloop_done();
 	ubus_free(app.ubus);
 	if (app.regc) {
