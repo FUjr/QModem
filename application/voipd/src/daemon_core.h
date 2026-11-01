@@ -31,6 +31,7 @@ struct qmodem_voip_context {
 	struct uloop_timeout browser_timer;
 	struct uloop_timeout call_timer;
 	struct uloop_timeout activation_timer;
+	unsigned int activation_attempts;
 	struct uloop_timeout restart_timer;
 	struct uloop_process serial_arm_process;
 	struct uloop_process voice_restart_process;
