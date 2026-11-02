@@ -12,8 +12,8 @@ PKG_VERSION:=1.0.2
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_URL:=http://www.remlab.net/files/ndisc6
-PKG_MD5SUM:=50cb4c19606cf6ff2b7388e71832f579
+PKG_SOURCE_URL:=https://www.remlab.net/files/ndisc6/archive
+PKG_HASH:=6acec8a0cb9efa3ac98456f46c3016aeec0598b0c7557c95242b5228ad62ca7a
 
 PKG_INSTALL:=1
 

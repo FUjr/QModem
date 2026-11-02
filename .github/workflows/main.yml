@@ -202,6 +202,7 @@ jobs:
     needs: [job_prepare]
     if: ${{ always() && needs.job_prepare.result == 'success' }}
     strategy:
+      fail-fast: false
       matrix:
         build_arch: ['arm64_ipk',"arm64_apk","x64_apk","x64_ipk","mmips_ipk","mmips_apk" ]
     runs-on: ubuntu-latest
@@ -328,11 +329,21 @@ jobs:
           rm -rf feeds/base/package/kernel/gpio-button-hotplug
           generic_package=$(cat ../qmodem/.github/workflows/qmodem_package_generic)
           arch_package=$(cat ../qmodem/.github/workflows/qmodem_package_arch)
+          compile_package() {
+            local package="$1"
+            if ! make "package/$package/compile" -j"$(nproc)"; then
+              echo "::group::Verbose build failure: $package"
+              # Keep the original failure even if a transient retry succeeds.
+              make "package/$package/compile" -j1 V=s || true
+              echo "::endgroup::"
+              return 1
+            fi
+          }
           for package in $generic_package; do
-            make package/$package/compile -j$(nproc)
+            compile_package "$package"
           done
           for package in $arch_package; do
-            make package/$package/compile -j$(nproc)
+            compile_package "$package"
           done
           package_dir="bin/packages/${{ env.SDK_ARCH }}/qmodem"
           required_packages=(
