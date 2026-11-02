@@ -2679,3 +2679,9 @@ msgstr "加载国家码失败"
 
 msgid "Failed to save country calling code"
 msgstr "保存国家码失败"
+
+msgid "Boot Scan Delay"
+msgstr "开机扫描延迟"
+
+msgid "Delay automatic USB and PCIe scans after the scanner is ready, in seconds."
+msgstr "扫描器就绪后延迟执行 USB 和 PCIe 自动扫描，单位为秒。"

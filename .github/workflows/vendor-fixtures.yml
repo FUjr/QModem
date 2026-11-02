@@ -49,6 +49,9 @@ jobs:
         run: |
           application/qmodem/tests/test_vendor_cmds_boundary.sh
           application/qmodem/tests/test_core_cmds.sh
+          sh application/qmodem/tests/test_boot_scan.sh
+          sh application/qmodem/tests/test_fibocom_preferences.sh
+          node luci/luci-app-qmodem-next/tests/test_network_prefer_result.js
           application/qmodem/tests/test_sms_forwarder_conflicts.sh
           application/qmodem/tests/test_sms_transport_modes.sh
           node luci/luci-app-qmodem-next/tests/test_sms_service.js

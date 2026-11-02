@@ -11,7 +11,7 @@ start_service() {
     config_foreach _mk_rundir modem-device
     config_get block_auto_probe main block_auto_probe 0
     config_get enable_pcie_scan main enable_pcie_scan 0
-    config_get enable_usb_scan main enable_usb_scan 0
+    config_get enable_usb_scan main enable_usb_scan 1
     config_get try_preset_usb main try_preset_usb 1
     config_get try_preset_pcie main try_preset_pcie 1
     #once enabled, skip all check or scan
@@ -25,7 +25,7 @@ start_service() {
         _try_vendor_preset_usb
     fi
 
-    #not enabled by default
+    # Queue boot scans once the daemon socket is ready.
     if [ "$enable_usb_scan" -eq 1 ];then
         _scan_usb
     fi
@@ -81,12 +81,33 @@ _try_pcie_device()
 
 _scan_usb()
 {
-    ( sleep 15; /usr/bin/modem_scanc scan usb >/dev/null 2>&1 ) &
+    _queue_boot_scan usb
 }
 
 _scan_pcie()
 {
-    ( sleep 15; /usr/bin/modem_scanc scan pcie >/dev/null 2>&1 ) &
+    _queue_boot_scan pcie
+}
+
+_queue_boot_scan()
+{
+    local scan_type="$1" scan_delay
+    config_get scan_delay main scan_delay 0
+    case "$scan_delay" in ''|*[!0-9]*) scan_delay=0 ;; esac
+    (
+        # procd launches instances after start_service returns. Do not block it
+        # or restart the service from here while waiting for the socket.
+        local attempts=0
+        while [ "$attempts" -lt 30 ]; do
+            if /usr/bin/modem_scanc status >/dev/null 2>&1 &&
+               /usr/bin/modem_scanc scan "$scan_type" "$scan_delay" >/dev/null 2>&1; then
+                exit 0
+            fi
+            attempts=$((attempts + 1))
+            sleep 1
+        done
+        logger -t modem_init "Failed to queue boot $scan_type scan: modem_scand unavailable"
+    ) &
 }
 
 _start_scand()

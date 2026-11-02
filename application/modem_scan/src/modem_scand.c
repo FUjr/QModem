@@ -1725,6 +1725,14 @@ static void sig_handler(int signo)
 	pthread_cond_broadcast(&g.queue_cond);
 }
 
+static void setup_signals(void)
+{
+	/* A hotplug client may exit before its queued response is written. */
+	signal(SIGPIPE, SIG_IGN);
+	signal(SIGTERM, sig_handler);
+	signal(SIGINT, sig_handler);
+}
+
 int main(int argc, char **argv)
 {
 	int sockfd;
@@ -1746,8 +1754,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	signal(SIGTERM, sig_handler);
-	signal(SIGINT, sig_handler);
+	setup_signals();
 	sockfd = setup_socket();
 	if (sockfd < 0) {
 		syslog(LOG_ERR, "failed to setup socket %s: %s", QMODEM_SCAND_SOCKET, strerror(errno));

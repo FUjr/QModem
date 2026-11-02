@@ -503,10 +503,20 @@ set_mode()
     json_close_object
 }
 
+# Read the first RAT value independently of spacing and serial CRLF framing.
+fibocom_gtact_rat()
+{
+    awk -F'[:,]' '/^[[:space:]]*\+GTACT:/ {
+        gsub(/[[:space:]]/, "", $2)
+        print $2
+        exit
+    }'
+}
+
 #获取网络偏好
 get_network_prefer_nr()
 {
-    local network_prefer_num=$(cmd_gtact_query "$at_port" | grep "+GTACT:" | awk -F',' '{print $1}' | sed 's/+GTACT: //g')
+    local network_prefer_num=$(cmd_gtact_query "$at_port" | fibocom_gtact_rat)
     
     local network_prefer_3g="0";
     local network_prefer_4g="0";
@@ -540,9 +550,8 @@ get_network_prefer_nr()
             network_prefer_5g="1"
         ;;
         *)
-            network_prefer_3g="1"
-            network_prefer_4g="1"
-            network_prefer_5g="1"
+            json_add_string "error" "Invalid or unsupported GTACT response"
+            return 1
         ;;
     esac
 
@@ -551,6 +560,16 @@ get_network_prefer_nr()
     json_add_string 4G $network_prefer_4g
     json_add_string 5G $network_prefer_5g
     json_close_object
+}
+
+fibocom_gtact_set_result()
+{
+    if printf '%s\n' "$1" | tr -d '\r' | grep -qE '^[[:space:]]*OK[[:space:]]*$' &&
+       ! printf '%s\n' "$1" | grep -q 'ERROR'; then
+        json_add_boolean "success" 1
+    else
+        json_add_boolean "success" 0
+    fi
 }
 
 #设置网络偏好
@@ -614,6 +633,7 @@ set_network_prefer_nr()
     res=$(cmd_gtact_set "$at_port" "$gtact_params")
     json_add_object "result"
     json_add_string "status" "$res"
+    fibocom_gtact_set_result "$res"
     json_add_string "command" "AT+GTACT=$gtact_params"
     json_close_object
 }
@@ -621,7 +641,7 @@ set_network_prefer_nr()
 #获取网络偏好
 get_network_prefer_lte()
 {
-    local network_prefer_num=$(cmd_gtact_query "$at_port" | grep "+GTACT:" | awk -F',' '{print $1}' | sed 's/+GTACT: //g')
+    local network_prefer_num=$(cmd_gtact_query "$at_port" | fibocom_gtact_rat)
     
     local network_prefer_3g="0";
     local network_prefer_4g="0";
@@ -639,8 +659,8 @@ get_network_prefer_lte()
             network_prefer_4g="1"
         ;;
         *)
-            network_prefer_3g="1"
-            network_prefer_4g="1"
+            json_add_string "error" "Invalid or unsupported GTACT response"
+            return 1
         ;;
     esac
 
@@ -677,6 +697,7 @@ set_network_prefer_lte()
     res=$(cmd_gtact_set "$at_port" "$network_prefer_num")
     json_add_object "result"
     json_add_string "status" "$res"
+    fibocom_gtact_set_result "$res"
     json_add_string raw "$1"
     json_add_string "network_prefer_num" "$network_prefer_num"
     json_add_string "network_prefer_3g" "$network_prefer_3g"
@@ -804,6 +825,9 @@ fibocom_get_carrier()
         "mediatek")
             carrier=$(cmd_gtcurcar_query "$at_port" | awk -F'"' '/^\+GTCURCAR:/ {print $2; exit}')
             ;;
+    esac
+    case "$(printf '%s' "$carrier" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+        generic|unknown) carrier="" ;;
     esac
     [ -n "$carrier" ] || carrier=$(cmd_cops_query "$at_port" | grep "+COPS" | awk -F'"' '{print $2}')
     echo "$carrier"

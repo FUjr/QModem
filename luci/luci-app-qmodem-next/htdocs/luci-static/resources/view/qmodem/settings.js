@@ -117,6 +117,13 @@ return view.extend({
 		o = s.option(form.Flag, 'enable_usb_scan', _('Enable USB Scan'));
 		o.description = _('Once enabled, the USB ports will be scanned on every boot.');
 		o.default = '1';
+		o.rmempty = false;
+
+		o = s.option(form.Value, 'scan_delay', _('Boot Scan Delay'));
+		o.description = _('Delay automatic USB and PCIe scans after the scanner is ready, in seconds.');
+		o.datatype = 'and(uinteger,min(0),max(300))';
+		o.default = '0';
+		o.placeholder = '0';
 
 		o = s.option(form.ListValue, 'scan_log_level', _('Scan Log Level'));
 		o.value('debug', _('Debug'));

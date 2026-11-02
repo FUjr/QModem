@@ -391,6 +391,8 @@ return view.extend({
 				submitButton.textContent = _('Applying...');
 
 				qmodem.setNetworkPrefer(modem.id, selectedNetworks).then(function(result) {
+					if (result && result.result && result.result.success === false)
+						throw new Error(result.result.status || _('Failed to set network preference'));
 					if (result) {
 						ui.addNotification(null, E('p', _('Network preference set successfully')), 'success');
 						// Refresh the preference display

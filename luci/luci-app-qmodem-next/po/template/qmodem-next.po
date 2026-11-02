@@ -3591,3 +3591,9 @@ msgstr ""
 #: view/qmodem/network_config.js:345
 msgid "quectel-CM will append the DNS server to the resolv.conf file by default.if you do not want to modify the resolv.conf file, please check this option."
 msgstr ""
+
+msgid "Boot Scan Delay"
+msgstr ""
+
+msgid "Delay automatic USB and PCIe scans after the scanner is ready, in seconds."
+msgstr ""
