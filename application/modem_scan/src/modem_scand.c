@@ -23,6 +23,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifndef QMODEM_SYSFS_ROOT
+#define QMODEM_SYSFS_ROOT "/sys"
+#endif
+
 enum event_type {
 	EV_ADD,
 	EV_REMOVE,
@@ -593,10 +597,10 @@ static void scan_usb_slot(const char *slot, struct scan_result *res)
 	DIR *d;
 	struct dirent *de;
 
-	snprintf(slot_path, sizeof(slot_path), "/sys/bus/usb/devices/%s", slot);
+	snprintf(slot_path, sizeof(slot_path), "%s/bus/usb/devices/%s", QMODEM_SYSFS_ROOT, slot);
 	if (!is_dir(slot_path))
 		return;
-	snprintf(res->modem_path, sizeof(res->modem_path), "/sys/bus/usb/devices/%s/", slot);
+	snprintf(res->modem_path, sizeof(res->modem_path), "%s/bus/usb/devices/%s/", QMODEM_SYSFS_ROOT, slot);
 	snprintf(vid_path, sizeof(vid_path), "%s/idVendor", slot_path);
 	snprintf(pid_path, sizeof(pid_path), "%s/idProduct", slot_path);
 	read_file_trim(vid_path, res->vid, sizeof(res->vid));
@@ -649,14 +653,15 @@ static void scan_usb_slot(const char *slot, struct scan_result *res)
 			sl_free(&ttys);
 			continue;
 		}
-		if (!interface_allowed(&rule, if_port)) {
-			log_msg(LOG_L_DEBUG, "skip usb %s interface %s by modem_port_rule", slot, if_port);
-			continue;
-		}
 		if (!strcmp(driver, "option") || !strcmp(driver, "cdc_acm") ||
 		    !strcmp(driver, "qcserial") || !strcmp(driver, "usbserial_generic") ||
 		    !strcmp(driver, "usbserial")) {
 			struct str_list ttys;
+			/* The include rule filters AT ports, not network interfaces. */
+			if (!interface_allowed(&rule, if_port)) {
+				log_msg(LOG_L_DEBUG, "skip usb %s AT interface %s by modem_port_rule", slot, if_port);
+				continue;
+			}
 			sl_init(&ttys);
 			list_child_matching(path, "ttyUSB", &ttys);
 			list_child_matching(path, "ttyACM", &ttys);
@@ -694,10 +699,6 @@ static void scan_associated_usb(const char *pcie_slot, struct scan_result *res)
 }
 
 /* Resolve WWAN ports by ancestry: controller and WWAN indices are independent. */
-#ifndef QMODEM_SYSFS_ROOT
-#define QMODEM_SYSFS_ROOT "/sys"
-#endif
-
 static int pcie_owned_path(const char *slot_path, const char *path)
 {
     char slot_real[PATH_MAX], real[PATH_MAX];

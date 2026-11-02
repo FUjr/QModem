@@ -25,6 +25,7 @@ jobs:
           /tmp/test-mhi-format
           cc -pthread application/modem_scan/tests/test_scheduler.c -ljson-c -o /tmp/test-scheduler
           /tmp/test-scheduler
+          sh application/modem_scan/tests/test_usb_scan.sh
           cc -pthread application/quectel_CM_5G_M/tests/test_managed_ipv4.c -o /tmp/test-managed
           /tmp/test-managed
       - name: Exercise independent probes and real weighted NAT traffic
