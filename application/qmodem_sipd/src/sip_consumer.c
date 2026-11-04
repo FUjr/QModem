@@ -56,6 +56,7 @@
 #define UBUS_ACTION_TIMEOUT_MS 30000
 #define DEFAULT_PIDFILE "/var/run/qmodem_voip_sip_consumer.pid"
 #define MEDIA_ATTACH_RETRY_MS 250
+#define LAN_ACK_WAIT_MS 32000
 #define MEDIA_ATTACH_RETRY_MAX 20
 #define EVENT_LOOP_SLICE_MS 10
 
@@ -105,7 +106,11 @@ struct consumer {
 	pjsip_auth_clt_sess outbound_auth;
 	int outbound_auth_initialized;
 	pjsip_tx_data *outbound_invite;
+	pjsip_tx_data *lan_answer;
 	char dialog_contact[BINDING_SIZE];
+	int lan_acked;
+	int lan_bye_pending;
+	struct uloop_timeout lan_bye_timeout;
 	char outbound_server[256];
 	char outbound_server_uri[384];
 	char outbound_username[QMODEM_VOIP_SIP_USERNAME_SIZE];
@@ -164,6 +169,7 @@ static void resend_incoming_invite(void);
 static int rtp_open(void);
 static int attach_media(void);
 static void outbound_register(void);
+static void lan_bye_flush(void);
 
 static uint32_t registration_retry_entropy(void)
 {
@@ -693,6 +699,32 @@ static int set_lan_answer(pjsip_rx_data *request, pjsip_tx_data *response,
 	return response->msg->body ? 0 : -1;
 }
 
+static void remember_lan_answer(pjsip_tx_data *response)
+{
+	if (app.lan_answer)
+		pjsip_tx_data_dec_ref(app.lan_answer);
+	app.lan_answer = response;
+	app.lan_acked = 0;
+	app.lan_bye_pending = 0;
+	uloop_timeout_cancel(&app.lan_bye_timeout);
+	if (response)
+		pjsip_tx_data_add_ref(response);
+}
+
+static void save_dialog_contact(pjsip_rx_data *request)
+{
+	pjsip_contact_hdr *contact;
+	int length;
+
+	contact = (pjsip_contact_hdr *)pjsip_msg_find_hdr(request->msg_info.msg,
+		PJSIP_H_CONTACT, NULL);
+	if (!contact || !contact->uri)
+		return;
+	length = pjsip_uri_print(PJSIP_URI_IN_CONTACT_HDR, contact->uri,
+		app.dialog_contact, sizeof(app.dialog_contact) - 1);
+	app.dialog_contact[length > 0 ? length : 0] = '\0';
+}
+
 static void invite_call(pjsip_rx_data *request)
 {
 	char number[64];
@@ -749,6 +781,11 @@ static void invite_call(pjsip_rx_data *request)
 		return;
 	}
 	app.media = media;
+	if (app.lan_bye_pending)
+		lan_bye_flush();
+	remember_lan_answer(NULL);
+	app.dialog_contact[0] = '\0';
+	save_dialog_contact(request);
 	if (pjsip_endpt_create_response(app.endpoint, request, PJSIP_SC_OK, NULL,
 				       &response) != PJ_SUCCESS ||
 	    set_lan_answer(request, response, media.payload_type) != 0 ||
@@ -816,9 +853,11 @@ static int in_dialog_media_refresh(pjsip_rx_data *request)
 	if (pjsip_endpt_send_response2(app.endpoint, request, response, NULL, NULL) !=
 	    PJ_SUCCESS)
 		pjsip_tx_data_dec_ref(response);
-	else
+	else {
+		save_dialog_contact(request);
 		syslog(LOG_INFO, "qmodem_voip sip: accepted in-dialog INVITE refresh cseq %u",
 		       cseq);
+	}
 	return 0;
 }
 
@@ -888,6 +927,53 @@ static void send_dialog_bye(void)
 	pj_strdup(bye->pool, &PJSIP_MSG_TO_HDR(bye->msg)->tag, &remote_tag);
 	if (pjsip_endpt_send_request(app.endpoint, bye, 30000, NULL, NULL) != PJ_SUCCESS)
 		syslog(LOG_WARNING, "qmodem_voip sip: cellular release BYE send failed");
+}
+
+static void send_lan_bye(void)
+{
+	pjsip_method method;
+	pjsip_tx_data *bye = NULL;
+	pjsip_uri *target;
+	pjsip_hdr *record_route;
+
+	if (!app.lan_answer || !app.dialog_contact[0])
+		return;
+	pjsip_method_set(&method, PJSIP_BYE_METHOD);
+	target = pjsip_parse_uri(app.lan_answer->pool, app.dialog_contact,
+		strlen(app.dialog_contact), 0);
+	if (!target)
+		return;
+	if (pjsip_endpt_create_request_from_hdr(app.endpoint, &method, target,
+		(pjsip_from_hdr *)PJSIP_MSG_TO_HDR(app.lan_answer->msg),
+		(pjsip_to_hdr *)PJSIP_MSG_FROM_HDR(app.lan_answer->msg), NULL,
+		PJSIP_MSG_CID_HDR(app.lan_answer->msg), 1, NULL, &bye) != PJ_SUCCESS)
+		return;
+	for (record_route = (pjsip_hdr *)pjsip_msg_find_hdr(app.lan_answer->msg,
+		     PJSIP_H_RECORD_ROUTE, NULL);
+	     record_route;
+	     record_route = (pjsip_hdr *)pjsip_msg_find_hdr(app.lan_answer->msg,
+		     PJSIP_H_RECORD_ROUTE, record_route->next)) {
+		pjsip_route_hdr *route = (pjsip_route_hdr *)pjsip_hdr_clone(bye->pool,
+			record_route);
+		pjsip_routing_hdr_set_route(route);
+		pjsip_msg_add_hdr(bye->msg, (pjsip_hdr *)route);
+	}
+	if (pjsip_endpt_send_request(app.endpoint, bye, 30000, NULL, NULL) != PJ_SUCCESS)
+		syslog(LOG_WARNING, "qmodem_voip sip: cellular release BYE send failed");
+}
+
+static void lan_bye_flush(void)
+{
+	send_lan_bye();
+	remember_lan_answer(NULL);
+	app.dialog_contact[0] = '\0';
+}
+
+static void lan_bye_wait(struct uloop_timeout *timeout)
+{
+	(void)timeout;
+	syslog(LOG_INFO, "qmodem_voip sip: no ACK from SIP phone, sending BYE");
+	lan_bye_flush();
 }
 
 static void send_invite_cancel(void)
@@ -1036,6 +1122,8 @@ static void send_incoming_invite(void)
 	pjsip_cid_hdr *cid;
 	if (!binding_active() || app.call.active)
 		return;
+	if (app.lan_bye_pending)
+		lan_bye_flush();
 	(void)snprintf(address, sizeof(address), "%s:%s@%s:%u%s",
 		app.outbound ? "sips" : "sip", app.username, app.lan_address,
 		app.listen_port, app.outbound ? ";transport=tls" : "");
@@ -1174,6 +1262,11 @@ static void end_call(pjsip_rx_data *request, int cancel)
 	      strcmp(remote_tag, app.call.remote_tag) == 0) &&
 	    !authenticate(request))
 		return;
+	if (!cancel && app.lan_bye_pending &&
+	    pj_strcmp2(&PJSIP_MSG_CID_HDR(app.lan_answer->msg)->id, call_id) == 0) {
+		remember_lan_answer(NULL);
+		app.dialog_contact[0] = '\0';
+	}
 	syslog(LOG_INFO,
 		"qmodem_voip sip: received %s call-id=%s tag=%s branch=%s cseq=%u stored-active=%u stored-origin=%u stored-tag=%s stored-branch=%s stored-cseq=%u established=%u",
 		cancel ? "CANCEL" : "BYE", call_id, remote_tag, branch, cseq,
@@ -1196,6 +1289,7 @@ static void end_call(pjsip_rx_data *request, int cancel)
 			app.pending_lan_response = NULL;
 			release_pending_lan_response();
 		}
+		remember_lan_answer(NULL);
 		(void)stop_media();
 	}
 	send_response(request, status, PJ_FALSE, PJ_FALSE);
@@ -1490,6 +1584,13 @@ static pj_bool_t on_request(pjsip_rx_data *request)
 		return PJ_TRUE;
 	}
 	if (method->id == PJSIP_ACK_METHOD) {
+		if (app.lan_answer && request->msg_info.cid &&
+		    pj_strcmp(&request->msg_info.cid->id,
+			    &PJSIP_MSG_CID_HDR(app.lan_answer->msg)->id) == 0) {
+			app.lan_acked = 1;
+			if (app.lan_bye_pending)
+				lan_bye_flush();
+		}
 		return PJ_TRUE;
 	}
 	if (method->id == PJSIP_OTHER_METHOD && str_equal(&method->name, "MESSAGE")) {
@@ -1811,11 +1912,13 @@ static void media_attach_retry(struct uloop_timeout *timeout)
 
 	response = app.pending_lan_response;
 	app.pending_lan_response = NULL;
+	remember_lan_answer(response);
 	send_status = pjsip_endpt_send_response(app.endpoint,
 		&app.pending_lan_response_addr, response, NULL, NULL);
 	if (send_status != PJ_SUCCESS) {
 		syslog(LOG_WARNING, "qmodem_voip sip: active response failed");
 		pjsip_tx_data_dec_ref(response);
+		remember_lan_answer(NULL);
 		stop_media();
 	} else {
 		char remote_tag[QMODEM_VOIP_SIP_TAG_SIZE];
@@ -1875,6 +1978,8 @@ static void consumer_event(struct ubus_context *context,
 		 strcmp(owner, "none") != 0 &&
 		 strcmp(owner, app.outbound ? "external_sip" : "lan_sip") != 0);
 	if (ended) {
+		int lan_bye = app.call.active && app.call.established &&
+			app.call.origin == QMODEM_VOIP_SIP_CALL_LAN && app.lan_answer;
 		app.incoming_number[0] = '\0';
 		app.incoming_caller_id_withheld = 0;
 		uloop_timeout_cancel(&app.media_attach_timeout);
@@ -1894,7 +1999,15 @@ static void consumer_event(struct ubus_context *context,
 		detach_media();
 		qmodem_voip_sip_call_release(&app.call);
 		remember_outbound_invite(NULL);
-		app.dialog_contact[0] = '\0';
+		if (lan_bye && !app.lan_acked) {
+			app.lan_bye_pending = 1;
+			uloop_timeout_set(&app.lan_bye_timeout, LAN_ACK_WAIT_MS);
+		} else if (lan_bye) {
+			lan_bye_flush();
+		} else {
+			remember_lan_answer(NULL);
+			app.dialog_contact[0] = '\0';
+		}
 	} else if (strcmp(event, "call_state") == 0 && strcmp(state, "active") == 0 &&
 		   app.call.active) {
 		if (app.pending_lan_response && !app.media_attach_timeout.pending) {
@@ -2043,6 +2156,7 @@ int main(int argc, char **argv)
 	app.rtp_fd_event.fd = -1;
 	app.rtp_fd = -1;
 	app.media_attach_timeout.cb = media_attach_retry;
+	app.lan_bye_timeout.cb = lan_bye_wait;
 	app.outbound_register_retry.cb = outbound_register_retry;
 	qmodem_voip_sip_registration_retry_init(&app.registration_retry);
 	app.media_revision = (uint64_t)time(NULL);
@@ -2162,6 +2276,9 @@ int main(int argc, char **argv)
 	uloop_timeout_cancel(&app.outbound_register_retry);
 	stop_media();
 	remember_outbound_invite(NULL);
+	if (app.lan_bye_pending)
+		lan_bye_flush();
+	remember_lan_answer(NULL);
 	uloop_done();
 	ubus_free(app.ubus);
 	if (app.regc) {

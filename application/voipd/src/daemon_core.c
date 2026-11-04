@@ -24,6 +24,8 @@
 #define UCI_PROGRAM "/sbin/uci"
 #define ADB_UNLOCK_HELPER "/usr/bin/qmodem_voip_adb_unlock"
 #define ADB_PROGRAM "/usr/bin/adb"
+#define QMODEM_VOIP_ACTIVATION_ATTEMPTS 18
+#define QMODEM_VOIP_ACTIVATION_RETRY_MS 10000
 
 struct qmodem_voip_context qmodem_voip_ctxt;
 
@@ -742,6 +744,15 @@ void qmodem_voip_activation_timer(struct uloop_timeout *timeout)
 		schedule_modem_reenumeration(app);
 		return;
 	}
+	if (result == QMODEM_VOIP_ACTIVATION_FAILED &&
+	    ++app->activation_attempts < QMODEM_VOIP_ACTIVATION_ATTEMPTS) {
+		syslog(LOG_NOTICE,
+			"persisted qmodem voip enable failed; retrying in %d s",
+			QMODEM_VOIP_ACTIVATION_RETRY_MS / 1000);
+		uloop_timeout_set(&app->activation_timer,
+			QMODEM_VOIP_ACTIVATION_RETRY_MS);
+		return;
+	}
 	if (result == QMODEM_VOIP_ACTIVATION_FAILED) {
 		app->start_enabled = 0;
 		(void)set_application_enabled(0);
@@ -801,6 +812,7 @@ static int disable_method(struct ubus_context *ubus, struct ubus_object *object,
 		return qmodem_voip_reply_status(ubus, request, UBUS_STATUS_UNKNOWN_ERROR,
 				    "config_failed", "application disable could not be persisted");
 	app->start_enabled = 0;
+	uloop_timeout_cancel(&app->activation_timer);
 	if (app->restart_timer.pending) {
 		uloop_timeout_cancel(&app->restart_timer);
 	} else if (app->call.enabled && run_safety("disable", 0) != 0) {
