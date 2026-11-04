@@ -645,9 +645,9 @@ static const struct file_operations mon_fops_text_u = {
 	.owner =	THIS_MODULE,
 	.open =		mon_text_open,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0))
-	.llseek =	no_llseek,
-#else
 	.llseek =	noop_llseek,
+#else
+	.llseek =	no_llseek,
 #endif
 	.read =		mon_text_read_u,
 	.release =	mon_text_release,
