@@ -4,6 +4,7 @@
 'require uci';
 'require ui';
 'require qmodem-voip.rpc as rpc';
+'require qmodem-voip.enrollment as enrollment';
 
 document.head.appendChild(E('link', {
 	rel: 'stylesheet', type: 'text/css', href: L.resource('qmodem-voip/qmodem-voip.css')
@@ -160,10 +161,45 @@ return view.extend({
 		};
 
 		const outbound = map.section(form.NamedSection, 'outbound', 'direction',
-			_('Outbound SIP'), _('Register with an external SIP server over TLS.'));
+			_('Outbound SIP'),
+			_('Register with an external SIP server over TLS.') + ' ' +
+			'<a href="https://github.com/FUjr/sip-gateway-manager" target="_blank" rel="noopener noreferrer">SIP Gateway Manager</a> ' +
+			_('provides a web interface for managing Asterisk phone and SMS routing rules.'));
 		outbound.anonymous = true;
 		outbound.addremove = false;
 		this.addCommonOptions(outbound, 'wan', interfaces, modems);
+		option = outbound.option(form.Button, '_import', _('Import configuration'));
+		option.inputtitle = _('Import enrollment JSON');
+		option.onclick = () => {
+			const text = E('textarea', { class: 'cbi-input-textarea', rows: 10, autocomplete: 'off', spellcheck: 'false' });
+			const error = E('p', { class: 'alert-message warning', style: 'display:none' });
+			ui.showModal(_('Import outbound SIP configuration'), [
+				E('p', {}, [ _('Paste the line enrollment JSON exported by SIP Gateway Manager. The network interface, local SIP port and selected modem are preserved. Save & Apply is required to activate the imported settings.') ]),
+				text, error,
+				E('div', { class: 'right' }, [
+					E('button', { class: 'btn', click: ui.hideModal }, [ _('Cancel') ]),
+					E('button', { class: 'btn cbi-button-positive', click: () => {
+						try {
+							const values = enrollment.parse(text.value);
+							const fields = Object.keys(values).map((name) => {
+								const found = map.lookupOption(name, 'outbound');
+								const widget = found && found[0].getUIElement('outbound');
+								if (!widget) throw new Error(_('Unable to access the outbound form.'));
+								return [widget, values[name]];
+							});
+							fields.forEach(([widget, value]) => widget.setValue(value));
+							map.checkDepends();
+							ui.hideModal();
+							ui.addNotification(null, E('p', {}, [ _('Configuration imported. Review the settings and select Save & Apply.') ]), 'info');
+						} catch (e) {
+							error.textContent = _('Import failed. Check the enrollment format and required fields.');
+							error.style.display = '';
+						}
+					} }, [ _('Import') ])
+				])
+			]);
+		};
+
 		option = outbound.option(form.Value, 'server', _('SIP server'));
 		option.datatype = 'host';
 		option.rmempty = false;
