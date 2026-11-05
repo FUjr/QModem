@@ -545,6 +545,8 @@ static int ubus_action(const char *action, const char *number)
 	result = ubus_invoke(app.ubus, object, action, buffer.head, NULL, NULL,
 			     UBUS_ACTION_TIMEOUT_MS);
 	blob_buf_free(&buffer);
+	if (result != 0)
+		syslog(LOG_WARNING, "qmodem_voip sip: action %s failed ubus=%d", action, result);
 	return result == 0 ? 0 : -1;
 }
 
@@ -901,6 +903,8 @@ static void send_dialog_bye(void)
 	pjsip_cseq_hdr *cseq;
 	pjsip_uri *target;
 	pj_str_t remote_tag;
+	pjsip_tpselector selector;
+	pj_status_t status;
 	unsigned next_cseq;
 
 	if (!app.call.active || !app.call.established || !app.outbound_invite ||
@@ -925,8 +929,21 @@ static void send_dialog_bye(void)
 		return;
 	remote_tag = pj_str(app.call.remote_tag);
 	pj_strdup(bye->pool, &PJSIP_MSG_TO_HDR(bye->msg)->tag, &remote_tag);
-	if (pjsip_endpt_send_request(app.endpoint, bye, 30000, NULL, NULL) != PJ_SUCCESS)
-		syslog(LOG_WARNING, "qmodem_voip sip: cellular release BYE send failed");
+	/* Reuse the authenticated TLS flow, as ACK does. The Contact may name
+	 * an IP address rather than the configured certificate hostname. */
+	if (app.outbound && app.outbound_invite->tp_info.transport) {
+		pj_bzero(&selector, sizeof(selector));
+		selector.type = PJSIP_TPSELECTOR_TRANSPORT;
+		selector.u.transport = app.outbound_invite->tp_info.transport;
+		status = pjsip_tx_data_set_transport(bye, &selector);
+		if (status != PJ_SUCCESS) {
+			pjsip_tx_data_dec_ref(bye);
+			return;
+		}
+	}
+	status = pjsip_endpt_send_request(app.endpoint, bye, 30000, NULL, NULL);
+	if (status != PJ_SUCCESS)
+		syslog(LOG_WARNING, "qmodem_voip sip: cellular release BYE send failed status=%d", (int)status);
 }
 
 static void send_lan_bye(void)
@@ -1177,6 +1194,7 @@ static pj_bool_t on_response(pjsip_rx_data *response)
 		return PJ_FALSE;
 	}
 	if (status >= 200 && status < 300) {
+		syslog(LOG_INFO, "qmodem_voip sip: received answer active=%d established=%d", app.call.active, app.call.established);
 		pj_status_t ack_status = send_outbound_ack(app.outbound_invite, response);
 		char remote_tag[QMODEM_VOIP_SIP_TAG_SIZE];
 		pjsip_msg_body *body = response->msg_info.msg->body;
@@ -1201,8 +1219,12 @@ static pj_bool_t on_response(pjsip_rx_data *response)
 			 * attached the RTP/local media socket, so the call looked connected
 			 * while no modem PCM could reach the SIP peer.  Answer first so the
 			 * daemon has an active revision, then bind both media directions. */
-			if (ubus_action("answer", NULL) == 0 && rtp_open() == 0 &&
-				attach_media() == 0 && response->msg_info.to &&
+			int answer_status = ubus_action("answer", NULL);
+			int rtp_status = answer_status == 0 ? rtp_open() : -1;
+			int attach_status = rtp_status == 0 ? attach_media() : -1;
+			syslog(LOG_INFO, "qmodem_voip sip: answer=%d rtp=%d attach=%d active=%d",
+				answer_status, rtp_status, attach_status, app.call.active);
+			if (answer_status == 0 && rtp_status == 0 && attach_status == 0 && response->msg_info.to &&
 			    copy_pj_string(remote_tag, sizeof(remote_tag),
 				&response->msg_info.to->tag) == 0)
 				(void)qmodem_voip_sip_call_establish(&app.call, remote_tag);
@@ -1978,6 +2000,8 @@ static void consumer_event(struct ubus_context *context,
 		 strcmp(owner, "none") != 0 &&
 		 strcmp(owner, app.outbound ? "external_sip" : "lan_sip") != 0);
 	if (ended) {
+		syslog(LOG_INFO, "qmodem_voip sip: end event=%s state=%s active=%d established=%d origin=%d",
+			 event, state, app.call.active, app.call.established, app.call.origin);
 		int lan_bye = app.call.active && app.call.established &&
 			app.call.origin == QMODEM_VOIP_SIP_CALL_LAN && app.lan_answer;
 		app.incoming_number[0] = '\0';
