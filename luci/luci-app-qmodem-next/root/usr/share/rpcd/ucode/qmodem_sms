@@ -3,6 +3,7 @@
 
 import { open, fdopen, popen, stat } from 'fs';
 import { cursor } from 'uci';
+import { normalizeCode, normalizeNumber, numberKey, readdressPdu, validReply, groupMessages } from 'qmodem.sms_number';
 
 const TOM_MODEM_PATH = '/usr/bin/tom_modem';
 const DEFAULT_SMS_DB_DIR = '/etc/qmodem';
@@ -201,6 +202,7 @@ function getModemConfig(config_section) {
 	
 	return {
 		at_port: at_port,
+		country_code: cfg.sms_country_code || '',
 		use_ubus: use_ubus,
 		sms_db_path: sms_db_path,
 		sms_auto_delete_from_sim: sms_auto_delete_from_sim
@@ -542,6 +544,7 @@ function mergeSmsMessages(received_db, sent_db) {
 				total: 1,
 				part: 1,
 				is_success: sms.is_success,
+				conversation_contact: sms.conversation_contact,
 				type: 'sent'
 			});
 		}
@@ -551,44 +554,6 @@ function mergeSmsMessages(received_db, sent_db) {
 	messages = sort(messages, (a, b) => b.timestamp - a.timestamp);
 	
 	return messages;
-}
-
-// Group messages by conversation (sender/recipient)
-function groupByConversation(messages) {
-	let conversations = {};
-	
-	for (let msg in messages) {
-		let contact = msg.type == 'received' ? msg.sender : msg.recipient;
-		
-		if (!conversations[contact]) {
-			conversations[contact] = {
-				contact: contact,
-				messages: [],
-				last_timestamp: msg.timestamp,
-				unread_count: 0
-			};
-		}
-		
-		push(conversations[contact].messages, msg);
-		
-		// Update last timestamp
-		if (msg.timestamp > conversations[contact].last_timestamp)
-			conversations[contact].last_timestamp = msg.timestamp;
-		
-		// Count unread messages
-		if (msg.type == 'received' && msg.is_read === false)
-			conversations[contact].unread_count++;
-	}
-	
-	// Convert to array and sort by last message timestamp
-	let result = [];
-	for (let contact in conversations) {
-		push(result, conversations[contact]);
-	}
-	
-	result = sort(result, (a, b) => b.last_timestamp - a.last_timestamp);
-	
-	return result;
 }
 
 // Reconstruct multi-part SMS messages with dynamic time window
@@ -703,6 +668,26 @@ function reconstructMultipartSms(messages) {
 
 return {
 	qmodem_sms: {
+		get_country_code: {
+			args: { config_section: '' },
+			call: function(request) {
+				let config = getModemConfig(request.args.config_section);
+				return config ? { country_code: config.country_code } : { error: 'Failed to get modem configuration' };
+			}
+		},
+		set_country_code: {
+			args: { config_section: '', country_code: '' },
+			call: function(request) {
+				let code = normalizeCode(request.args.country_code);
+				if (code == null) return { error: 'Invalid country calling code' };
+				let ctx = cursor();
+				if (!ctx || !ctx.get_all('qmodem', request.args.config_section))
+					return { error: 'Failed to get modem configuration' };
+				if (!ctx.set('qmodem', request.args.config_section, 'sms_country_code', code) || !ctx.commit('qmodem'))
+					return { error: 'Failed to save country calling code' };
+				return { country_code: code };
+			}
+		},
 		// List all SMS messages grouped by conversation
 		list_sms: {
 			args: {
@@ -734,7 +719,7 @@ return {
 				all_messages = reconstructMultipartSms(all_messages);
 				
 				// Group by conversation
-				let conversations = groupByConversation(all_messages);
+				let conversations = groupMessages(all_messages);
 				
 				return {
 					modem_config: config,
@@ -774,11 +759,15 @@ return {
 				
 				// Filter by contact
 				let conversation = [];
-				for (let msg in all_messages) {
-					let msg_contact = msg.type == 'received' ? msg.sender : msg.recipient;
-					if (msg_contact == contact) {
-						push(conversation, msg);
+				for (let group in groupMessages(all_messages)) {
+					for (let address in group.contacts) {
+						if (numberKey(address) == numberKey(contact)) {
+							conversation = group.messages;
+							contact = group.contact;
+							break;
+						}
 					}
+					if (length(conversation)) break;
 				}
 				
 				// Reconstruct multi-part messages
@@ -801,7 +790,9 @@ return {
 				config_section: "",
 				recipient: "",
 				pdu: "",
-				content: ""
+				content: "",
+				country_code: "",
+				conversation_contact: ""
 			},
 			call: function(request) {
 				let config_section = request.args.config_section;
@@ -831,11 +822,21 @@ return {
 					return { error: 'Missing content parameter' };
 				}
 				
-				warn(`send_sms: Sending to ${request.args.recipient}, PDU length: ${length(request.args.pdu)}\n`);
+				let recipient = normalizeNumber(request.args.recipient,
+					request.args.country_code ?? config.country_code);
+				if (!recipient) return { error: 'Invalid phone number or country calling code' };
+				let conversation_contact = request.args.conversation_contact;
+				if (conversation_contact) {
+					conversation_contact = normalizeNumber(conversation_contact, '');
+					if (!conversation_contact || !validReply(recipient, conversation_contact))
+						return { error: 'Invalid conversation contact' };
+				}
+				let pdu = readdressPdu(request.args.pdu, recipient);
+				if (!pdu) return { error: 'Invalid SMS PDU' };
 				
 				// Send SMS via tom_modem
 				let result = execTomModem(config.at_port, config.use_ubus, 's', {
-					pdu: request.args.pdu
+					pdu: pdu
 				});
 				
 				warn(`send_sms: Result: ${sprintf('%J', result)}\n`);
@@ -855,10 +856,11 @@ return {
 				
 				push(db.sent, {
 					id: msg_id,
-					recipient: request.args.recipient,
+					recipient: recipient,
+					conversation_contact: conversation_contact,
 					content: request.args.content,
 					timestamp: msg_timestamp,
-					pdu: request.args.pdu,
+					pdu: pdu,
 					is_success: is_success
 				});
 				
@@ -883,6 +885,7 @@ return {
 				
 				return {
 					success: true,
+					recipient: recipient,
 					id: msg_id,
 					result: result
 				};

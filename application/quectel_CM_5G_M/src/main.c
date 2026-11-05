@@ -323,8 +323,15 @@ static int qmi_main(PROFILE_T *profile)
     if (request_ops->requestBaseBandVersion)
         request_ops->requestBaseBandVersion(profile);
 
-    if (request_ops->requestSetEthMode)
-        request_ops->requestSetEthMode(profile);
+    if (request_ops->requestSetEthMode) {
+        int format_error = request_ops->requestSetEthMode(profile);
+        if (profile->generic_mhi && format_error) {
+            dbg_time("generic MHI data format/endpoint setup failed: %d", format_error);
+            if (profile->qmi_ops->deinit) profile->qmi_ops->deinit();
+            main_send_event_to_qmidevice(RIL_REQUEST_QUIT);
+            goto __main_quit;
+        }
+    }
 
 #ifdef CONFIG_FOXCONN_FCC_AUTH
     // Only execute FCC authentication if the modem model requires it

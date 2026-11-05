@@ -1,0 +1,36 @@
+name: SMS addressing tests
+
+on:
+  push:
+    paths:
+      - 'application/libqmodem-sms/**'
+      - 'application/qmodem_smsd/**'
+      - 'luci/luci-app-qmodem-next/**'
+      - 'luci/luci-app-qmodem-sms/**'
+      - '.github/workflows/sms-addressing.yml'
+  pull_request:
+    paths:
+      - 'application/libqmodem-sms/**'
+      - 'application/qmodem_smsd/**'
+      - 'luci/luci-app-qmodem-next/**'
+      - 'luci/luci-app-qmodem-sms/**'
+      - '.github/workflows/sms-addressing.yml'
+
+jobs:
+  addressing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test country code controls and JavaScript encoders
+        run: node luci/luci-app-qmodem-next/tests/test_sms_addressing.js
+      - name: Test daemon service adapter
+        if: hashFiles('application/qmodem_smsd/Makefile') != ''
+        run: node luci/luci-app-qmodem-next/tests/test_sms_service.js
+      - name: Install C test dependencies
+        if: hashFiles('application/qmodem_smsd/Makefile') != ''
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev libjson-c-dev
+      - name: Test C encoders and database upgrades
+        if: hashFiles('application/qmodem_smsd/Makefile') != ''
+        run: |
+          make -C application/libqmodem-sms/tests
+          make -C application/qmodem_smsd/tests

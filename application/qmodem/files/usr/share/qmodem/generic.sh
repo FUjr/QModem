@@ -353,6 +353,28 @@ get_driver()
         echo unknown
         return
     }
+    # Determine the protocol from the selected data endpoint, not driver order.
+    local endpoint endpoint_driver endpoint_path
+    local sysroot="${QMODEM_SYSFS_ROOT:-/sys}"
+    endpoint=$("${SCRIPT_DIR:-/usr/share/qmodem}/modem_netdev.sh" "${modem_config:-$config_section}" 2>/dev/null)
+    if [ -n "$endpoint" ]; then
+        endpoint_path=$(readlink -f "$sysroot/class/net/$endpoint")
+        endpoint_driver=$(basename "$(readlink -f "$sysroot/class/net/$endpoint/device/driver")")
+        case "$endpoint_driver" in
+            mhi_net) echo qmi; return;;
+            mhi_wwan_mbim) echo mbim; return;;
+        esac
+        # Native WWAN links may be parented to the controller, not its channel.
+        case "$endpoint_path" in
+            */mhi*/net/*|*/mhi*/wwan/*)
+                local channel
+                for channel in "$modem_root"/mhi*/mhi*_IP_HW0_MBIM; do
+                    [ "$(basename "$(readlink -f "$channel/driver")")" = mhi_wwan_mbim ] || continue
+                    echo mbim; return
+                done
+                ;;
+        esac
+    fi
     for i in $(find "$modem_root" -name driver);do
         lsfile=$(ls -l $i)
         type=${lsfile:0:1}

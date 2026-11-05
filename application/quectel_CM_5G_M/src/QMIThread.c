@@ -320,10 +320,42 @@ static USHORT WdsSetQMUXBindMuxDataPort(PQMUX_MSG pMUXMsg, void *arg) {
     return sizeof(QMIWDS_BIND_MUX_DATA_PORT_REQ_MSG);
 }
 
+/* Bind an un-multiplexed upstream MHI data endpoint (no mux-id TLV). */
+static USHORT WdsBindMhiEndpoint(PQMUX_MSG msg, void *arg) {
+    QMAP_SETTING *settings = arg;
+    unsigned char *p = (unsigned char *)(&msg->QMUXMsgHdr + 1);
+    uint32_t ep = cpu_to_le32(settings->ep_type);
+    uint32_t id = cpu_to_le32(settings->iface_id);
+    uint32_t client = cpu_to_le32(1);
+    *p++ = 0x10; *p++ = 8; *p++ = 0;
+    memcpy(p, &ep, 4); p += 4;
+    memcpy(p, &id, 4); p += 4;
+    *p++ = 0x13; *p++ = 4; *p++ = 0;
+    memcpy(p, &client, 4); p += 4;
+    return p - (unsigned char *)&msg->QMUXMsgHdr;
+}
+
 static int qmap_version = 0x05;
 static USHORT WdaSetDataFormat(PQMUX_MSG pMUXMsg, void *arg) {
     QMAP_SETTING *qmap_settings = (QMAP_SETTING *)arg;
 
+    if (qmap_settings->ep_type == DATA_EP_TYPE_PCIE && qmap_settings->rx_urb_size == 0) {
+        /* Generic mhi_net transfers plain IP, without Ethernet or QMAP headers. */
+        unsigned char *p = (unsigned char *)(&pMUXMsg->QMUXMsgHdr + 1);
+        *p++ = 0x10; *p++ = 1; *p++ = 0; *p++ = 0; /* no QoS header */
+        const unsigned char types[] = { 0x11, 0x12, 0x13 };
+        for (size_t i = 0; i < sizeof(types); i++) {
+            uint32_t value = cpu_to_le32(i == 0 ? 2 : 0);
+            *p++ = types[i]; *p++ = 4; *p++ = 0;
+            memcpy(p, &value, sizeof(value)); p += sizeof(value);
+        }
+        *p++ = 0x17; *p++ = 8; *p++ = 0;
+        uint32_t ep = cpu_to_le32(qmap_settings->ep_type);
+        uint32_t id = cpu_to_le32(qmap_settings->iface_id);
+        memcpy(p, &ep, sizeof(ep)); p += sizeof(ep);
+        memcpy(p, &id, sizeof(id)); p += sizeof(id);
+        return p - (unsigned char *)&pMUXMsg->QMUXMsgHdr;
+    }
     if (qmap_settings->rx_urb_size == 0) {
         PQMIWDS_ADMIN_SET_DATA_FORMAT_TLV_QOS pWdsAdminQosTlv;
         PQMIWDS_ADMIN_SET_DATA_FORMAT_TLV linkProto;
@@ -751,6 +783,11 @@ static int requestSetEthMode(PROFILE_T *profile) {
 
     qmap_settings.size = sizeof(qmap_settings);
     
+    if (profile->generic_mhi == 1) {
+        qmap_settings.ep_type = DATA_EP_TYPE_PCIE;
+        qmap_settings.iface_id = 0x04;
+        profile->rawIP = 1;
+    }
     if (profile->qmap_mode) {
         profile->rawIP = 1;
         s_9x07 = profile->rawIP;
@@ -805,6 +842,19 @@ static int requestSetEthMode(PROFILE_T *profile) {
         s_9x07 = profile->rawIP; //MDM90x7 only support RAW IP, do not support Eth
     }
 
+    if (profile->generic_mhi == 1) {
+        int incompatible = !profile->rawIP;
+        for (UCHAR type = 0x12; type <= 0x13; type++) {
+            linkProto = (PQMIWDS_ADMIN_SET_DATA_FORMAT_TLV)GetTLV(&pResponse->MUXMsg.QMUXMsgHdr, type);
+            if (linkProto && le32_to_cpu(linkProto->Value) != 0) incompatible = 1;
+        }
+        if (incompatible) {
+            dbg_time("generic MHI requires raw IP without data aggregation");
+            free(pResponse);
+            return -1;
+        }
+    }
+
     linkProto = (PQMIWDS_ADMIN_SET_DATA_FORMAT_TLV)GetTLV(&pResponse->MUXMsg.QMUXMsgHdr, 0x16);
     if (linkProto != NULL && profile->qmap_mode) {
         qmap_settings.rx_urb_size = le32_to_cpu(linkProto->Value);
@@ -842,9 +892,9 @@ static int requestSetEthMode(PROFILE_T *profile) {
 
 skip_WdaSetDataFormat:
     if (profile->enable_ipv4) {
-    	if (profile->qmapnet_adapter[0]) {
+        if (profile->qmapnet_adapter[0] || profile->generic_mhi == 1) {
             // bind wds mux data port
-        	pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS, QMIWDS_BIND_MUX_DATA_PORT_REQ , WdsSetQMUXBindMuxDataPort, (void *)&qmap_settings);
+            pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS, QMIWDS_BIND_MUX_DATA_PORT_REQ , profile->generic_mhi == 1 ? WdsBindMhiEndpoint : WdsSetQMUXBindMuxDataPort, (void *)&qmap_settings);
         	err = QmiThreadSendQMI(pRequest, &pResponse);
         	qmi_rsp_check_and_return();
         	if (pResponse) free(pResponse);
@@ -858,9 +908,9 @@ skip_WdaSetDataFormat:
     }
 
     if (profile->enable_ipv6) {
-        if (profile->qmapnet_adapter[0]) {
+        if (profile->qmapnet_adapter[0] || profile->generic_mhi == 1) {
             // bind wds ipv6 mux data port
-            pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS_IPV6, QMIWDS_BIND_MUX_DATA_PORT_REQ , WdsSetQMUXBindMuxDataPort, (void *)&qmap_settings);
+            pRequest = ComposeQMUXMsg(QMUX_TYPE_WDS_IPV6, QMIWDS_BIND_MUX_DATA_PORT_REQ , profile->generic_mhi == 1 ? WdsBindMhiEndpoint : WdsSetQMUXBindMuxDataPort, (void *)&qmap_settings);
             err = QmiThreadSendQMI(pRequest, &pResponse);
             qmi_rsp_check_and_return();
             if (pResponse) free(pResponse);

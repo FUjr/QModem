@@ -256,7 +256,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: sdk
-          key: openwrt-sdk-${{ matrix.build_arch }}-${{ env.SDK_NAME }}${{ steps.resolve-sdk.outputs.sdk_name }}
+          key: openwrt-sdk-${{ matrix.build_arch }}-${{ env.SDK_NAME }}${{ steps.resolve-sdk.outputs.sdk_name }}-uplink-v2
 
       - name: Initialization environment
         if: steps.cache-sdk.outputs.cache-hit != 'true'
@@ -274,10 +274,27 @@ jobs:
             mkdir sdk && tar -xvf $file_name -C ./sdk --strip-components=1
           fi
           cd sdk
-          echo "src-git base https://github.com/openwrt/openwrt.git;main" > feeds.conf
-          echo "src-git packages https://github.com/openwrt/packages.git;master" >> feeds.conf
-          echo "src-git luci https://github.com/openwrt/luci.git;master" >> feeds.conf
-          echo "src-git routing https://git.openwrt.org/feed/routing.git;master"  >> feeds.conf
+          # Feeds must come from the same OpenWrt generation the SDK was built
+          # from. The 23.05 release SDK ships CMake 3.26, while current luci
+          # master requires CMake 3.31, so feeding master into a release SDK
+          # breaks packages such as rpcd-mod-luci. Release SDKs therefore track
+          # their own release branch; snapshot SDKs keep the development feeds.
+          if [ -n "${SDK_PREFIX:-}" ]; then
+            feed_ref=master
+            base_ref=main
+          else
+            feed_ref="openwrt-$(echo "$SDK_NAME" | sed -n 's/^openwrt-sdk-\([0-9]*\.[0-9]*\)\..*/\1/p')"
+            if [ -z "$feed_ref" ] || [ "$feed_ref" = "openwrt-" ]; then
+              echo "cannot derive the feed branch from SDK_NAME='$SDK_NAME'" >&2
+              exit 1
+            fi
+            base_ref="$feed_ref"
+          fi
+          echo "using feeds: base=$base_ref packages=$feed_ref luci=$feed_ref routing=$feed_ref"
+          echo "src-git base https://github.com/openwrt/openwrt.git;$base_ref" > feeds.conf
+          echo "src-git packages https://github.com/openwrt/packages.git;$feed_ref" >> feeds.conf
+          echo "src-git luci https://github.com/openwrt/luci.git;$feed_ref" >> feeds.conf
+          echo "src-git routing https://git.openwrt.org/feed/routing.git;$feed_ref"  >> feeds.conf
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           cd ..
@@ -285,6 +302,7 @@ jobs:
           cd sdk
           ./scripts/feeds update qmodem
           ./scripts/feeds install -a -p qmodem
+          rm -rf feeds/base/package/kernel/gpio-button-hotplug
           echo "CONFIG_ALL_NONSHARED=n" > .config
           echo "CONFIG_ALL_KMODS=n" >> .config
           echo "CONFIG_ALL=n" >> .config
@@ -293,7 +311,13 @@ jobs:
           cat ../qmodem/.github/workflows/openwrt_package.config >> .config
           make defconfig
           make clean
-          make download -j$(nproc) || true
+          # make clean may regenerate package selections; enforce the
+          # unavailable legacy GPIO module exclusion immediately before build.
+          sed -i '/^CONFIG_PACKAGE_gpio-button-hotplug=/d' .config
+          echo 'CONFIG_PACKAGE_gpio-button-hotplug=n' >> .config
+          sed -i '/^CONFIG_PACKAGE_libopenssl=/d;/^CONFIG_PACKAGE_openssl-util=/d' .config
+          echo 'CONFIG_PACKAGE_libopenssl=n' >> .config
+          echo 'CONFIG_PACKAGE_openssl-util=n' >> .config
 
       - name: Compile QModem
         id: compile
@@ -301,6 +325,14 @@ jobs:
           cd sdk
           ./scripts/feeds update qmodem
           ./scripts/feeds install -a -p qmodem
+          rm -rf feeds/base/package/kernel/gpio-button-hotplug
+          # Cached SDKs can predate new packages. Refresh their selections after
+          # installing current feed metadata instead of silently skipping builds.
+          sed -i '/^CONFIG_PACKAGE_qmodem-uplink-manager=/d; /^CONFIG_PACKAGE_luci-app-qmodem-uplink=/d' .config
+          printf '%s\n' 'CONFIG_PACKAGE_qmodem-uplink-manager=m' 'CONFIG_PACKAGE_luci-app-qmodem-uplink=m' >> .config
+          make defconfig
+          sed -i '/^CONFIG_PACKAGE_gpio-button-hotplug=/d; /^CONFIG_PACKAGE_libopenssl=/d; /^CONFIG_PACKAGE_openssl-util=/d' .config
+          printf '%s\n' 'CONFIG_PACKAGE_gpio-button-hotplug=n' 'CONFIG_PACKAGE_libopenssl=n' 'CONFIG_PACKAGE_openssl-util=n' >> .config
           generic_package=$(cat ../qmodem/.github/workflows/qmodem_package_generic)
           arch_package=$(cat ../qmodem/.github/workflows/qmodem_package_arch)
           for package in $generic_package; do
@@ -308,6 +340,12 @@ jobs:
           done
           for package in $arch_package; do
             make package/$package/compile -j$(nproc) || true
+          done
+          for package in qmodem-uplink-manager luci-app-qmodem-uplink; do
+            if ! find bin/packages/${{ env.SDK_ARCH }}/qmodem/ -type f \( -name "${package}_*.ipk" -o -name "${package}-*.apk" \) | grep -q .; then
+              echo "Missing required package: $package" >&2
+              exit 1
+            fi
           done
           ls bin/packages/${{ env.SDK_ARCH }}/qmodem/
           echo "status=success" >> $GITHUB_OUTPUT
