@@ -2685,3 +2685,42 @@ msgstr "开机扫描延迟"
 
 msgid "Delay automatic USB and PCIe scans after the scanner is ready, in seconds."
 msgstr "扫描器就绪后延迟执行 USB 和 PCIe 自动扫描，单位为秒。"
+
+msgid "Module SMS Storage"
+msgstr "模块短信存储"
+
+msgid "View and delete raw SMS in the current module storage (SM: SIM card, ME: module). Archived messages remain available in SMS Messages."
+msgstr "查看和删除模块当前存储区中的原始短信（SM：SIM 卡，ME：模块）。已归档的短信仍可在“短信消息”中查看。"
+
+msgid "Current reading storage: %s"
+msgstr "当前读取存储区：%s"
+
+msgid "Automatic removal after archiving is enabled. An empty module storage is normal; view archived messages in SMS Messages."
+msgstr "已启用归档后自动删除。模块存储区为空属于正常情况，已归档内容请在“短信消息”中查看。"
+
+msgid "No messages found in module storage"
+msgstr "模块存储区中没有短信"
+
+msgid "Raw SMS Messages"
+msgstr "原始短信"
+
+msgid "Failed to read module SMS: "
+msgstr "读取模块短信失败："
+
+msgid "Delete all %d listed messages from module storage? Archived messages will be kept."
+msgstr "确定从模块存储区删除列表中的全部 %d 条短信吗？已归档的短信将保留。"
+
+msgid "Delete this message from module storage? Archived messages will be kept."
+msgstr "确定从模块存储区删除此短信吗？已归档的短信将保留。"
+
+msgid "Deleting messages..."
+msgstr "正在删除短信…"
+
+msgid "%d deleted, %d already absent, %d failed."
+msgstr "已删除 %d 条，已不存在 %d 条，失败 %d 条。"
+
+msgid "Module SMS interface unavailable. Update qmodem-smsd and LuCI together."
+msgstr "模块短信接口不可用，请同时更新 qmodem-smsd 和 LuCI 界面。"
+
+msgid "Invalid module SMS identity; refresh before deleting."
+msgstr "模块短信标识无效，请刷新后再删除。"

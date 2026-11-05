@@ -380,7 +380,7 @@ return view.extend({
 	loadConversation: function(messagesArea, loadingDiv, configSection, contact) {
 		var self = this;
 
-		smsService.getConversation(configSection, contact).then(function(result) {
+		smsService.getConversation(configSection, contact, true).then(function(result) {
 			if (self.replyModem !== configSection) return;
 			if (!result.error) {
 				self.replyRecipient = result.contact || self.replyRecipient || contact;

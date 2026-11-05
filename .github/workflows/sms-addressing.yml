@@ -25,7 +25,9 @@ jobs:
         run: node luci/luci-app-qmodem-next/tests/test_sms_addressing.js
       - name: Test daemon service adapter
         if: hashFiles('application/qmodem_smsd/Makefile') != ''
-        run: node luci/luci-app-qmodem-next/tests/test_sms_service.js
+        run: |
+          node luci/luci-app-qmodem-next/tests/test_sms_service.js
+          node luci/luci-app-qmodem-next/tests/test_sms_sim.js
       - name: Install C test dependencies
         if: hashFiles('application/qmodem_smsd/Makefile') != ''
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev libjson-c-dev

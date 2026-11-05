@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <json-c/json.h>
 #include <libubox/blobmsg_json.h>
 #include <libubox/uloop.h>
@@ -22,7 +23,9 @@
 #include <unistd.h>
 
 #define DEFAULT_DB "/etc/qmodem/sms.sqlite3"
+#ifndef TOM_MODEM
 #define TOM_MODEM "/usr/bin/tom_modem"
+#endif
 #define QMODEM_SETTINGS "/usr/sbin/qmodem-settings"
 #define SCHEDULER_TICK_MS 30000
 
@@ -89,6 +92,8 @@ enum {
     ARG_REQUEST_ID,
     ARG_CONVERSATION_CONTACT,
     ARG_COUNTRY_CODE,
+    ARG_STORAGE,
+    ARG_PDU,
     __ARG_MAX
 };
 
@@ -113,6 +118,8 @@ static const struct blobmsg_policy policy[] = {
     [ARG_REQUEST_ID] = { .name = "request_id", .type = BLOBMSG_TYPE_STRING },
     [ARG_CONVERSATION_CONTACT] = { .name = "conversation_contact", .type = BLOBMSG_TYPE_STRING },
     [ARG_COUNTRY_CODE] = { .name = "country_code", .type = BLOBMSG_TYPE_STRING },
+    [ARG_STORAGE] = { .name = "storage", .type = BLOBMSG_TYPE_STRING },
+    [ARG_PDU] = { .name = "pdu", .type = BLOBMSG_TYPE_STRING },
 };
 
 static int valid_id(const char *value)
@@ -1081,6 +1088,105 @@ error:
     return UBUS_STATUS_OK;
 }
 
+/* Reads the active memory without changing CPMS or importing/deleting SMS. */
+static struct json_object *read_modem_sms(const struct modem_config *cfg,
+                                         char *storage, size_t size)
+{
+    char *output = NULL;
+    struct json_object *messages = NULL;
+    if (run_tom(cfg, "a", NULL, -1, "AT+CPMS?", &output) != 0 ||
+        tom_sms_storage(output, storage, size) != 0)
+        goto out;
+    free(output); output = NULL;
+    if (run_tom(cfg, "r", NULL, -1, NULL, &output) == 0)
+        messages = tom_sms_messages(output);
+out:
+    free(output);
+    return messages;
+}
+
+static int sim_list_method(struct ubus_context *ctx, struct ubus_object *obj,
+                           struct ubus_request_data *req, const char *method,
+                           struct blob_attr *msg)
+{
+    struct blob_attr *tb[__ARG_MAX];
+    struct modem_config cfg;
+    struct blob_buf b = {};
+    struct json_object *messages;
+    char storage[8];
+    (void)obj; (void)method;
+    blobmsg_parse(policy, __ARG_MAX, tb, blob_data(msg), blob_len(msg));
+    if (!tb[ARG_MODEM] || load_config(blobmsg_get_string(tb[ARG_MODEM]), &cfg) != 0)
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    messages = read_modem_sms(&cfg, storage, sizeof(storage));
+    if (!messages) {
+        reply_error(ctx, req, "failed to read modem SMS storage");
+        return UBUS_STATUS_OK;
+    }
+    blob_buf_init(&b, 0);
+    blobmsg_add_string(&b, "status", "success");
+    blobmsg_add_string(&b, "storage", storage);
+    blobmsg_add_string(&b, "mode", cfg.mode);
+    blobmsg_add_u8(&b, "auto_delete", cfg.auto_delete);
+    blobmsg_add_json_element(&b, "messages", messages);
+    ubus_send_reply(ctx, req, b.head);
+    blob_buf_free(&b);
+    json_object_put(messages);
+    return UBUS_STATUS_OK;
+}
+
+static int sim_delete_method(struct ubus_context *ctx, struct ubus_object *obj,
+                             struct ubus_request_data *req, const char *method,
+                             struct blob_attr *msg)
+{
+    struct blob_attr *tb[__ARG_MAX];
+    struct modem_config cfg;
+    struct blob_buf b = {};
+    struct json_object *messages;
+    const char *storage, *pdu;
+    char current_storage[8], *output = NULL;
+    int index, match, metadata_ok;
+    (void)obj; (void)method;
+    blobmsg_parse(policy, __ARG_MAX, tb, blob_data(msg), blob_len(msg));
+    if (!tb[ARG_MODEM] || !tb[ARG_STORAGE] || !tb[ARG_INDEX] || !tb[ARG_PDU] ||
+        blobmsg_get_u32(tb[ARG_INDEX]) > INT_MAX ||
+        load_config(blobmsg_get_string(tb[ARG_MODEM]), &cfg) != 0)
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    storage = blobmsg_get_string(tb[ARG_STORAGE]);
+    pdu = blobmsg_get_string(tb[ARG_PDU]);
+    index = blobmsg_get_u32(tb[ARG_INDEX]);
+    if (!tom_sms_valid_pdu(pdu))
+        return UBUS_STATUS_INVALID_ARGUMENT;
+    messages = read_modem_sms(&cfg, current_storage, sizeof(current_storage));
+    if (!messages) {
+        reply_error(ctx, req, "failed to read modem SMS storage");
+        return UBUS_STATUS_OK;
+    }
+    match = tom_sms_match(messages, index, pdu);
+    json_object_put(messages);
+    if (strcmp(storage, current_storage) || match < 0) {
+        reply_error(ctx, req, "SMS storage or message changed; refresh before deleting");
+        return UBUS_STATUS_OK;
+    }
+    if (match && run_tom(&cfg, "d", NULL, index, NULL, &output) != 0) {
+        free(output);
+        reply_error(ctx, req, "failed to delete modem SMS");
+        return UBUS_STATUS_OK;
+    }
+    free(output);
+    metadata_ok = sms_db_mark_modem_source_deleted(&app.db, cfg.section,
+                    storage, index, pdu, time(NULL)) == 0;
+    blob_buf_init(&b, 0);
+    blobmsg_add_string(&b, "status", metadata_ok ? "success" : "error");
+    blobmsg_add_u32(&b, "deleted", match ? 1 : 0);
+    blobmsg_add_u8(&b, "already_absent", !match);
+    if (!metadata_ok)
+        blobmsg_add_string(&b, "error", "SMS is absent from modem, but source metadata update failed");
+    ubus_send_reply(ctx, req, b.head);
+    blob_buf_free(&b);
+    return UBUS_STATUS_OK;
+}
+
 static int storage_get_method(struct ubus_context *ctx, struct ubus_object *obj,
                               struct ubus_request_data *req, const char *method,
                               struct blob_attr *msg)
@@ -1373,12 +1479,19 @@ static void scheduler_cb(struct uloop_timeout *timeout)
         if (strcmp(section->type, "modem-device") ||
             load_config(section->e.name, &cfg) != 0)
             continue;
-        if (!strcmp(cfg.mode, "database_urc")) {
+        /* URC delivery needs a periodic catch-up scan as well. */
+        if ((strcmp(cfg.mode, "database_poll") && strcmp(cfg.mode, "database_urc")) ||
+            !cfg.use_ubus)
             continue;
+        /* A missing final fragment must expire even without another URC/scan. */
+        {
+            int published = 0;
+            if (sms_db_publish_expired(&app.db, section->e.name, now, cfg.forwarding,
+                                       &published) != 0 ||
+                (published && sms_db_checkpoint(&app.db) != 0))
+                fprintf(stderr, "qmodem-smsd: failed to publish expired SMS for %s: %s\n",
+                        section->e.name, sms_db_error(&app.db));
         }
-		/* Polling imports SMS independently of optional forwarding sinks. */
-		if (strcmp(cfg.mode, "database_poll") || !cfg.use_ubus)
-            continue;
         if (sqlite3_prepare_v2(app.db.sql,
                 "SELECT COALESCE(last_sync_at,0) FROM modems WHERE id=?", -1,
                 &stmt, NULL) == SQLITE_OK) {
@@ -1388,7 +1501,9 @@ static void scheduler_cb(struct uloop_timeout *timeout)
         }
         sqlite3_finalize(stmt);
         if (last_sync + cfg.poll_interval <= now)
-            (void)sync_modem(section->e.name, "poll", &imported, &deleted);
+            (void)sync_modem(section->e.name,
+                !strcmp(cfg.mode, "database_urc") ? "urc_fallback" : "poll",
+                &imported, &deleted);
     }
 out:
     if (package)
@@ -1414,6 +1529,8 @@ static const struct ubus_method methods[] = {
     UBUS_METHOD("modem_delete", modem_delete_method, policy),
     UBUS_METHOD("storage_get", storage_get_method, policy),
     UBUS_METHOD("storage_set", storage_set_method, policy),
+    UBUS_METHOD("sim_list", sim_list_method, policy),
+    UBUS_METHOD("sim_delete", sim_delete_method, policy),
     UBUS_METHOD_NOARG("delivery_claim", delivery_claim_method),
     UBUS_METHOD("delivery_complete", delivery_complete_method, policy),
 };

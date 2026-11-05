@@ -13,6 +13,12 @@ var callStorageSet = rpc.declare({ object: 'qmodem.sms', method: 'storage_set', 
 var callConfigure = rpc.declare({ object: 'qmodem.sms', method: 'configure', params: [ 'modem_id', 'mode', 'poll_interval', 'forwarding', 'auto_delete' ], expect: { } });
 var callModemList = rpc.declare({ object: 'qmodem.sms', method: 'modem_list', expect: { } });
 var callConfigGet = rpc.declare({ object: 'qmodem.sms', method: 'config_get', params: [ 'modem_id' ], expect: { } });
+var callSimList = rpc.declare({ object: 'qmodem.sms', method: 'sim_list', params: [ 'modem_id' ], expect: { } });
+var callSimDelete = rpc.declare({ object: 'qmodem.sms', method: 'sim_delete', params: [ 'modem_id', 'storage', 'index', 'pdu' ], expect: { } });
+
+function simInterfaceError() {
+	return _('Module SMS interface unavailable. Update qmodem-smsd and LuCI together.');
+}
 
 function messagesFrom(result) {
 	return (result.messages || result.msg || result.received || []).map(function(message) {
@@ -86,18 +92,19 @@ return L.Class.extend({
 			return result;
 		});
 	},
-	listSms: function(configSection) {
+	listSms: function(configSection, forceRefresh) {
 		var modem = configSection || 'modem_1';
 		return listRaw(modem).then(function(first) {
-			var refresh = first.mode === 'database_poll' ? syncRaw(modem) : Promise.resolve();
-			return refresh.then(function() { return first.mode === 'database_poll' ? listRaw(modem) : first; });
+			var needsSync = first.mode === 'database_poll' || (forceRefresh && first.mode === 'database_urc');
+			var refresh = needsSync ? syncRaw(modem) : Promise.resolve();
+			return refresh.then(function() { return needsSync ? listRaw(modem) : first; });
 		}).then(function(result) {
 			var messages = messagesFrom(result);
 			return { conversations: smsNumber.conversations(messages), total: messages.length, mode: result.mode };
 		});
 	},
-	getConversation: function(configSection, contact) {
-		return this.listSms(configSection).then(function(result) {
+	getConversation: function(configSection, contact, forceRefresh) {
+		return this.listSms(configSection, forceRefresh).then(function(result) {
 			var found = result.conversations.filter(function(item) {
 				return item.contacts.some(function(address) { return smsNumber.key(address) === smsNumber.key(contact); });
 			})[0];
@@ -152,9 +159,21 @@ return L.Class.extend({
 		return callStorageSet(configSection || 'modem_1', mem1, mem2, mem3 || mem2).then(function(result) { result.success = result.status !== 'error'; return result; });
 	},
 	getSimSms: function(configSection) {
-		return listRaw(configSection || 'modem_1').then(function(result) { return { messages: result.msg || result.received || result.messages || [] }; });
+		return callSimList(configSection || 'modem_1').then(function(result) {
+			if (result.status === 'error') throw new Error(result.error || 'Failed to read modem SMS storage');
+			if (result.status !== 'success' || !Array.isArray(result.messages) || !result.storage)
+				throw new Error(simInterfaceError());
+			return result;
+		});
 	},
-	deleteSimSms: function(configSection, index) {
-		return callDelete(configSection || 'modem_1', index, index).then(function(result) { result.success = result.status === 'success'; return result; });
+	deleteSimSms: function(configSection, storage, message) {
+		if (!message || !Number.isInteger(message.index) || message.index < 0 || !message.pdu || !storage)
+			return Promise.reject(new Error(_('Invalid module SMS identity; refresh before deleting.')));
+		return callSimDelete(configSection || 'modem_1', storage, message.index, message.pdu).then(function(result) {
+			if (result.status !== 'success' && result.status !== 'error')
+				return { success: false, error: simInterfaceError() };
+			result.success = result.status === 'success';
+			return result;
+		});
 	}
 });

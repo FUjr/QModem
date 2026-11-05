@@ -74,7 +74,7 @@
 		}
 	},
 	"admin/modem/qmodem/sms_sim": {
-		"title": "SIM Card SMS",
+		"title": "Module SMS Storage",
 		"order": 5.3,
 		"action": {
 			"type": "view",

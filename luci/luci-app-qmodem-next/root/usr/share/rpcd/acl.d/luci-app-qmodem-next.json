@@ -7,7 +7,7 @@
 					"*"
 				],
 				"qmodem.sms": [
-					"status", "config_get", "sync_status", "list", "get", "modem_list", "storage_get"
+					"status", "config_get", "sync_status", "list", "get", "modem_list", "storage_get", "sim_list"
 				],
 				"rc" : [ "list" ,"init"],
 				"uci": [ "qmodem", "sms_forwarder" ]
@@ -37,7 +37,7 @@
 				],
 				"qmodem.sms": [
 					"configure", "sync", "send", "delete", "mark_read",
-					"modem_delete", "storage_set"
+					"modem_delete", "storage_set", "sim_delete"
 				],
 				"uci": [ "qmodem", "sms_forwarder" ]
 			},

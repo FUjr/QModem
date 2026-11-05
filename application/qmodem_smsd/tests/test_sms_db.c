@@ -105,10 +105,23 @@ int main(void)
     assert(sms_db_import_segment(&db, &first, 2001, 1, &result) == 0);
     assert(result.duplicate && result.safe_to_delete);
     assert(scalar(db.sql, "SELECT count(*) FROM source_messages") == 1);
+    /* Module deletion marks only this exact source, preserving archived parts. */
+    assert(sms_db_mark_modem_source_deleted(&db, "other", "ME", 7, "PDU-A", 2002) == 0);
+    assert(sms_db_mark_modem_source_deleted(&db, "usb-1-1", "SM", 7, "PDU-A", 2002) == 0);
+    assert(sms_db_mark_modem_source_deleted(&db, "usb-1-1", "ME", 8, "PDU-A", 2002) == 0);
+    assert(sms_db_mark_modem_source_deleted(&db, "usb-1-1", "ME", 7, "reused", 2002) == 0);
+    assert(scalar(db.sql, "SELECT count(*) FROM source_messages WHERE deleted_at IS NOT NULL") == 0);
+    assert(sms_db_mark_modem_source_deleted(&db, "usb-1-1", "ME", 7, "pdu-a", 2002) == 0);
+    assert(scalar(db.sql, "SELECT count(*) FROM source_messages WHERE deleted_at=2002") == 1);
+    assert(scalar(db.sql, "SELECT count(*) FROM segments") == 1);
     sms_db_set_multipart_windows(&db, 10, 3600);
     assert(sms_db_publish_expired(&db, "usb-1-1", 2011, 1, &published) == 0);
     assert(published == 1);
     assert(scalar(db.sql, "SELECT complete FROM messages") == 0);
+    assert(scalar(db.sql, "SELECT revision FROM messages") == 1);
+    assert(scalar(db.sql, "SELECT count(*) FROM deliveries") == 1);
+    assert(sms_db_publish_expired(&db, "usb-1-1", 2012, 1, &published) == 0);
+    assert(scalar(db.sql, "SELECT count(*) FROM messages") == 1);
     assert(scalar(db.sql, "SELECT revision FROM messages") == 1);
     assert(scalar(db.sql, "SELECT count(*) FROM deliveries") == 1);
 

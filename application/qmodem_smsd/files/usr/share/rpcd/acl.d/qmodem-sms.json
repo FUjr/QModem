@@ -3,12 +3,12 @@
 		"description": "QModem SMS service",
 		"read": {
 			"ubus": {
-				"qmodem.sms": [ "status", "config_get", "sync_status", "list", "get", "modem_list", "storage_get" ]
+				"qmodem.sms": [ "status", "config_get", "sync_status", "list", "get", "modem_list", "storage_get", "sim_list" ]
 			}
 		},
 		"write": {
 			"ubus": {
-				"qmodem.sms": [ "configure", "sync", "send", "delete", "mark_read", "modem_delete", "storage_set" ]
+				"qmodem.sms": [ "configure", "sync", "send", "delete", "mark_read", "modem_delete", "storage_set", "sim_delete" ]
 			}
 		}
 	}

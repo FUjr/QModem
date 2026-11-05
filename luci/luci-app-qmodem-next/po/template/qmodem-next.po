@@ -3600,3 +3600,42 @@ msgstr ""
 #: view/qmodem/network_config.js:345
 msgid "quectel-CM will append the DNS server to the resolv.conf file by default.if you do not want to modify the resolv.conf file, please check this option."
 msgstr ""
+
+msgid "Module SMS Storage"
+msgstr ""
+
+msgid "View and delete raw SMS in the current module storage (SM: SIM card, ME: module). Archived messages remain available in SMS Messages."
+msgstr ""
+
+msgid "Current reading storage: %s"
+msgstr ""
+
+msgid "Automatic removal after archiving is enabled. An empty module storage is normal; view archived messages in SMS Messages."
+msgstr ""
+
+msgid "No messages found in module storage"
+msgstr ""
+
+msgid "Raw SMS Messages"
+msgstr ""
+
+msgid "Failed to read module SMS: "
+msgstr ""
+
+msgid "Delete all %d listed messages from module storage? Archived messages will be kept."
+msgstr ""
+
+msgid "Delete this message from module storage? Archived messages will be kept."
+msgstr ""
+
+msgid "Deleting messages..."
+msgstr ""
+
+msgid "%d deleted, %d already absent, %d failed."
+msgstr ""
+
+msgid "Module SMS interface unavailable. Update qmodem-smsd and LuCI together."
+msgstr ""
+
+msgid "Invalid module SMS identity; refresh before deleting."
+msgstr ""

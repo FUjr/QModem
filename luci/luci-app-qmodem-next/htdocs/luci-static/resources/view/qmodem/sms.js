@@ -329,7 +329,7 @@ return view.extend({
 	loadSmsList: function(contentArea, loadingDiv, configSection) {
 		var self = this;
 
-		smsService.listSms(configSection).then(function(result) {
+		smsService.listSms(configSection, true).then(function(result) {
 			// Adjust timestamps if UTC offset is enabled (based on message type)
 			if (result.conversations && result.conversations.length > 0) {
 				result.conversations.forEach(function(conv) {

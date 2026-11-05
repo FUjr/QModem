@@ -57,12 +57,14 @@ return view.extend({
 		container.appendChild(selectorSection);
 
 		// Title
-		var title = E('h2', { 'name': 'content' }, _('SIM Card SMS Management'));
+		this.modemSelect = select;
+		this.busy = false;
+		var title = E('h2', { 'name': 'content' }, _('Module SMS Storage'));
 		container.appendChild(title);
 
 		// Description
 		var desc = E('div', { 'class': 'cbi-map-descr' }, 
-			_('View and delete SMS messages stored on SIM card. These are raw messages before being processed into conversations.'));
+			_('View and delete raw SMS in the current module storage (SM: SIM card, ME: module). Archived messages remain available in SMS Messages.'));
 		container.appendChild(desc);
 
 		// Main content area
@@ -86,7 +88,7 @@ return view.extend({
 
 		// Start polling for updates
 		poll.add(function() {
-			self.pollSimSmsList(contentArea, select.value);
+			return self.pollSimSmsList(contentArea, select.value);
 		}, 10);
 
 		return container;
@@ -94,43 +96,27 @@ return view.extend({
 
 	loadSimSmsList: function(contentArea, loadingDiv, configSection) {
 		var self = this;
-
-		smsService.getSimSms(configSection).then(function(result) {
-			// Remove loading indicator
-			if (loadingDiv && loadingDiv.parentNode) {
-				dom.content(contentArea, null);
-			}
-
-			if (result.error) {
-				contentArea.appendChild(E('div', { 'class': 'alert-message error' }, 
-					_('Error loading SIM SMS: ') + result.error));
-				return;
-			}
-
-			// Render SIM SMS list
-			self.renderSimSmsList(contentArea, result.messages || [], configSection);
+		if (this.busy) return Promise.resolve();
+		var requestId = this.requestId = (this.requestId || 0) + 1;
+		this.pendingLoad = true;
+		return smsService.getSimSms(configSection).then(function(result) {
+			if (self.busy || self.requestId !== requestId || self.modemSelect.value !== configSection) return;
+			self.renderSimSmsList(contentArea, result.messages, configSection, result);
 		}).catch(function(err) {
-			if (loadingDiv && loadingDiv.parentNode) {
-				dom.content(contentArea, null);
-			}
-			contentArea.appendChild(E('div', { 'class': 'alert-message error' }, 
-				_('Failed to load SIM SMS: ') + err.message));
+			if (self.busy || self.requestId !== requestId || self.modemSelect.value !== configSection) return;
+			dom.content(contentArea, E('div', { 'class': 'alert-message error' },
+				_('Failed to read module SMS: ') + err.message));
+		}).then(function() {
+			if (self.requestId === requestId) self.pendingLoad = false;
 		});
 	},
 
 	pollSimSmsList: function(contentArea, configSection) {
-		var self = this;
-		
-		smsService.getSimSms(configSection).then(function(result) {
-			if (!result.error && result.messages) {
-				self.renderSimSmsList(contentArea, result.messages, configSection);
-			}
-		}).catch(function(err) {
-			console.error('Poll error:', err);
-		});
+		if (this.busy || this.pendingLoad) return Promise.resolve();
+		return this.loadSimSmsList(contentArea, null, configSection);
 	},
 
-	renderSimSmsList: function(contentArea, messages, configSection) {
+	renderSimSmsList: function(contentArea, messages, configSection, result) {
 		var self = this;
 
 		// Clear content
@@ -138,15 +124,21 @@ return view.extend({
 
 		// Create messages container
 		var messagesDiv = E('div', { 'class': 'sms-sim-messages' });
+		messagesDiv.appendChild(E('div', { 'class': 'cbi-map-descr' },
+			_('Current reading storage: %s').format(result.storage)));
+		if (result.mode !== 'direct' && result.auto_delete) {
+			messagesDiv.appendChild(E('div', { 'class': 'alert-message info' },
+				_('Automatic removal after archiving is enabled. An empty module storage is normal; view archived messages in SMS Messages.')));
+		}
 
 		if (!messages || messages.length === 0) {
 			messagesDiv.appendChild(E('div', { 'class': 'alert-message info' }, 
-				_('No messages found on SIM card')));
+				_('No messages found in module storage')));
 		} else {
 			// Create messages list
 			var listDiv = E('div', { 'class': 'cbi-section' });
 			var listFieldset = E('fieldset', { 'class': 'cbi-section' });
-			var listLegend = E('legend', {}, _('SMS Messages on SIM Card'));
+			var listLegend = E('legend', {}, _('Raw SMS Messages'));
 		
 			listFieldset.appendChild(listLegend);
 
@@ -177,7 +169,7 @@ return view.extend({
 				
 				// Determine message type
 				var type = '';
-				if (msg.reference && msg.total > 1) {
+				if (msg.total > 1) {
 					type = _('Part') + ' ' + (msg.part || '?') + '/' + (msg.total || '?');
 				} else {
 					type = _('Single');
@@ -185,9 +177,9 @@ return view.extend({
 				
 				var deleteBtn = E('button', {
 					'class': 'cbi-button cbi-button-remove',
-					'click': L.bind(function(idx) {
-						self.handleDeleteSimSms(configSection, idx, contentArea);
-					}, this, msg.index)
+					'click': L.bind(function(message) {
+						self.handleDeleteSimSms(configSection, message, result.storage, contentArea);
+					}, this, msg)
 				}, _('Delete'));
 
 				var row = E('tr', { 
@@ -245,7 +237,7 @@ return view.extend({
 			'class': 'cbi-button cbi-button-remove',
 			'click': L.bind(function(ev) {
 				ev.preventDefault();
-				this.handleDeleteAllSimSms(configSection, messages, contentArea);
+				this.handleDeleteAllSimSms(configSection, messages, result.storage, contentArea);
 			}, this)
 		}, _('Delete All'));
 		
@@ -258,120 +250,84 @@ return view.extend({
 		contentArea.appendChild(messagesDiv);
 	},
 
-	handleDeleteSimSms: function(configSection, index, contentArea) {
-		var self = this;
-		
-		if (index == null) {
-			ui.addNotification(null, E('p', _('Invalid message index')), 'error');
-			return;
-		}
-
-		ui.showModal(_('Confirm Delete'), [
-			E('p', _('Are you sure you want to delete this message from SIM card?')),
-			E('div', { 'class': 'right' }, [
-				E('button', {
-					'class': 'cbi-button cbi-button-neutral',
-					'click': function() {
-						ui.hideModal();
-					}
-				}, _('Cancel')),
-				' ',
-				E('button', {
-					'class': 'cbi-button cbi-button-negative',
-					'click': function() {
-						ui.hideModal();
-						ui.showModal(_('Deleting...'), E('div', { 'class': 'spinning' }, _('Deleting message...')));
-						
-						smsService.deleteSimSms(configSection, index).then(function(result) {
-							ui.hideModal();
-							
-							if (result.error) {
-								ui.addNotification(null, E('p', _('Failed to delete SMS: ') + result.error), 'error');
-								return;
-							}
-							
-							if (result.success) {
-								ui.addNotification(null, E('p', _('Message deleted successfully')), 'info');
-								// Reload the list
-								var loading = E('div', { 'class': 'spinning' }, _('Loading...'));
-								dom.content(contentArea, loading);
-								self.loadSimSmsList(contentArea, loading, configSection);
-							} else {
-								ui.addNotification(null, E('p', _('Failed to delete message')), 'error');
-							}
-						}).catch(function(err) {
-							ui.hideModal();
-							ui.addNotification(null, E('p', _('Error deleting SMS: ') + err.message), 'error');
-						});
-					}
-				}, _('Delete'))
-			])
-		]);
+	setDeleteBusy: function(busy, contentArea) {
+		this.busy = busy;
+		this.requestId = (this.requestId || 0) + 1;
+		this.pendingLoad = false;
+		this.modemSelect.disabled = busy;
+		contentArea.querySelectorAll('button').forEach(function(button) { button.disabled = busy; });
 	},
 
-	handleDeleteAllSimSms: function(configSection, messages, contentArea) {
+	handleDeleteSimSms: function(configSection, message, storage, contentArea) {
+		return this.confirmDeleteSimSms(configSection, [ message ], storage, contentArea, false);
+	},
+
+	handleDeleteAllSimSms: function(configSection, messages, storage, contentArea) {
+		return this.confirmDeleteSimSms(configSection, messages, storage, contentArea, true);
+	},
+
+	// Work from the confirmed snapshot, never from a later poll result.
+	deleteSimSmsSnapshot: function(configSection, messages, storage) {
+		var summary = { deleted: 0, absent: 0, failed: 0, errors: [] };
+		return messages.reduce(function(chain, message) {
+			return chain.then(function() {
+				return smsService.deleteSimSms(configSection, storage, message).then(function(result) {
+					if (result.deleted) summary.deleted++;
+					if (result.already_absent) summary.absent++;
+					if (!result.success) {
+						summary.failed++;
+						summary.errors.push(result.error || _('Failed to delete message'));
+					}
+				}).catch(function(err) {
+					summary.failed++;
+					summary.errors.push(err.message);
+				});
+			});
+		}, Promise.resolve()).then(function() { return summary; });
+	},
+
+	confirmDeleteSimSms: function(configSection, messages, storage, contentArea, all) {
 		var self = this;
-		
+		if (this.busy || this.modemSelect.value !== configSection) return;
 		if (!messages || messages.length === 0) {
 			ui.addNotification(null, E('p', _('No messages to delete')), 'info');
 			return;
 		}
-
-		ui.showModal(_('Confirm Delete All'), [
-			E('p', _('Are you sure you want to delete ALL %d messages from SIM card? This action cannot be undone.').format(messages.length)),
+		var snapshot = messages.map(function(message) { return { index: message.index, pdu: message.pdu }; });
+		var started = false;
+		this.setDeleteBusy(true, contentArea);
+		ui.showModal(all ? _('Confirm Delete All') : _('Confirm Delete'), [
+			E('p', all
+				? _('Delete all %d listed messages from module storage? Archived messages will be kept.').format(snapshot.length)
+				: _('Delete this message from module storage? Archived messages will be kept.')),
 			E('div', { 'class': 'right' }, [
 				E('button', {
 					'class': 'cbi-button cbi-button-neutral',
 					'click': function() {
+						if (started) return;
 						ui.hideModal();
+						self.setDeleteBusy(false, contentArea);
 					}
 				}, _('Cancel')),
 				' ',
 				E('button', {
 					'class': 'cbi-button cbi-button-negative',
 					'click': function() {
-						ui.hideModal();
-						ui.showModal(_('Deleting...'), E('div', { 'class': 'spinning' }, 
-							_('Deleting all messages... This may take a while.')));
-						
-						// Delete messages one by one
-						var deletePromises = [];
-						for (var i = 0; i < messages.length; i++) {
-							if (messages[i].index != null) {
-								deletePromises.push(smsService.deleteSimSms(configSection, messages[i].index));
-							}
-						}
-						
-						Promise.all(deletePromises).then(function(results) {
+						if (started) return;
+						started = true;
+						ui.showModal(_('Deleting...'), E('div', { 'class': 'spinning' }, _('Deleting messages...')));
+						return self.deleteSimSmsSnapshot(configSection, snapshot, storage).then(function(summary) {
+							var details = [ E('p', _('%d deleted, %d already absent, %d failed.').format(
+								summary.deleted, summary.absent, summary.failed)) ];
+							if (summary.errors.length) details.push(E('p', summary.errors.join('; ')));
+							ui.addNotification(null, E('div', details), summary.failed ? 'warning' : 'info');
+						}).finally(function() {
 							ui.hideModal();
-							
-							var successCount = 0;
-							var failCount = 0;
-							
-							for (var i = 0; i < results.length; i++) {
-								if (results[i].success) {
-									successCount++;
-								} else {
-									failCount++;
-								}
-							}
-							
-							if (failCount === 0) {
-								ui.addNotification(null, E('p', _('All %d messages deleted successfully').format(successCount)), 'info');
-							} else {
-								ui.addNotification(null, E('p', _('%d messages deleted, %d failed').format(successCount, failCount)), 'warning');
-							}
-							
-							// Reload the list
-							var loading = E('div', { 'class': 'spinning' }, _('Loading...'));
-							dom.content(contentArea, loading);
-							self.loadSimSmsList(contentArea, loading, configSection);
-						}).catch(function(err) {
-							ui.hideModal();
-							ui.addNotification(null, E('p', _('Error deleting messages: ') + err.message), 'error');
+							self.setDeleteBusy(false, contentArea);
+							return self.loadSimSmsList(contentArea, null, configSection);
 						});
 					}
-				}, _('Delete All'))
+				}, all ? _('Delete All') : _('Delete'))
 			])
 		]);
 	},

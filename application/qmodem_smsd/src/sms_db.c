@@ -799,6 +799,28 @@ int sms_db_mark_source_deleted(sms_db_t *db, int64_t source_id, int64_t deleted_
     return rc;
 }
 
+int sms_db_mark_modem_source_deleted(sms_db_t *db, const char *modem_id,
+                                     const char *storage, int index,
+                                     const char *pdu, int64_t deleted_at)
+{
+    sqlite3_stmt *stmt = NULL;
+    int rc = -1;
+    if (sqlite3_prepare_v2(db->sql,
+            "UPDATE source_messages SET deleted_at=? WHERE modem_id=? AND storage=? "
+            "AND source_index=? AND pdu=? COLLATE NOCASE AND committed=1", -1,
+            &stmt, NULL) != SQLITE_OK)
+        return -1;
+    sqlite3_bind_int64(stmt, 1, deleted_at);
+    bind_text(stmt, 2, modem_id);
+    bind_text(stmt, 3, storage);
+    sqlite3_bind_int(stmt, 4, index);
+    bind_text(stmt, 5, pdu);
+    if (sqlite3_step(stmt) == SQLITE_DONE)
+        rc = 0;
+    sqlite3_finalize(stmt);
+    return rc;
+}
+
 int sms_db_delete_message(sms_db_t *db, const char *modem_id, int64_t message_id,
                           int *deleted)
 {

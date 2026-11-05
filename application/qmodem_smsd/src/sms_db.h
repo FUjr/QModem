@@ -55,6 +55,9 @@ int sms_db_migration_error(sms_db_t *db, const char *modem_id,
 int sms_db_prune(sms_db_t *db, const char *modem_id,
                  int received_limit, int sent_limit);
 int sms_db_mark_source_deleted(sms_db_t *db, int64_t source_id, int64_t deleted_at);
+int sms_db_mark_modem_source_deleted(sms_db_t *db, const char *modem_id,
+                                     const char *storage, int index,
+                                     const char *pdu, int64_t deleted_at);
 int sms_db_delete_message(sms_db_t *db, const char *modem_id, int64_t message_id,
                           int *deleted);
 int sms_db_delete_modem_messages(sms_db_t *db, const char *modem_id, int *deleted);
