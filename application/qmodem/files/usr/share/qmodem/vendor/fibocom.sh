@@ -812,6 +812,7 @@ fibocom_get_carrier()
 #SIM卡信息
 sim_info()
 {
+    local isp="" sim_number="" imsi="" iccid=""
     m_debug "Fibocom sim info"
     
     #SIM Slot（SIM卡卡槽）
@@ -827,37 +828,35 @@ sim_info()
     }
     sim_status=$(get_sim_status "$sim_status_flag")
 
-    if [ "$sim_status" != "ready" ]; then
-        return
+    if [ "$sim_status" = "ready" ]; then
+        #ISP（互联网服务提供商）
+        isp=$(fibocom_get_carrier)
+        # if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ]|| [ "$isp" = "46000" ]; then
+        #     isp="中国移动"
+        # elif [ "$isp" = "CHN-UNICOM" ] || [ "$isp" = "UNICOM" ] || [ "$isp" = "46001" ]; then
+        #     isp="中国联通"
+        # elif [ "$isp" = "CHN-CT" ] || [ "$isp" = "CT" ] || [ "$isp" = "46011" ]; then
+        #     isp="中国电信"
+        # fi
+
+        #SIM Number（SIM卡号码，手机号）
+        sim_number=$(cmd_cnum "$at_port" | grep "+CNUM: " | awk -F'"' '{print $2}')
+        [ -z "$sim_number" ] && {
+            sim_number=$(cmd_cnum "$at_port" | grep "+CNUM: " | awk -F'"' '{print $4}')
+        }
+
+        #IMSI（国际移动用户识别码）
+        imsi=$(cmd_cimi "$at_port" | grep "+CIMI: " | awk -F' ' '{print $2}' | sed 's/"//g' | sed 's/\r//g')
+        [ -z "$sim_number" ] && {
+            imsi=$(cmd_cimi "$at_port" | grep "+CIMI: " | awk -F'"' '{print $2}')
+        }
+
+        #ICCID（集成电路卡识别码）
+        iccid=$(cmd_iccid "$at_port" | grep -o "+ICCID:[ ]*[-0-9]\+" | grep -o "[-0-9]\{1,4\}")
+        [ -z "$iccid" ] && {
+            iccid=$(cmd_ccid "$at_port" | grep -o "+CCID:[ ]*[-0-9]\+" | awk -F' ' '{print $2}')
+        }
     fi
-
-    #ISP（互联网服务提供商）
-    isp=$(fibocom_get_carrier)
-    # if [ "$isp" = "CHN-CMCC" ] || [ "$isp" = "CMCC" ]|| [ "$isp" = "46000" ]; then
-    #     isp="中国移动"
-    # elif [ "$isp" = "CHN-UNICOM" ] || [ "$isp" = "UNICOM" ] || [ "$isp" = "46001" ]; then
-    #     isp="中国联通"
-    # elif [ "$isp" = "CHN-CT" ] || [ "$isp" = "CT" ] || [ "$isp" = "46011" ]; then
-    #     isp="中国电信"
-    # fi
-
-    #SIM Number（SIM卡号码，手机号）
-    sim_number=$(cmd_cnum "$at_port" | grep "+CNUM: " | awk -F'"' '{print $2}')
-    [ -z "$sim_number" ] && {
-        sim_number=$(cmd_cnum "$at_port" | grep "+CNUM: " | awk -F'"' '{print $4}')
-    }
-	
-    #IMSI（国际移动用户识别码）
-    imsi=$(cmd_cimi "$at_port" | grep "+CIMI: " | awk -F' ' '{print $2}' | sed 's/"//g' | sed 's/\r//g')
-    [ -z "$sim_number" ] && {
-        imsi=$(cmd_cimi "$at_port" | grep "+CIMI: " | awk -F'"' '{print $2}')
-    }
-
-    #ICCID（集成电路卡识别码）
-    iccid=$(cmd_iccid "$at_port" | grep -o "+ICCID:[ ]*[-0-9]\+" | grep -o "[-0-9]\{1,4\}")
-		[ -z "$iccid" ] && {
-        iccid=$(cmd_ccid "$at_port" | grep -o "+CCID:[ ]*[-0-9]\+" | awk -F' ' '{print $2}')
-    }
     class="SIM Information"
     case "$sim_status" in
         "ready")
