@@ -1010,9 +1010,10 @@ void at_line_event(struct ubus_context *ubus,
 	if (values[5])
 		command_id = blobmsg_get_u64(values[5]);
 	correlation = values[4] ? blobmsg_get_string(values[4]) : NULL;
-	if (!values[5] || command_id == 0 ||
-	    qmodem_voip_correlation_parse(correlation) == QMODEM_VOIP_CORR_IDLE)
-		return;
+	/* Sequence numbers cover every line on the selected port, including
+	 * echoes and unsolicited lines. Filtering those here invents gaps and
+	 * can reconcile an answered call back to idle. The call reducer filters
+	 * other ports and deduplicates the matching URC notification. */
 	app->command_failed = 0;
 	(void)qmodem_voip_line(&app->call, blobmsg_get_string(values[0]),
 			       blobmsg_get_u64(values[1]), blobmsg_get_u64(values[2]),
