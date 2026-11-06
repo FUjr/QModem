@@ -122,6 +122,7 @@ struct consumer {
 	char incoming_number[64];
 	int incoming_caller_id_withheld;
 	int incoming_ringing;
+	struct uloop_timeout incoming_offer_timeout;
 	int invite_alerted;
 	unsigned outbound_port;
 	unsigned outbound_interval;
@@ -1111,6 +1112,53 @@ static void incoming_invite_cb(void *token, pjsip_event *event)
 
 static void send_incoming_invite(void);
 
+static int incoming_number_valid(void)
+{
+	const char *number = app.incoming_number;
+	if (*number == '+')
+		number++;
+	return *number && strspn(number, "0123456789") == strlen(number);
+}
+
+static void set_incoming_identity(pjsip_tx_data *request)
+{
+	pjsip_from_hdr *from = PJSIP_MSG_FROM_HDR(request->msg);
+	const char *display = app.incoming_caller_id_withheld ? "Anonymous" :
+		(incoming_number_valid() ? app.incoming_number : "Unknown");
+	if (from)
+		pj_strdup2(request->pool, &((pjsip_name_addr *)from->uri)->display, display);
+	if (app.incoming_caller_id_withheld)
+		add_string_header(request, "Privacy", "id");
+	if (!app.incoming_caller_id_withheld && incoming_number_valid()) {
+		char asserted_identity[160];
+		(void)snprintf(asserted_identity, sizeof(asserted_identity), "<sip:%s@%s>",
+			app.incoming_number, app.lan_address);
+		add_string_header(request, "P-Asserted-Identity", asserted_identity);
+	}
+}
+
+static void incoming_offer_timeout(struct uloop_timeout *timeout)
+{
+	(void)timeout;
+	if (app.incoming_ringing)
+		send_incoming_invite();
+}
+
+static void offer_incoming_call(void)
+{
+	if (!app.incoming_ringing || app.call.active)
+		return;
+	if (incoming_number_valid() || app.incoming_caller_id_withheld) {
+		uloop_timeout_cancel(&app.incoming_offer_timeout);
+		send_incoming_invite();
+	} else if (!app.incoming_offer_timeout.pending) {
+		/* RING commonly precedes CLIP or the CLCC response.  Bound the
+		 * wait so unidentified calls still reach the SIP phone. */
+		app.incoming_offer_timeout.cb = incoming_offer_timeout;
+		uloop_timeout_set(&app.incoming_offer_timeout, 1000);
+	}
+}
+
 static void resend_incoming_invite(void)
 {
 	if (app.outbound || !app.incoming_ringing || app.call.established)
@@ -1153,13 +1201,7 @@ static void send_incoming_invite(void)
 					      &contact, NULL, 1, NULL, &request) != PJ_SUCCESS ||
 		set_incoming_offer(request) != 0)
 		return;
-	if (!app.incoming_caller_id_withheld && app.incoming_number[0] &&
-		strspn(app.incoming_number, "0123456789+") == strlen(app.incoming_number)) {
-		char asserted_identity[160];
-		(void)snprintf(asserted_identity, sizeof(asserted_identity), "<sip:%s@%s>",
-			app.incoming_number, app.lan_address);
-		add_string_header(request, "P-Asserted-Identity", asserted_identity);
-	}
+	set_incoming_identity(request);
 	cid = (pjsip_cid_hdr *)pjsip_msg_find_hdr(request->msg, PJSIP_H_CALL_ID, NULL);
 	if (!cid || copy_pj_string(call_id, sizeof(call_id), &cid->id) != 0 ||
 	    qmodem_voip_sip_call_begin(&app.call, QMODEM_VOIP_SIP_CALL_CELLULAR,
@@ -2016,6 +2058,11 @@ static void consumer_event(struct ubus_context *context,
 	state = blobmsg_get_string(values[1]);
 	owner = values[5] ? blobmsg_get_string(values[5]) : "none";
 	app.incoming_ringing = strcmp(state, "incoming_ringing") == 0;
+	if (!app.incoming_ringing) {
+		uloop_timeout_cancel(&app.incoming_offer_timeout);
+		app.incoming_number[0] = '\0';
+		app.incoming_caller_id_withheld = 0;
+	}
 	ended = strcmp(event, "release") == 0 ||
 		(app.call.active && (strcmp(state, "idle") == 0 ||
 		 strcmp(state, "disabled") == 0 || strcmp(state, "fault") == 0)) ||
@@ -2062,8 +2109,10 @@ static void consumer_event(struct ubus_context *context,
 			app.media_attach_attempts = 0;
 			uloop_timeout_set(&app.media_attach_timeout, 0);
 		}
-	} else if (strcmp(event, "ring") == 0)
-		send_incoming_invite();
+	} else if (app.incoming_ringing &&
+		   (strcmp(event, "ring") == 0 || strcmp(event, "caller_id") == 0 ||
+		    strcmp(event, "call_state") == 0))
+		offer_incoming_call();
 }
 
 static int load_credentials(void)

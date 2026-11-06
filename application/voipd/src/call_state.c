@@ -532,6 +532,8 @@ int qmodem_voip_line(struct qmodem_voip_call *call, const char *port,
 	}
 	if (has_prefix(raw, "+CLCC:")) {
 		enum qmodem_voip_state previous_state = call->state;
+		char previous_number[sizeof(call->number)];
+		(void)snprintf(previous_number, sizeof(previous_number), "%s", call->number);
 		if (!clcc_status(raw, &direction, &status, &mode, &empty_number))
 			return 0;
 		if (mode == 1) {
@@ -597,6 +599,8 @@ int qmodem_voip_line(struct qmodem_voip_call *call, const char *port,
 		 * between issuance and their handshake. */
 		if (call->state != previous_state)
 			notify(event, call, "call_state", opaque);
+		else if (strcmp(previous_number, call->number) != 0)
+			notify(event, call, "caller_id", opaque);
 		if (previous_state == QMODEM_VOIP_IDLE &&
 		    call->state == QMODEM_VOIP_INCOMING_RINGING)
 			notify(event, call, "ring", opaque);
@@ -611,6 +615,7 @@ int qmodem_voip_line(struct qmodem_voip_call *call, const char *port,
 			call->active_since_msec = 0;
 			call->was_active = 0;
 			begin_call(call);
+			issue(command, opaque, "AT+CLCC");
 		}
 		notify(event, call, "ring", opaque);
 		return 0;

@@ -4,6 +4,16 @@
 #include <string.h>
 
 static char issued[32];
+static unsigned caller_events;
+
+static void capture_event(const struct qmodem_voip_call *call, const char *event, void *opaque)
+{
+	(void)call;
+	(void)opaque;
+	if (strcmp(event, "caller_id") == 0)
+		caller_events++;
+}
+
 
 static void capture_command(const char *command, void *opaque)
 {
@@ -57,7 +67,8 @@ int main(void)
 		QMODEM_VOIP_CORR_RESPONSE, 7, 0, NULL, NULL, NULL) == 0);
 	assert(qmodem_voip_line(&call, "ttyUSB2", 1, 4,
 		"+CLCC: 3,1,4,0,0,\"15500001234\",128",
-		QMODEM_VOIP_CORR_RESPONSE, 7, 0, NULL, NULL, NULL) == 0);
+		QMODEM_VOIP_CORR_RESPONSE, 7, 0, NULL, capture_event, NULL) == 0);
+	assert(caller_events == 1);
 	assert(call.state == QMODEM_VOIP_INCOMING_RINGING);
 	assert(strcmp(call.number, "15500001234") == 0);
 	assert(call.caller_id_withheld == 0);
