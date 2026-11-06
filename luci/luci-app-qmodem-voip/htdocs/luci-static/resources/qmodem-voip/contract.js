@@ -36,6 +36,7 @@ const SNAPSHOT_FIELDS = Object.freeze([
 	'number_present', 'caller_id_withheld', 'remote_number',
 	'call_duration_seconds', 'revision', 'restart_epoch',
 	'sequence', 'drop_count', 'reconcile_pending', 'media', 'media_engine',
+	'audio_policy', 'media_backend', 'selection_state', 'fallback_reason', 'audio_firmware', 'last_error', 'firmware_verified',
 	'browser_media', 'media_url', 'browser_downlink_frames',
 	'browser_downlink_empty', 'browser_downlink_write_errors'
 ]);

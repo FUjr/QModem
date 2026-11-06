@@ -37,6 +37,15 @@ function model(capabilities, current) {
 	return state;
 }
 
+const nativeAudio = {
+	media_backend: 'serial_pcm', audio_policy: 'auto', selection_state: 'enabled',
+	fallback_reason: 'uac_unavailable', audio_firmware: 'verified-revision',
+	firmware_verified: true, last_error: ''
+};
+const nativeState = model(supported, snapshot('idle', 1, nativeAudio));
+for (const [key, value] of Object.entries(nativeAudio))
+	assert.equal(nativeState.snapshot[key], value);
+
 assert.equal(reducer.viewModel(model(unsupported, snapshot('disabled', 0, { enabled: false }))).supported, false);
 assert.equal(reducer.viewModel(model(supported, snapshot('disabled', 0, { enabled: false }))).state, 'disabled');
 assert.equal(reducer.viewModel(model(supported, snapshot('idle', 1))).canOriginate, true);

@@ -500,3 +500,36 @@ msgstr "时间"
 #~ msgid ""
 #~ "Unsupported hardware fails closed. This page controls one modem call."
 #~ msgstr "不支持的硬件将安全关闭。本页面仅控制一个调制解调器通话。"
+
+msgid "RM520N-GL audio"
+msgstr "RM520N-GL 音频"
+
+msgid "Automatic (prefer UAC)"
+msgstr "自动（优先 UAC）"
+
+msgid "Native UAC only"
+msgstr "仅原生 UAC"
+
+msgid "Native PCM only"
+msgstr "仅原生 PCM"
+
+msgid "Recheck native audio"
+msgstr "重新检测原生音频"
+
+msgid "Probe while idle"
+msgstr "空闲时检测"
+
+msgid "Uses the modem firmware audio without PCM patches. Changes wait until the call ends."
+msgstr "使用模组固件原生音频，无需 PCM 补丁。配置变更将在通话结束后生效。"
+
+msgid "Native UAC"
+msgstr "原生 UAC"
+
+msgid "Native PCM"
+msgstr "原生 PCM"
+
+msgid "Media not ready"
+msgstr "音频尚未就绪"
+
+msgid "UAC unavailable; using native PCM"
+msgstr "UAC 不可用，已使用原生 PCM"

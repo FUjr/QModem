@@ -20,7 +20,7 @@
 		},
 		"write": {
 			"ubus": {
-				"qmodem_voip": [ "enable", "disable", "originate", "answer", "reject", "hangup", "send_dtmf", "issue_media_token" ],
+				"qmodem_voip": [ "enable", "disable", "reprobe_audio", "originate", "answer", "reject", "hangup", "send_dtmf", "issue_media_token" ],
 				"qmodem.sip": [ "generate_credentials" ],
 				"uci": [ "qmodem_voip", "qmodem_sip" ]
 			},

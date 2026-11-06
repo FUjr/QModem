@@ -14,6 +14,10 @@ Object.keys(contract.METHODS).forEach((name) => {
 	});
 });
 
+calls.reprobeAudio = rpc.declare({
+	object: 'qmodem_voip', method: 'reprobe_audio', params: [], expect: {}
+});
+
 calls.sipStatus = rpc.declare({
 	object: 'qmodem.sip',
 	method: 'status',

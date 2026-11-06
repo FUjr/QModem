@@ -55,6 +55,13 @@ function copySnapshot(input) {
 		reconcile_pending: asBoolean(input.reconcile_pending),
 		media: String(input.media || ''),
 		media_engine: String(input.media_engine || ''),
+		media_backend: String(input.media_backend || ''),
+		audio_policy: String(input.audio_policy || ''),
+		selection_state: String(input.selection_state || ''),
+		fallback_reason: String(input.fallback_reason || ''),
+		audio_firmware: String(input.audio_firmware || ''),
+		last_error: String(input.last_error || ''),
+		firmware_verified: asBoolean(input.firmware_verified),
 		browser_media: String(input.browser_media || ''),
 		media_url: String(input.media_url || '')
 	};

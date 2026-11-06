@@ -65,6 +65,22 @@ return view.extend({
 		webEnabled.default = '0';
 		webEnabled.rmempty = false;
 		webEnabled.description = _('Enables the uhttpd HTTPS listener used by browser WSS media.');
+		if (this.state.capabilities?.hardware === 'RM520N-GL') {
+			const policy = section.option(form.ListValue, 'audio_policy', _('RM520N-GL audio'));
+			policy.value('auto', _('Automatic (prefer UAC)'));
+			policy.value('uac', _('Native UAC only'));
+			policy.value('serial_pcm', _('Native PCM only'));
+			const probe = section.option(form.Button, '_audio_probe', _('Recheck native audio'));
+			probe.inputtitle = _('Probe while idle');
+			probe.onclick = async () => {
+				const response = await this.rpc.reprobeAudio();
+				if (response?.status === 'error') this.showError(response);
+				await this.refresh();
+			};
+			policy.default = 'auto';
+			policy.rmempty = false;
+			policy.description = _('Uses the modem firmware audio without PCM patches. Changes wait until the call ends.');
+		}
 		this.serviceMap = voiceMap;
 		this.serviceOption = enabled;
 		return voiceMap;
@@ -435,6 +451,14 @@ return view.extend({
 		this.refs.mute.disabled = !model.canMute;
 		this.refs.keypad.forEach((key) => { key.disabled = !model.canKeypad || this.dtmfPending; });
 		this.refs.mediaStatus.textContent = this.mediaAttached ? _('Browser audio is connected.') : (this.state.mediaStatus === 'ready' ? _('Browser audio connects while the call is being established.') : _('Media backend is not ready. Browser audio remains inactive.'));
+		if (snapshot.audio_policy) {
+			const backend = snapshot.media_backend === 'uac' ? _('Native UAC') :
+				(snapshot.media_backend === 'serial_pcm' ? _('Native PCM') : _('Media not ready'));
+			const reason = snapshot.media_backend === 'serial_pcm' &&
+				['uac_unavailable', 'uac_unsupported'].includes(snapshot.fallback_reason) ?
+				` (${_('UAC unavailable; using native PCM')})` : '';
+			this.refs.mediaStatus.textContent += ` ${backend}${reason}`;
+		}
 		this.refs.mediaAction.disabled = this.state.mediaStatus !== 'ready' || !model.enabled || Boolean(this.mediaStartRequest) || this.mediaAttached;
 		this.refs.mediaAction.textContent = this.state.mediaPermission === 'denied' ? _('Retry browser audio') : (this.media.hasAudio() ? _('Resume browser audio') : _('Allow browser audio'));
 		this.refs.permission.textContent = this.state.mediaPermission === 'denied' ? _('Microphone permission was denied. Allow it in the browser and try again.') : (this.state.mediaPermission === 'granted' ? _('Microphone permission is active.') : _('No microphone permission has been requested.'));
