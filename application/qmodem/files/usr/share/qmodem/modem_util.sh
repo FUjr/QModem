@@ -90,13 +90,26 @@ qmodem_record_testcase_file()
     > "$file" 2>/dev/null || rm -f "$file"
 }
 
+qmodem_at_lock()
+{
+  local port_key lock_path
+  port_key=$(printf '%s' "$1" | tr -c 'A-Za-z0-9_' '_')
+  [ -n "$port_key" ] || return 2
+  lock_path="/var/lock/qmodem-at-$port_key.lock"
+  # modem_scand holds this same open file description while timing command I/O.
+  if [ "${QMODEM_AT_LOCK_HELD:-}" = "1" ] &&
+     [ "$(readlink /proc/self/fd/6 2>/dev/null)" = "$(readlink -f "$lock_path")" ]; then
+    flock -x 6
+    return $?
+  fi
+  mkdir -p /var/lock
+  exec 6>"$lock_path" || return 1
+  flock -x 6
+}
+
 at()
 (
-  local port_key
-  port_key=$(printf '%s' "$1" | tr -c 'A-Za-z0-9_' '_')
-  [ -n "$port_key" ] || exit 2
-  mkdir -p /var/lock
-  exec 6>"/var/lock/qmodem-at-$port_key.lock"; flock -x 6 || exit 1
+  qmodem_at_lock "$1" || exit $?
   local at_port=$1
   local new_str="${2/[$]/$}"
   local atcmd="${new_str/\"/\"}"
@@ -132,11 +145,7 @@ at()
 
 fastat()
 (
-  local port_key
-  port_key=$(printf '%s' "$1" | tr -c 'A-Za-z0-9_' '_')
-  [ -n "$port_key" ] || exit 2
-  mkdir -p /var/lock
-  exec 6>"/var/lock/qmodem-at-$port_key.lock"; flock -x 6 || exit 1
+  qmodem_at_lock "$1" || exit $?
   local at_port=$1
   local new_str="${2/[$]/$}"
   local atcmd="${new_str/\"/\"}"

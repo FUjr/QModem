@@ -103,6 +103,7 @@ struct daemon_state {
 	int at_probe_workers;
 	int at_timeout_fast;
 	int at_timeout_model;
+	int at_timeout_lock;
 	int add_retry_delay;
 	int add_retry_max;
 	enum log_level log_level;
@@ -759,28 +760,80 @@ static void scan_pcie_slot(const char *slot, struct scan_result *res)
 	}
 }
 
+static long long monotonic_ms(void)
+{
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return (long long)now.tv_sec * 1000 + now.tv_nsec / 1000000;
+}
+
+/* Use the same per-port flock as at()/fastat(), before starting the I/O timer. */
+static int lock_at_port(const char *port, int timeout)
+{
+	char path[512] = "/var/lock/qmodem-at-";
+	size_t used = strlen(path);
+	long long start = monotonic_ms();
+	int fd;
+	if (!port || !*port)
+		return -1;
+	for (const unsigned char *p = (const unsigned char *)port; *p; p++) {
+		if (used + sizeof(".lock") >= sizeof(path))
+			return -1;
+		path[used++] = ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') ||
+			(*p >= '0' && *p <= '9') || *p == '_') ? *p : '_';
+	}
+	memcpy(path + used, ".lock", sizeof(".lock"));
+	mkdir("/var/lock", 0755);
+	fd = open(path, O_WRONLY | O_CREAT | O_CLOEXEC, 0600);
+	if (fd < 0)
+		return -1;
+	while (flock(fd, LOCK_EX | LOCK_NB) < 0) {
+		if (errno != EWOULDBLOCK && errno != EAGAIN && errno != EINTR) {
+			close(fd);
+			return -1;
+		}
+		if (monotonic_ms() - start >= (long long)timeout * 1000) {
+			close(fd);
+			return -3;
+		}
+		usleep(20000);
+	}
+	return fd;
+}
+
 static int at_command(const char *port, const char *cmd, int fast, int timeout, char *out, size_t out_len)
 {
 	int pipefd[2];
+	int lock_fd;
 	pid_t pid;
 	size_t used = 0;
 	int status = 0;
-	time_t start;
+	long long start;
 	const char *script =
 		". /usr/share/qmodem/modem_util.sh; "
+		"QMODEM_AT_LOCK_HELD=1; export QMODEM_AT_LOCK_HELD; "
 		"if [ \"$1\" = 1 ]; then "
 		"fastat \"$2\" \"$3\"; "
 		"else at \"$2\" \"$3\"; fi";
 
 	if (out_len)
 		out[0] = '\0';
-	if (pipe(pipefd) < 0)
+	lock_fd = lock_at_port(port, g.at_timeout_lock > 0 ? g.at_timeout_lock : 8);
+	if (lock_fd < 0) {
+		if (lock_fd == -3)
+			log_msg(LOG_L_WARN, "AT lock wait timeout port=%s cmd=%s phase=queue", port, cmd);
+		return lock_fd;
+	}
+	if (pipe(pipefd) < 0) {
+		close(lock_fd);
 		return -1;
+	}
 
 	pid = fork();
 	if (pid < 0) {
 		close(pipefd[0]);
 		close(pipefd[1]);
+		close(lock_fd);
 		return -1;
 	}
 	if (pid == 0) {
@@ -789,13 +842,17 @@ static int at_command(const char *port, const char *cmd, int fast, int timeout, 
 		dup2(pipefd[1], STDERR_FILENO);
 		close(pipefd[0]);
 		close(pipefd[1]);
+		if (dup2(lock_fd, 6) < 0 || fcntl(6, F_SETFD, 0) < 0)
+			_exit(127);
+		if (lock_fd != 6)
+			close(lock_fd);
 		execl("/bin/sh", "sh", "-c", script, "qmodem-at", fast ? "1" : "0", port, cmd, NULL);
 		_exit(127);
 	}
 
 	close(pipefd[1]);
 	fcntl(pipefd[0], F_SETFL, fcntl(pipefd[0], F_GETFL, 0) | O_NONBLOCK);
-	start = time(NULL);
+	start = monotonic_ms();
 	for (;;) {
 		fd_set rfds;
 		struct timeval tv = { .tv_sec = 0, .tv_usec = 100000 };
@@ -820,18 +877,20 @@ static int at_command(const char *port, const char *cmd, int fast, int timeout, 
 		r = waitpid(pid, &status, WNOHANG);
 		if (r == pid)
 			break;
-		if (timeout > 0 && time(NULL) - start >= timeout) {
+		if (timeout > 0 && monotonic_ms() - start >= (long long)timeout * 1000) {
 			kill(-pid, SIGTERM);
 			usleep(200000);
 			if (waitpid(pid, &status, WNOHANG) == 0)
 				kill(-pid, SIGKILL);
 			waitpid(pid, &status, 0);
 			close(pipefd[0]);
-			log_msg(LOG_L_WARN, "AT timeout port=%s cmd=%s", port, cmd);
+			close(lock_fd);
+			log_msg(LOG_L_WARN, "AT timeout port=%s cmd=%s phase=io", port, cmd);
 			return -2;
 		}
 	}
 	close(pipefd[0]);
+	close(lock_fd);
 	return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
@@ -1647,6 +1706,7 @@ static void load_config_defaults(void)
 	g.at_probe_workers = 4;
 	g.at_timeout_fast = 2;
 	g.at_timeout_model = 8;
+	g.at_timeout_lock = 8;
 	g.add_retry_delay = 8;
 	g.add_retry_max = 5;
 	g.log_level = LOG_L_INFO;
@@ -1658,6 +1718,8 @@ static void load_config_defaults(void)
 		g.at_timeout_fast = atoi(val);
 	if (!uci_get("qmodem.main.at_timeout_model", val, sizeof(val)) && atoi(val) > 0)
 		g.at_timeout_model = atoi(val);
+	if (!uci_get("qmodem.main.at_timeout_lock", val, sizeof(val)) && atoi(val) > 0)
+		g.at_timeout_lock = atoi(val);
 	if (!uci_get("qmodem.main.add_retry_delay", val, sizeof(val)) && atoi(val) >= 0)
 		g.add_retry_delay = atoi(val);
 	if (!uci_get("qmodem.main.add_retry_max", val, sizeof(val)) && atoi(val) >= 0)
