@@ -7,6 +7,10 @@ misectel_led_init()
 	board="$(cat /tmp/sysinfo/board_name 2>/dev/null)"
 	case "$board" in
 		misectel,m02k88)
+			LED_INTERNET_BLUE='sys:blue'
+			LED_INTERNET_RED='sys:red'
+			# Internet detection runs independently of either modem LED bank.
+			[ "${QMODEM_LED_SECTION:-}" != internet ] || return 0
 			# Each physical modem owns one independent SIM + RF1/2/3 bank.
 			[ -n "${QMODEM_LED_SECTION:-}" ] || return 1
 			config_load qmodem_led

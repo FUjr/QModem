@@ -57,6 +57,7 @@ huasifei,ws3009)
 	;;
 misectel,m02k88)
 	ucidef_set_qmodem_main start_delay 15
+	ucidef_add_qmodem_network_detect internet enabled 1 script misectel_network_detect
 	# Independent modules: never associate the USB modem with the PCIe modem.
 	ucidef_add_qmodem_slot usb0 type usb slot 2-1 alias wwan0 gpio 5g1_en gpio_up 1 gpio_down 0 default_metric 5
 	ucidef_add_qmodem_slot pcie0 type pcie slot 0002:01:00.0 alias wwan1 gpio 5g2_en gpio_up 1 gpio_down 0 default_metric 6 pci_driver mhi_q pci_id 17cb:0308

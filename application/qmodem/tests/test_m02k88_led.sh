@@ -64,6 +64,16 @@ for group in 1 2; do
     update_leds
     [ "$writes" = "5g${group}:rf1=0 5g${group}:rf2=0 5g${group}:rf3=0 5g${group}:sim=0 " ]
 done
+QMODEM_LED_SECTION=internet
+misectel_led_init
+[ "$LED_INTERNET_BLUE" = 'sys:blue' ]
+[ "$LED_INTERNET_RED" = 'sys:red' ]
+writes=
+internet_led_connected
+[ "$writes" = 'sys:red=0 sys:blue=1 ' ]
+writes=
+internet_led_disconnected
+[ "$writes" = 'sys:blue=0 sys:red=1 ' ]
 QMODEM_LED_SECTION=invalid
 if misectel_led_init; then
     echo 'invalid LED bank accepted' >&2
@@ -89,6 +99,8 @@ board_json="$(
 )"
 printf '%s\n' "$board_json" | jq -e '
     .qmodem.slots as $slots | .qmodem_led.modem_status as $leds |
+    .qmodem_led.network_detect.internet.script == "misectel_network_detect" and
+    .qmodem_led.network_detect.internet.enabled == "1" and
     ($slots | keys) == ["pcie0", "usb0"] and
     $slots.usb0.slot == "2-1" and $slots.pcie0.slot == "0002:01:00.0" and
     $slots.pcie0.pci_driver == "mhi_q" and $slots.pcie0.pci_id == "17cb:0308" and
