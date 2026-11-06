@@ -93,21 +93,19 @@ int qmodem_voip_media_discover(const char *sysfs_root, const char *proc_root,
 {
 	DIR *directory;
 	struct dirent *entry;
-	unsigned matches = 0, card = 0, pcm = 0;
+	unsigned card = 0, pcm = 0;
 	char found[64] = { 0 };
 	if (!sysfs_root || !proc_root || !recorded_slot || !device || strlen(recorded_slot) >= sizeof(found))
 		return -1;
 	directory = opendir(sysfs_root);
 	if (!directory) return -1;
 	while ((entry = readdir(directory)))
-		if (entry->d_name[0] != '.' && identity(sysfs_root, entry->d_name) == 0) {
-			matches++;
-			if (strcmp(entry->d_name, recorded_slot) == 0 && strlen(entry->d_name) < sizeof(found))
-				memcpy(found, entry->d_name, strlen(entry->d_name) + 1U);
-		}
+		if (!strcmp(entry->d_name, recorded_slot) && identity(sysfs_root, entry->d_name) == 0)
+			memcpy(found, entry->d_name, strlen(entry->d_name) + 1U);
 	closedir(directory);
-	if (matches != 1 || !found[0] || card_for_slot(sysfs_root, found, &card) ||
-		has_duplex(proc_root, card, &pcm)) return -1;
+	if (!found[0]) return -1;
+	if (card_for_slot(sysfs_root, found, &card) || has_duplex(proc_root, card, &pcm))
+		return -2; /* Exact modem present, but no duplex UAC endpoint. */
 	memset(device, 0, sizeof(*device));
 	(void)snprintf(device->slot, sizeof(device->slot), "%s", found);
 	(void)snprintf(device->pcm_name, sizeof(device->pcm_name), "hw:%u,%u", card, pcm);
@@ -119,17 +117,30 @@ int qmodem_voip_media_discover(const char *sysfs_root, const char *proc_root,
 static int configure(snd_pcm_t *pcm, snd_pcm_stream_t stream, unsigned *rate)
 {
 	snd_pcm_hw_params_t *params;
+	snd_pcm_sw_params_t *software;
+	snd_pcm_uframes_t period, buffer;
 	int rc;
 	unsigned channels = 1;
 	int direction = 0;
 	snd_pcm_hw_params_alloca(&params);
+	snd_pcm_sw_params_alloca(&software);
 	if ((rc = snd_pcm_hw_params_any(pcm, params)) < 0 ||
 		(rc = snd_pcm_hw_params_set_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0 ||
 		(rc = snd_pcm_hw_params_set_format(pcm, params, SND_PCM_FORMAT_S16_LE)) < 0 ||
 		(rc = snd_pcm_hw_params_set_channels_near(pcm, params, &channels)) < 0 || channels != 1 ||
-		(rc = snd_pcm_hw_params_set_rate_near(pcm, params, rate, &direction)) < 0 ||
-		(rc = snd_pcm_hw_params(pcm, params)) < 0 || (rc = snd_pcm_prepare(pcm)) < 0)
-		return -1;
+		(rc = snd_pcm_hw_params_set_rate_near(pcm, params, rate, &direction)) < 0)
+		return rc < 0 ? rc : -EINVAL;
+	/* ALSA's default can buffer seconds and delay playback until it fills. */
+	period = *rate / 50U;
+	buffer = period * 4U;
+	if ((rc = snd_pcm_hw_params_set_period_size_near(pcm, params, &period, &direction)) < 0 ||
+		(rc = snd_pcm_hw_params_set_buffer_size_near(pcm, params, &buffer)) < 0 ||
+		(rc = snd_pcm_hw_params(pcm, params)) < 0 ||
+		(rc = snd_pcm_sw_params_current(pcm, software)) < 0 ||
+		(rc = snd_pcm_sw_params_set_start_threshold(pcm, software, period)) < 0 ||
+		(rc = snd_pcm_sw_params_set_avail_min(pcm, software, period)) < 0 ||
+		(rc = snd_pcm_sw_params(pcm, software)) < 0 || (rc = snd_pcm_prepare(pcm)) < 0)
+		return rc < 0 ? rc : -EINVAL;
 	(void)stream;
 	return 0;
 }
@@ -141,18 +152,21 @@ int qmodem_voip_media_probe(struct qmodem_voip_media_device *device)
 	return device && device->full_duplex && device->capture_rate && device->playback_rate ? 0 : -1;
 #else
 	snd_pcm_t *capture = NULL, *playback = NULL;
-	unsigned capture_rate = 48000, playback_rate = 48000;
-	if (!device || !device->full_duplex || snd_pcm_open(&capture, device->pcm_name, SND_PCM_STREAM_CAPTURE, 0) < 0 ||
-		snd_pcm_open(&playback, device->pcm_name, SND_PCM_STREAM_PLAYBACK, 0) < 0 ||
-		configure(capture, SND_PCM_STREAM_CAPTURE, &capture_rate) ||
-		configure(playback, SND_PCM_STREAM_PLAYBACK, &playback_rate)) {
-		if (capture)
-			snd_pcm_close(capture);
-		if (playback)
-			snd_pcm_close(playback);
-		return -1;
-	}
-	snd_pcm_close(capture); snd_pcm_close(playback);
+	unsigned capture_rate, playback_rate;
+	int rc;
+	if (!device || !device->full_duplex) return -EINVAL;
+	capture_rate = device->capture_rate ? device->capture_rate : 8000;
+	playback_rate = device->playback_rate ? device->playback_rate : 8000;
+	rc = snd_pcm_open(&capture, device->pcm_name, SND_PCM_STREAM_CAPTURE, SND_PCM_NONBLOCK);
+	if (rc >= 0) rc = snd_pcm_open(&playback, device->pcm_name, SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK);
+	if (rc >= 0) rc = configure(capture, SND_PCM_STREAM_CAPTURE, &capture_rate);
+	if (rc >= 0) rc = configure(playback, SND_PCM_STREAM_PLAYBACK, &playback_rate);
+	if (capture) snd_pcm_close(capture);
+	if (playback) snd_pcm_close(playback);
+	if (rc < 0) return rc;
+	if (!capture_rate || !playback_rate || capture_rate % 50U || playback_rate % 50U ||
+	    capture_rate / 50U > QMODEM_VOIP_PCM_MAX_SAMPLES ||
+	    playback_rate / 50U > QMODEM_VOIP_PCM_MAX_SAMPLES) return -EINVAL;
 	device->capture_rate = capture_rate; device->playback_rate = playback_rate;
 	return 0;
 #endif
@@ -170,26 +184,29 @@ int qmodem_voip_media_capture(struct qmodem_voip_media_engine *engine,
 	(void)timestamp_ms;
 	return -1;
 #else
-	int16_t captured[QMODEM_VOIP_PCM_MAX_SAMPLES];
 	int16_t canonical[QMODEM_VOIP_MEDIA_SAMPLES];
 	size_t expected, produced = 0;
-	int received;
-	if (!engine || !engine->ready || !engine->device.capture_rate)
-		return -1;
+	snd_pcm_sframes_t received;
+	if (!engine || !engine->ready || !engine->device.capture_rate) return -1;
 	expected = engine->device.capture_rate / 50U;
-	if (!expected || expected > QMODEM_VOIP_PCM_MAX_SAMPLES || !engine->capture_pcm) {
-		return -1;
-	}
-	received = snd_pcm_readi(engine->capture_pcm, captured, expected);
+	if (!expected || expected > QMODEM_VOIP_PCM_MAX_SAMPLES || !engine->capture_pcm) return -1;
+	received = snd_pcm_readi(engine->capture_pcm, engine->alsa_capture + engine->alsa_capture_used,
+		expected - engine->alsa_capture_used);
+	if (received == -EAGAIN || received == 0) { engine->alsa_io_errors = 0; return 0; }
 	if (received < 0) {
-		(void)snd_pcm_prepare(engine->capture_pcm);
+		if (received == -ENODEV || received == -EIO || ++engine->alsa_io_errors >= 50)
+			engine->alsa_io_failed = 1;
+		engine->alsa_capture_used = 0;
+		if (received == -EPIPE || received == -ESTRPIPE) (void)snd_pcm_prepare(engine->capture_pcm);
 		return -1;
 	}
-	if (received != (int)expected || qmodem_voip_media_resample(captured, expected,
+	engine->alsa_io_errors = 0;
+	engine->alsa_capture_used += (size_t)received;
+	if (engine->alsa_capture_used != expected) return 0;
+	engine->alsa_capture_used = 0;
+	if (qmodem_voip_media_resample(engine->alsa_capture, expected,
 		engine->device.capture_rate, canonical, QMODEM_VOIP_MEDIA_SAMPLES,
-		QMODEM_VOIP_MEDIA_RATE, &produced) || produced != QMODEM_VOIP_MEDIA_SAMPLES)
-		return -1;
-	memset(captured, 0, sizeof(captured));
+		QMODEM_VOIP_MEDIA_RATE, &produced) || produced != QMODEM_VOIP_MEDIA_SAMPLES) return -1;
 	return qmodem_voip_media_queue_push(&engine->modem_to_canonical, canonical,
 		QMODEM_VOIP_MEDIA_SAMPLES, timestamp_ms);
 #endif
@@ -208,27 +225,33 @@ int qmodem_voip_media_playback(struct qmodem_voip_media_engine *engine,
 	return -1;
 #else
 	struct qmodem_voip_media_frame frame;
-	int16_t output[QMODEM_VOIP_PCM_MAX_SAMPLES];
 	size_t expected, produced = 0;
-	int written;
-	if (!engine || !engine->ready || !engine->device.playback_rate)
-		return -1;
+	snd_pcm_sframes_t written;
+	if (!engine || !engine->ready || !engine->device.playback_rate || !engine->playback_pcm) return -1;
 	expected = engine->device.playback_rate / 50U;
-	if (!expected || expected > QMODEM_VOIP_PCM_MAX_SAMPLES ||
-		qmodem_voip_media_queue_pop(&engine->canonical_to_modem, &frame) < 0 ||
-		qmodem_voip_media_resample(frame.samples, QMODEM_VOIP_MEDIA_SAMPLES,
-		QMODEM_VOIP_MEDIA_RATE, output, QMODEM_VOIP_PCM_MAX_SAMPLES,
-		engine->device.playback_rate, &produced) || produced != expected ||
-		!engine->playback_pcm) {
+	if (!expected || expected > QMODEM_VOIP_PCM_MAX_SAMPLES) return -1;
+	if (!engine->alsa_playback_count) {
+		if (qmodem_voip_media_queue_pop(&engine->canonical_to_modem, &frame) < 0) return 0;
+		if (qmodem_voip_media_resample(frame.samples, QMODEM_VOIP_MEDIA_SAMPLES,
+			QMODEM_VOIP_MEDIA_RATE, engine->alsa_playback, QMODEM_VOIP_PCM_MAX_SAMPLES,
+			engine->device.playback_rate, &produced) || produced != expected) return -1;
+		engine->alsa_playback_count = produced;
+		engine->alsa_playback_used = 0;
+	}
+	written = snd_pcm_writei(engine->playback_pcm, engine->alsa_playback + engine->alsa_playback_used,
+		engine->alsa_playback_count - engine->alsa_playback_used);
+	if (written == -EAGAIN || written == 0) return 0;
+	if (written < 0) {
+		if (written == -ENODEV || written == -EIO) engine->alsa_io_failed = 1;
+		engine->alsa_playback_count = engine->alsa_playback_used = 0;
+		if (written == -EPIPE || written == -ESTRPIPE) (void)snd_pcm_prepare(engine->playback_pcm);
 		return -1;
 	}
-	written = snd_pcm_writei(engine->playback_pcm, output, produced);
-	if (written < 0) {
-		(void)snd_pcm_prepare(engine->playback_pcm);
-		written = -1;
-	}
-	memset(output, 0, sizeof(output));
-	return written == (int)produced ? 0 : -1;
+	engine->alsa_playback_used += (size_t)written;
+	if (engine->alsa_playback_used == engine->alsa_playback_count)
+		engine->alsa_playback_count = engine->alsa_playback_used = 0;
+	(void)timestamp_ms;
+	return 0;
 #endif
 }
 
@@ -311,6 +334,7 @@ int qmodem_voip_media_engine_start(struct qmodem_voip_media_engine *engine)
 {
 	char slot[64];
 	char method[32];
+	int rc;
 	struct qmodem_voip_media_tone tone = { 0 };
 	const char *sysfs = getenv("QMODEM_VOIP_SYSFS_ROOT");
 	const char *proc = getenv("QMODEM_VOIP_PROC_ASOUND_ROOT");
@@ -347,19 +371,20 @@ int qmodem_voip_media_engine_start(struct qmodem_voip_media_engine *engine)
 		qmodem_voip_media_release(engine);
 		return -1;
 	}
-	if (qmodem_voip_media_discover(sysfs, proc, slot, &engine->device)) {
+	if ((rc = qmodem_voip_media_discover(sysfs, proc, slot, &engine->device)) != 0) {
 		syslog(LOG_ERR, "qmodem_voip media: UAC discovery failed for recorded slot");
 		qmodem_voip_media_release(engine);
-		return -1;
+		return rc;
 	}
+	engine->device.capture_rate = engine->device.playback_rate = engine->profile.sample_rate;
 #ifdef QMODEM_VOIP_HOST_TEST
 	engine->device.capture_rate = QMODEM_VOIP_BROWSER_RATE;
 	engine->device.playback_rate = QMODEM_VOIP_BROWSER_RATE;
 #endif
-	if (qmodem_voip_media_probe(&engine->device)) {
-		syslog(LOG_ERR, "qmodem_voip media: UAC duplex probe failed for %s", engine->device.pcm_name);
+	if ((rc = qmodem_voip_media_probe(&engine->device)) != 0) {
+		syslog(LOG_ERR, "qmodem_voip media: UAC duplex probe failed for %s (%d)", engine->device.pcm_name, rc);
 		qmodem_voip_media_release(engine);
-		return -1;
+		return rc == -EINVAL || rc == -ENOENT || rc == -ENODEV ? -2 : -1;
 	}
 	if (getenv("QMODEM_VOIP_STARTUP_TONE_TEST") &&
 		qmodem_voip_media_self_test(&engine->device, &tone)) {
@@ -367,10 +392,11 @@ int qmodem_voip_media_engine_start(struct qmodem_voip_media_engine *engine)
 		return -1;
 	}
 #ifndef QMODEM_VOIP_HOST_TEST
+	engine->backend = QMODEM_VOIP_MEDIA_BACKEND_UAC;
 	if (snd_pcm_open(&engine->capture_pcm, engine->device.pcm_name,
-		SND_PCM_STREAM_CAPTURE, 0) < 0 ||
+		SND_PCM_STREAM_CAPTURE, SND_PCM_NONBLOCK) < 0 ||
 		snd_pcm_open(&engine->playback_pcm, engine->device.pcm_name,
-		SND_PCM_STREAM_PLAYBACK, 0) < 0 ||
+		SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK) < 0 ||
 		configure(engine->capture_pcm, SND_PCM_STREAM_CAPTURE,
 			&engine->device.capture_rate) ||
 		configure(engine->playback_pcm, SND_PCM_STREAM_PLAYBACK,

@@ -28,6 +28,25 @@ start_service()
 
 reload_service()
 {
+	# An RM520 policy change may re-enumerate USB. Keep the live call intact.
+	status=$(ubus -t 2 call qmodem_voip status 2>/dev/null)
+	policy=$(printf '%s' "$status" | jsonfilter -e '@.audio_policy')
+	state=$(printf '%s' "$status" | jsonfilter -e '@.state')
+	case $policy:$state in
+	?*:active|?*:incoming_ringing|?*:outgoing_setup|?*:early_media|?*:terminating|?*:recovering)
+		(
+			exec 8>/var/run/qmodem_voip/reload.lock
+			flock -n 8 || exit 0
+			while :; do
+				state=$(ubus -t 2 call qmodem_voip status 2>/dev/null | jsonfilter -e '@.state')
+				case $state in idle|disabled|fault) break ;; esac
+				sleep 1
+			done
+			/etc/init.d/qmodem_voip restart
+		) </dev/null >/dev/null 2>&1 &
+		logger -t qmodem_voip 'audio policy apply deferred until call is idle'
+		return 0 ;;
+	esac
 	stop
 	start
 	/usr/sbin/qmodem_voip_web

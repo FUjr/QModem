@@ -1,4 +1,6 @@
 #!/bin/sh
+qmodem_voip_adapter_authorize_usb() { /usr/bin/qmodem_voip_adb_unlock authorize; }
+
 qmodem_voip_adapter_device_exists() { [ -c "$1" ]; }
 
 qmodem_voip_adapter_usb_slot()
@@ -18,7 +20,7 @@ qmodem_voip_adapter_section()
 	for section in $(uci -q show qmodem 2>/dev/null |
 		sed -n 's/^qmodem\.\([A-Za-z0-9_]*\)=modem-device$/\1/p'); do
 		case $(uci -q get "qmodem.$section.name") in
-			rm520n-gl) [ -n "$(uci -q get "qmodem.$section.voice_pcm_port")" ] || continue ;;
+			rm520n-gl) ;;
 			rg500q-ea) ;;
 			*) continue ;;
 		esac
@@ -75,7 +77,7 @@ qmodem_voip_adapter_normalize()
 	command=$1
 	response=$(tr -d '\r' | sed '/^AT/d; /^OK$/d; /^$/d')
 	case $command in
-		AT+CGMM|AT+CGMR) printf '%s\n' "$response" | sed -n '1p' ;;
+		AT+CGMM|AT+CGMR|AT+QGMR) printf '%s\n' "$response" | sed -n '1p' ;;
 		AT+CPIN\?) printf '%s\n' "$response" | sed -n 's/^+CPIN: //p' ;;
 		AT+CEREG\?)
 			status=$(printf '%s\n' "$response" | sed -n 's/^+CEREG: [0-9]*,//p')
@@ -145,6 +147,8 @@ qmodem_voip_adapter_at()
 			printf '%s\n' "$response" | qmodem_voip_adapter_normalize "$command"
 			return $?
 		fi
+		# Distinguish a modem rejection from transport loss for native fallback.
+		case $end_flag in ERROR|'+CME ERROR:'|'+CMS ERROR:') return 2 ;; esac
 		attempt=$((attempt + 1))
 		sleep 1
 	done
@@ -170,15 +174,24 @@ qmodem_voip_adapter_wait_reenumeration()
 	root=${QMODEM_VOIP_SYSFS_ROOT:-/sys/bus/usb/devices}
 	proc=${QMODEM_VOIP_PROC_ASOUND_ROOT:-/proc/asound}
 	saw_absent=0
+	rescan_requested=0
 	while [ "$remaining" -gt 0 ]; do
 		endpoint=$(qmodem_voip_adapter_endpoint 2>/dev/null) || endpoint=
 		pcm_endpoint=$(qmodem_voip_adapter_pcm_endpoint 2>/dev/null) || pcm_endpoint=
 		[ -d "$root/$slot" ] && [ -n "$endpoint" ] || saw_absent=1
+		# Reuse the owning scanner when Linux renumbers serial devices. USB
+		# hotplug may race the old UCI endpoint; never guess a ttyUSB number.
+		if [ "$saw_absent" = 1 ] && [ -d "$root/$slot" ] &&
+		   [ "$rescan_requested" = 0 ] && command -v modem_scanc >/dev/null 2>&1; then
+			modem_scanc add "$slot" usb 0 >/dev/null 2>&1 || :
+			rescan_requested=1
+		fi
 		has_audio=0
 		for card in "$root/$slot"/"$slot":*/sound/card*; do
 			[ -d "$card" ] && has_audio=1 && break
 		done
-		if [ "$saw_absent" = 1 ] && [ -n "$endpoint" ] && [ "$has_audio" = "$want_audio" ]; then
+		if [ "$saw_absent" = 1 ] && [ -n "$endpoint" ] && { [ "$want_audio" = any ] || [ "$has_audio" = "$want_audio" ]; }; then
+			[ "$want_audio" != any ] || return 0
 			[ "$want_audio" = 0 ] && [ -n "$pcm_endpoint" ] && return 0
 			grep -q 'playback.*capture' "$proc/pcm" 2>/dev/null && return 0
 		fi

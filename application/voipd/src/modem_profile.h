@@ -9,6 +9,10 @@ struct qmodem_voip_modem_profile {
 	char model[64];
 	char usb_id[32];
 	char method[16];
+	char audio_policy[16];
+	char fallback_reason[64];
+	char selection_state[32];
+	char firmware[96];
 	char socket_path[108];
 	unsigned idle_clcc_poll;
 	unsigned interface_number;

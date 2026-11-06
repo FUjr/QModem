@@ -1,5 +1,15 @@
 #!/bin/sh
 . /usr/lib/qmodem_voip/modem_safety.sh
+# Serialize configuration transactions, including across daemon restarts.
+lock=${QMODEM_VOIP_SAFETY_LOCK:-/var/lock/qmodem-voip-audio.lock}
+mkdir -p "$(dirname "$lock")" || exit 1
+exec 9>"$lock"
+flock -n 9 || exit 1
+if [ "$(qmodem_voip_adapter_usb_id 2>/dev/null)" = 2c7c:0801 ]; then
+	. /usr/lib/qmodem_voip/rm520n_native.sh
+	rm520n_dispatch "${1:-recover}"
+	exit $?
+fi
 case ${1:-recover} in
 	probe) qmodem_voip_probe ;; enable) qmodem_voip_enable ;; disable) qmodem_voip_disable ;; verify) qmodem_voip_verify ;; arm) qmodem_voip_arm ;; recover) qmodem_voip_recover ;;
 	*) echo 'usage: qmodem_voip_modem_safety {probe|enable|disable|verify|arm|recover}' >&2; exit 64 ;;

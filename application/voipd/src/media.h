@@ -140,6 +140,14 @@ struct qmodem_voip_media_engine {
 	uint64_t tone_failures;
 	atomic_uint_fast64_t rtp_received_packets;
 	atomic_uint_fast64_t rtp_sent_packets;
+	/* Nonblocking ALSA I/O retains partial frames between uloop ticks. */
+	int16_t alsa_capture[QMODEM_VOIP_PCM_MAX_SAMPLES];
+	int16_t alsa_playback[QMODEM_VOIP_PCM_MAX_SAMPLES];
+	int alsa_io_failed;
+	unsigned alsa_io_errors;
+	size_t alsa_capture_used;
+	size_t alsa_playback_used;
+	size_t alsa_playback_count;
 	struct _snd_pcm *capture_pcm;
 	struct _snd_pcm *playback_pcm;
 	struct qmodem_voip_serial_state serial;

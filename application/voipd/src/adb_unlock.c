@@ -13,27 +13,7 @@
 
 #define AT_ADAPTER "/usr/lib/qmodem_voip/at_daemon_adapter.sh"
 #define ADB_KEY_TEXT "SH_adb_quectel"
-#define ADB_PROGRAM "/usr/bin/adb"
-#define MEDIA_GATE_SOURCE "/usr/share/qmodem_voip/module/libqvoice_media_gate.so"
-#define MEDIA_GATE_TEMP "/tmp/libqvoice_media_gate.so"
-#define MEDIA_GATE_INSTALL_SOURCE "/usr/share/qmodem_voip/module/install_media_gate.sh"
-#define MEDIA_GATE_INSTALL_TEMP "/tmp/install_qmodem_voip_media_gate.sh"
-#define VOICE_SERVER_SHA256 "dc9d154d58942e83e3582cfc58ae59c88863052b345279c3bb8f4e5b25f28b33"
 #define MAX_OUTPUT 512
-#define ADB_COMMAND_TIMEOUT_SECONDS 8U
-#define MEDIA_GATE_INSTALL_ATTEMPTS 10U
-#define MEDIA_GATE_RETRY_SECONDS 2U
-
-static int valid_sha256_output(const char *output)
-{
-	size_t i;
-	if (!output)
-		return 0;
-	for (i = 0; i < 64U; i++)
-		if (!isxdigit((unsigned char)output[i]))
-			return 0;
-	return isspace((unsigned char)output[64]);
-}
 
 static int run_capture_timeout(const char *program, char *const argv[], char *output,
 			       size_t output_size, unsigned timeout_seconds)
@@ -93,82 +73,6 @@ static int adapter_at(const char *command, char *output, size_t output_size)
 {
 	char *const argv[] = { (char *)AT_ADAPTER, "at", (char *)command, NULL };
 	return run_capture(AT_ADAPTER, argv, output, output_size);
-}
-
-static int run_program_timeout(const char *program, char *const argv[],
-			       unsigned timeout_seconds)
-{
-	pid_t child = fork();
-	int status;
-
-	if (child < 0)
-		return -1;
-	if (child == 0) {
-		if (timeout_seconds)
-			alarm(timeout_seconds);
-		execv(program, argv);
-		_exit(127);
-	}
-	while (waitpid(child, &status, 0) < 0) {
-		if (errno != EINTR)
-			return -1;
-	}
-	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
-}
-
-static int install_media_gate(void)
-{
-	char output[MAX_OUTPUT];
-	unsigned attempt;
-	char *const hash_argv[] = { (char *)ADB_PROGRAM, "shell", "sha256sum",
-		"/usr/bin/quectel_voice_server", NULL };
-	char *const push_argv[] = { (char *)ADB_PROGRAM, "push",
-		(char *)MEDIA_GATE_SOURCE, (char *)MEDIA_GATE_TEMP, NULL };
-	char *const push_install_argv[] = { (char *)ADB_PROGRAM, "push",
-		(char *)MEDIA_GATE_INSTALL_SOURCE, (char *)MEDIA_GATE_INSTALL_TEMP, NULL };
-	char *const install_argv[] = { (char *)ADB_PROGRAM, "shell", "sh",
-		(char *)MEDIA_GATE_INSTALL_TEMP, NULL };
-
-	if (access(MEDIA_GATE_SOURCE, R_OK) != 0 ||
-	    access(MEDIA_GATE_INSTALL_SOURCE, R_OK) != 0) {
-		syslog(LOG_ERR, "media gate source files are unavailable");
-		return -1;
-	}
-	for (attempt = 0; attempt < MEDIA_GATE_INSTALL_ATTEMPTS; attempt++) {
-		if (run_capture_timeout(ADB_PROGRAM, hash_argv, output, sizeof(output),
-			ADB_COMMAND_TIMEOUT_SECONDS) == 0) {
-			if (valid_sha256_output(output) &&
-			    strncmp(output, VOICE_SERVER_SHA256,
-				sizeof(VOICE_SERVER_SHA256) - 1U) != 0) {
-				syslog(LOG_ERR, "voice-server hash is unsupported");
-				return -1;
-			}
-			if (!valid_sha256_output(output)) {
-				syslog(LOG_WARNING,
-					"ADB voice-server hash unavailable (attempt %u/%u)",
-					attempt + 1U, MEDIA_GATE_INSTALL_ATTEMPTS);
-				goto retry;
-			}
-			if (run_program_timeout(ADB_PROGRAM, push_argv,
-				ADB_COMMAND_TIMEOUT_SECONDS) == 0 &&
-			    run_program_timeout(ADB_PROGRAM, push_install_argv,
-				ADB_COMMAND_TIMEOUT_SECONDS) == 0 &&
-			    run_program_timeout(ADB_PROGRAM, install_argv,
-				ADB_COMMAND_TIMEOUT_SECONDS) == 0)
-				return 0;
-			syslog(LOG_WARNING,
-				"ADB media gate deployment failed (attempt %u/%u)",
-				attempt + 1U, MEDIA_GATE_INSTALL_ATTEMPTS);
-		} else {
-			syslog(LOG_WARNING,
-				"ADB voice-server query failed (attempt %u/%u)",
-				attempt + 1U, MEDIA_GATE_INSTALL_ATTEMPTS);
-		}
-	retry:
-		if (attempt + 1U < MEDIA_GATE_INSTALL_ATTEMPTS)
-			sleep(MEDIA_GATE_RETRY_SECONDS);
-	}
-	return -1;
 }
 
 static int adb_key(const char *response, char *key, size_t key_size)
@@ -289,15 +193,14 @@ int main(int argc, char **argv)
 	openlog("qmodem_voip_adb", LOG_PID, LOG_DAEMON);
 	if (argc != 2)
 		return 64;
-	if (strcmp(argv[1], "install-media-gate") == 0)
-		return install_media_gate() == 0 ? 0 : 1;
-	if (strcmp(argv[1], "unlock") != 0)
+	int authorize_only = strcmp(argv[1], "authorize") == 0;
+	if (!authorize_only && strcmp(argv[1], "unlock") != 0)
 		return 64;
-	if (adapter_at("AT+QCFG=\"usbcfg\"", response, sizeof(response)) != 0)
+	if (!authorize_only && adapter_at("AT+QCFG=\"usbcfg\"", response, sizeof(response)) != 0)
 		return 1;
-	if (current_adb_enabled(response))
+	if (!authorize_only && current_adb_enabled(response))
 		return 0;
-	if (adb_usbcfg(response, configuration, sizeof(configuration)) != 0)
+	if (!authorize_only && adb_usbcfg(response, configuration, sizeof(configuration)) != 0)
 		return 1;
 	if (adapter_at("AT+QADBKEY?", response, sizeof(response)) != 0 ||
 		adb_key(response, key, sizeof(key)) != 0)
@@ -305,6 +208,9 @@ int main(int argc, char **argv)
 	(void)snprintf(command, sizeof(command), "AT+QADBKEY=\"%s\"", key);
 	if (adapter_at(command, response, sizeof(response)) != 0)
 		return 1;
+	/* Authorize a composition write without enabling ADB or resetting USB. */
+	if (authorize_only)
+		return 0;
 	(void)snprintf(command, sizeof(command), "AT+QCFG=\"usbcfg\",%s", configuration);
 	if (adapter_at(command, response, sizeof(response)) != 0 ||
 		adapter_at("AT+QPOWD=1", response, sizeof(response)) != 0)

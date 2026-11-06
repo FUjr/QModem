@@ -34,6 +34,37 @@ void qmodem_voip_profile_default(struct qmodem_voip_modem_profile *profile)
 	profile->frame_bytes = profile->frame_samples * sizeof(int16_t);
 }
 
+static void native_selection(struct qmodem_voip_modem_profile *profile)
+{
+	const char *journal = getenv("QMODEM_VOIP_JOURNAL");
+	char text[160];
+	FILE *file;
+	snprintf(profile->audio_policy, sizeof(profile->audio_policy), "auto");
+	snprintf(profile->selection_state, sizeof(profile->selection_state), "not_ready");
+	if (!journal) journal = "/var/lib/qmodem_voip/modem-safety.journal";
+	file = fopen(journal, "r");
+	if (!file) return;
+	while (fgets(text, sizeof(text), file)) {
+		char *value = strchr(text, '=');
+		if (!value) continue;
+		*value++ = '\0';
+		value[strcspn(value, "\r\n")] = '\0';
+		if (!strcmp(text, "media_method") &&
+		    (!strcmp(value, "uac") || !strcmp(value, "serial_pcm")))
+			snprintf(profile->method, sizeof(profile->method), "%s", value);
+		else if (!strcmp(text, "audio_policy") &&
+			 (!strcmp(value, "auto") || !strcmp(value, "uac") || !strcmp(value, "serial_pcm")))
+			snprintf(profile->audio_policy, sizeof(profile->audio_policy), "%s", value);
+		else if (!strcmp(text, "fallback_reason") && strlen(value) < sizeof(profile->fallback_reason))
+			memcpy(profile->fallback_reason, value, strlen(value) + 1U);
+		else if (!strcmp(text, "phase") && strlen(value) < sizeof(profile->selection_state))
+			memcpy(profile->selection_state, value, strlen(value) + 1U);
+	}
+	fclose(file);
+	snprintf(profile->qpcmv, sizeof(profile->qpcmv), "%s",
+		 !strcmp(profile->method, "uac") ? "1,2" : "1,0");
+}
+
 static void copy_string(char *target, const char *value, size_t size)
 {
 	if (!value || !value[0])
@@ -128,6 +159,16 @@ int qmodem_voip_profile_load(struct qmodem_voip_modem_profile *profile,
 			continue;
 		if (entry_usb_id_text && usb_id && strcmp(entry_usb_id_text, usb_id) != 0)
 			continue;
+		if (entry_model_text && !strcmp(entry_model_text, "RM520N-GL") &&
+		    json_object_object_get_ex(entry, "capability_file", &property)) {
+			const char *shared = getenv("QMODEM_VOIP_SUPPORTS");
+			if (!shared) shared = json_object_get_string(property);
+			/* Only the RM520 profile redirects; capabilities cannot redirect again. */
+			if (!shared || !strcmp(shared, path)) { json_object_put(root); return -1; }
+			int rc = qmodem_voip_profile_load(profile, shared, "RM520N-GL", usb_id);
+			json_object_put(root);
+			return rc;
+		}
 		if (!json_object_object_get_ex(entry, "audio", &audio) ||
 		    json_object_get_type(audio) != json_type_object) {
 			json_object_put(root);
@@ -181,6 +222,13 @@ int qmodem_voip_profile_load(struct qmodem_voip_modem_profile *profile,
 		     !service_name_valid(profile->voice_server_service))) {
 			json_object_put(root);
 			return -1;
+		}
+		if (!strcmp(profile->model, "RM520N-GL")) {
+			profile->adb_unlock = profile->voice_server_media_gate = profile->voice_server_restart = 0;
+			profile->voice_server_dependency_service[0] = '\0';
+			if (json_object_object_get_ex(entry, "firmware", &property))
+				copy_string(profile->firmware, json_object_get_string(property), sizeof(profile->firmware));
+			native_selection(profile);
 		}
 		profile->frame_samples = profile->sample_rate * profile->frame_ms / 1000U;
 		profile->frame_bytes = profile->frame_samples * sizeof(int16_t);

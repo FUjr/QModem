@@ -11,8 +11,6 @@ PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 
 include $(INCLUDE_DIR)/package.mk
 
-QMODEM_VOIP_MODULE_CC?=clang
-
 define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Utilities
@@ -21,7 +19,7 @@ define Package/$(PKG_NAME)
 	+alsa-lib +libsoxr \
 	+PACKAGE_libwebsockets-full:libwebsockets-full \
 	+!PACKAGE_libwebsockets-full:libwebsockets-openssl +px5g-mbedtls \
-	+kmod-usb-serial +kmod-usb-serial-option
+	+kmod-usb-serial +kmod-usb-serial-option +kmod-usb-audio +flock
 endef
 
 define Package/$(PKG_NAME)/description
@@ -37,12 +35,6 @@ define Build/Prepare
 endef
 
 define Build/Compile
-	$(QMODEM_VOIP_MODULE_CC) --target=arm-linux-gnueabihf -march=armv7-a \
-		-fuse-ld=lld -shared -fPIC -Os -nostdlib -std=gnu11 \
-		-Wall -Wextra -Werror -Wl,--build-id=none -Wl,--hash-style=gnu \
-		-Wl,-soname,libqvoice_media_gate.so \
-		-o $(PKG_BUILD_DIR)/libqvoice_media_gate.so \
-		$(PKG_BUILD_DIR)/qvoice_media_gate.c
 	$(TARGET_CC) $(TARGET_CPPFLAGS) $(TARGET_CFLAGS) -std=gnu11 -Wall -Wextra -Werror \
 		-I$(STAGING_DIR)/usr/include \
 		-o $(PKG_BUILD_DIR)/qmodem_voip_adb_unlock \
@@ -74,10 +66,6 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./files/usr/lib/qmodem_voip/*.sh $(1)/usr/lib/qmodem_voip/
 	$(INSTALL_DATA) ./files/usr/share/qmodem/modem_supports.json $(1)/usr/share/qmodem/
 	$(INSTALL_DATA) ./files/usr/share/qmodem_voip/modem_profiles.json $(1)/usr/share/qmodem_voip/
-	$(INSTALL_DIR) $(1)/usr/share/qmodem_voip/module
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/libqvoice_media_gate.so $(1)/usr/share/qmodem_voip/module/
-	$(INSTALL_BIN) ./files/usr/share/qmodem_voip/module/install_media_gate.sh \
-		$(1)/usr/share/qmodem_voip/module/
 	$(INSTALL_BIN) ./files/usr/sbin/qmodem_voip_modem_safety $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/usr/sbin/qmodem_voip_daemon_wait $(1)/usr/sbin/
 	$(INSTALL_BIN) ./files/usr/sbin/qmodem_voip_web $(1)/usr/sbin/

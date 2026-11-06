@@ -66,6 +66,10 @@ void qmodem_voip_browser_timer(struct uloop_timeout *timeout)
 		app->call.state == QMODEM_VOIP_ACTIVE &&
 		qmodem_voip_media_socket_attached(&app->media_sock);
 	(void)timeout;
+	if (qmodem_voip_native_media_fault()) {
+		if (app->native_media_fault_pending) uloop_timeout_set(&app->browser_timer, 20);
+		return;
+	}
 	qmodem_voip_media_sync();
 	if (app->media.ready && !app->media_sock.ready)
 		(void)qmodem_voip_media_socket_start(&app->media_sock, &app->media,
@@ -106,6 +110,15 @@ void qmodem_voip_media_status(struct blob_buf *buffer)
 	blobmsg_add_string(buffer, "media", app->media.ready ? "ready" : "not_ready");
 	blobmsg_add_string(buffer, "media_engine", app->media.ready ? "ready" : "not_ready");
 	blobmsg_add_string(buffer, "media_backend", backend);
+	if (!strcmp(app->media.profile.model, "RM520N-GL")) {
+		blobmsg_add_string(buffer, "audio_policy", app->media.profile.audio_policy);
+		blobmsg_add_string(buffer, "selection_state", app->media.profile.selection_state);
+		blobmsg_add_string(buffer, "fallback_reason", app->media.profile.fallback_reason);
+		blobmsg_add_string(buffer, "audio_firmware", app->media.profile.firmware);
+		blobmsg_add_u8(buffer, "firmware_verified", !strcmp(app->media.profile.selection_state, "enabled"));
+		blobmsg_add_string(buffer, "last_error", !strcmp(app->media.profile.selection_state, "failed") ?
+			"native_audio_failed" : "");
+	}
 	blobmsg_add_string(buffer, "browser_media", app->browser.ready ? "ready" : "not_ready");
 	blobmsg_add_string(buffer, "rtp_media", app->rtp.active ? "attached" : "detached");
 	if (qmodem_voip_browser_media_url(&app->browser, media_url, sizeof(media_url)))

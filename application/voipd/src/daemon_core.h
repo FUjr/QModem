@@ -41,6 +41,7 @@ struct qmodem_voip_context {
 	unsigned int serial_active_arm_attempts;
 	unsigned int serial_active_generation;
 	unsigned int serial_arm_process_generation;
+	int native_media_fault_pending;
 	int start_enabled;
 	int stop;
 };
@@ -87,6 +88,7 @@ int qmodem_voip_reply_status(struct ubus_context *ubus,
 			     const char *error, const char *message);
 int qmodem_voip_reply_ok_snapshot(struct ubus_context *ubus,
 				  struct ubus_request_data *request);
+int qmodem_voip_native_media_fault(void);
 void qmodem_voip_call_timer(struct uloop_timeout *timeout);
 void qmodem_voip_activation_timer(struct uloop_timeout *timeout);
 void qmodem_voip_restart_timer(struct uloop_timeout *timeout);

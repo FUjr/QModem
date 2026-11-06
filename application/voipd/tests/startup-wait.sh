@@ -36,20 +36,11 @@ if grep -q 'qmodem_voip_recover_startup' "$ROOT/files/etc/init.d/qmodem_voip"; t
 	echo 'FAIL: blocking modem recovery remains in the procd registration path' >&2
 	exit 1
 fi
-grep -q 'MEDIA_GATE_INSTALL_SOURCE' "$ROOT/src/adb_unlock.c"
-grep -q '"shell", "sh"' "$ROOT/src/adb_unlock.c"
-grep -q 'ADB_COMMAND_TIMEOUT_SECONDS 8U' "$ROOT/src/adb_unlock.c"
-grep -q 'MEDIA_GATE_INSTALL_ATTEMPTS 10U' "$ROOT/src/adb_unlock.c"
-grep -q 'alarm(timeout_seconds)' "$ROOT/src/adb_unlock.c"
-grep -q 'sleep(MEDIA_GATE_RETRY_SECONDS)' "$ROOT/src/adb_unlock.c"
-grep -q '/proc/\$pid/environ' \
-	"$ROOT/files/usr/share/qmodem_voip/module/install_media_gate.sh"
-count=$(grep -c 'qmodem_voip_prepare_media_gate(&app->media.profile)' \
-	"$ROOT/src/daemon_core.c")
-[ "$count" -ge 3 ] || {
-	echo 'FAIL: enable, originate, and answer do not validate the running media gate' >&2
+if grep -q 'install-media-gate' "$ROOT/src/adb_unlock.c" ||
+   grep -q 'libqvoice_media_gate' "$ROOT/Makefile"; then
+	echo 'FAIL: PCM patch is still built or installable' >&2
 	exit 1
-}
+fi
 if grep -q 'qmodem_voip_prepare_adb\|qmodem_voip_prepare_media_gate' "$ROOT/src/main.c"; then
 	echo 'FAIL: daemon startup still unlocks ADB or installs the media gate' >&2
 	exit 1

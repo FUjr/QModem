@@ -4,22 +4,7 @@
     {
       "model": "RM520N-GL",
       "usb_id": "2c7c:0801",
-      "adb_unlock": true,
-      "voice_server_media_gate": true,
-      "voice_server_restart": true,
-      "voice_server_dependency_service": "agm_server.service",
-      "voice_server_service": "quectel-voice-server.service",
-      "audio": {
-        "method": "serial_pcm",
-        "interface_number": "01",
-        "sample_rate": 8000,
-        "frame_ms": 20,
-        "transfer_bytes": 1024,
-        "transfer_interval_ms": 60,
-        "qaudmod": 2,
-        "qpcmv": "1,0",
-        "qpcmv_cfg": "8000,20"
-      }
+      "capability_file": "/usr/share/qmodem/modem_supports.json"
     },
     {
       "model": "RG500Q-EA",

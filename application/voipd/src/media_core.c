@@ -198,6 +198,13 @@ void qmodem_voip_media_detach(struct qmodem_voip_media_engine *engine)
 		qmodem_voip_serial_set_attached(engine, 0);
 	qmodem_voip_media_queue_clear(&engine->modem_to_canonical);
 	qmodem_voip_media_queue_clear(&engine->canonical_to_modem);
+	engine->alsa_capture_used = engine->alsa_playback_used = engine->alsa_playback_count = 0;
+#ifndef QMODEM_VOIP_HOST_TEST
+	if (engine->backend == QMODEM_VOIP_MEDIA_BACKEND_UAC) {
+		if (engine->capture_pcm) { snd_pcm_drop(engine->capture_pcm); snd_pcm_prepare(engine->capture_pcm); }
+		if (engine->playback_pcm) { snd_pcm_drop(engine->playback_pcm); snd_pcm_prepare(engine->playback_pcm); }
+	}
+#endif
 	zero(&engine->rtp, sizeof(engine->rtp));
 	engine->attachment = QMODEM_VOIP_MEDIA_ATTACH_NONE;
 	engine->session_id = 0;
