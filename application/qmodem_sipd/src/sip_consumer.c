@@ -94,6 +94,8 @@ struct consumer {
 	unsigned media_attach_attempts;
 	struct sockaddr_in rtp_peer;
 	enum qmodem_voip_media_codec rtp_codec;
+	struct uloop_timeout rtp_clock;
+	uint32_t last_capture_ms;
 	uint16_t rtp_sequence;
 	uint32_t rtp_timestamp;
 	uint32_t rtp_ssrc;
@@ -1648,6 +1650,7 @@ static uint32_t monotonic_ms(void)
 
 static void detach_media(void)
 {
+	uloop_timeout_cancel(&app.rtp_clock);
 	if (app.media_fd_event.fd >= 0) {
 		uloop_fd_delete(&app.media_fd_event);
 		app.media_fd_event.fd = -1;
@@ -1692,26 +1695,10 @@ static int rtp_open(void)
 	return 0;
 }
 
-static void media_readable(struct uloop_fd *event, unsigned events)
+static void send_rtp_samples(const int16_t *samples)
 {
-	struct qmodem_voip_media_socket_message message;
-	struct qmodem_voip_media_socket_pcm pcm;
 	uint8_t packet[RTP_PACKET_SIZE] = { 0 };
-	int result;
 	int i;
-	(void)events;
-	(void)event;
-	result = qmodem_voip_media_socket_client_read(&app.media_sock, &message);
-	if (result < 0) {
-		stop_media();
-		return;
-	}
-	if (result == 0)
-		return;
-	if (message.header.type != QMODEM_VOIP_MEDIA_SOCKET_PCM_CAPTURE ||
-	    message.header.payload_length != sizeof(pcm))
-		return;
-	memcpy(&pcm, &message.body.pcm, sizeof(pcm));
 	packet[0] = 0x80;
 	packet[1] = (uint8_t)app.rtp_codec;
 	packet[2] = (uint8_t)(app.rtp_sequence >> 8);
@@ -1724,7 +1711,7 @@ static void media_readable(struct uloop_fd *event, unsigned events)
 	packet[9] = (uint8_t)(app.rtp_ssrc >> 16);
 	packet[10] = (uint8_t)(app.rtp_ssrc >> 8);
 	packet[11] = (uint8_t)app.rtp_ssrc;
-	if (g711_bridge_encode(app.rtp_codec, pcm.samples,
+	if (g711_bridge_encode(app.rtp_codec, samples,
 		QMODEM_VOIP_MEDIA_SAMPLES, &packet[RTP_HEADER_SIZE]) != 0)
 		return;
 	if (app.rtp_attached && app.rtp_fd >= 0 &&
@@ -1738,6 +1725,40 @@ static void media_readable(struct uloop_fd *event, unsigned events)
 	app.rtp_timestamp += QMODEM_VOIP_MEDIA_SAMPLES;
 	for (i = 0; i < (int)sizeof(packet); i++)
 		packet[i] = 0;
+}
+
+static void rtp_clock_tick(struct uloop_timeout *timeout)
+{
+	int16_t silence[QMODEM_VOIP_MEDIA_SAMPLES] = { 0 };
+	(void)timeout;
+	if (!app.rtp_attached)
+		return;
+	if ((uint32_t)(monotonic_ms() - app.last_capture_ms) >= 40U)
+		send_rtp_samples(silence);
+	if (app.rtp_attached)
+		uloop_timeout_set(&app.rtp_clock, 20);
+}
+
+static void media_readable(struct uloop_fd *event, unsigned events)
+{
+	struct qmodem_voip_media_socket_message message;
+	struct qmodem_voip_media_socket_pcm pcm;
+	int result;
+	(void)events;
+	(void)event;
+	result = qmodem_voip_media_socket_client_read(&app.media_sock, &message);
+	if (result < 0) {
+		stop_media();
+		return;
+	}
+	if (result == 0)
+		return;
+	if (message.header.type != QMODEM_VOIP_MEDIA_SOCKET_PCM_CAPTURE ||
+	    message.header.payload_length != sizeof(pcm))
+		return;
+	memcpy(&pcm, &message.body.pcm, sizeof(pcm));
+	app.last_capture_ms = monotonic_ms();
+	send_rtp_samples(pcm.samples);
 }
 
 static int media_playback_to_modem(const uint8_t *packet, size_t length)
@@ -1889,6 +1910,9 @@ static int attach_media(void)
 	uloop_fd_add(&app.rtp_fd_event, ULOOP_READ);
 	app.media_attached = 1;
 	app.rtp_attached = 1;
+	app.last_capture_ms = monotonic_ms() - 40U;
+	app.rtp_clock.cb = rtp_clock_tick;
+	uloop_timeout_set(&app.rtp_clock, 0);
 	return 0;
 }
 
