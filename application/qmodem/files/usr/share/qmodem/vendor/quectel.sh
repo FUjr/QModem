@@ -560,6 +560,8 @@ get_band()
     echo "$band"
 }
 
+# Quectel band lists must not be empty. Keep this per-RAT capability in
+# getter responses so shared LuCI pages do not block other vendors' reset UI.
 get_lockband_nr()
 {
     local at_port="$1"
@@ -577,12 +579,14 @@ get_lockband_nr()
     nsa_nr_band=$(cmd_qnwprefcfg_band_query "$at_port" "nsa_nr5g_band"|grep -e "+QNWPREFCFG: ")
     sa_nr_band=$(cmd_qnwprefcfg_band_query "$at_port" "nr5g_band"|grep -e "+QNWPREFCFG: ")
     json_add_object "UMTS"
+    json_add_boolean "allow_empty" 0
     json_add_array "available_band"
     json_close_array
     json_add_array "lock_band"
     json_close_object
     json_close_object
     json_add_object "LTE"
+    json_add_boolean "allow_empty" 0
     json_add_array "available_band"
     json_close_array
     json_add_array "lock_band"
@@ -590,12 +594,14 @@ get_lockband_nr()
     json_close_object
 
     json_add_object "NR"
+    json_add_boolean "allow_empty" 0
     json_add_array "available_band"
     json_close_array
     json_add_array "lock_band"
     json_close_array
     json_close_object
     json_add_object "NR_NSA"
+    json_add_boolean "allow_empty" 0
     json_add_array "available_band"
     json_close_array
     json_add_array "lock_band"
@@ -685,12 +691,14 @@ get_lockband_lte12()
     nsa_nr_band=$(cmd_qnwprefcfg_band_query "$at_port" "nsa_nr5g_band"|grep -e "+QNWPREFCFG: ")
     sa_nr_band=$(cmd_qnwprefcfg_band_query "$at_port" "nr5g_band"|grep -e "+QNWPREFCFG: ")
     json_add_object "UMTS"
+    json_add_boolean "allow_empty" 0
     json_add_array "available_band"
     json_close_array
     json_add_array "lock_band"
     json_close_object
     json_close_object
     json_add_object "LTE"
+    json_add_boolean "allow_empty" 0
     json_add_array "available_band"
     json_close_array
     json_add_array "lock_band"
@@ -749,18 +757,21 @@ get_lockband_unisoc()
     nsa_nr_band=$(cmd_qnwprefcfg_band_query "$at_port" "nsa_nr5g_band"|grep -e "+QNWPREFCFG: ")
     sa_nr_band=$(cmd_qnwprefcfg_band_query "$at_port" "nr5g_band"|grep -e "+QNWPREFCFG: ")
     json_add_object "UMTS"
+    json_add_boolean "allow_empty" 0
     json_add_array "available_band"
     json_close_array
     json_add_array "lock_band"
     json_close_object
     json_close_object
     json_add_object "LTE"
+    json_add_boolean "allow_empty" 0
     json_add_array "available_band"
     json_close_array
     json_add_array "lock_band"
     json_close_array
     json_close_object
     json_add_object "NR"
+    json_add_boolean "allow_empty" 0
     json_add_array "available_band"
     json_close_array
     json_add_array "lock_band"
@@ -862,6 +873,7 @@ get_lockband_lte()
     fi
     LOCK_BAND=$(convert2band $LTE_LOCK)
     json_add_object "Lte"
+    json_add_boolean "allow_empty" 0
     json_add_array available_band
     add_avalible_band_entry "1" "B01" 
     add_avalible_band_entry "3" "B03"
@@ -911,7 +923,7 @@ get_lockband()
 set_lockband_lte()
 {
     hex=$(convert2hex $lock_band)
-    res=$(cmd_qcfg_band_reset "$at_port" "$hex"   2>&1 > /dev/null)
+    res=$(cmd_qcfg_band_reset "$at_port" "$hex" 2>&1)
 }
 
 set_lockband_nr(){
@@ -935,24 +947,70 @@ set_lockband_nr(){
 #设置锁频
 set_lockband()
 {
-    m_debug  "quectel set lockband info"
-    config=$1
-    #{"band_class":"NR","lock_band":"41,78,79"}
-    band_class=$(echo $config | jq -r '.band_class')
-    lock_band=$(echo $config | jq -r '.lock_band')
-    case "$platform" in
-        "lte")
-            set_lockband_lte
-        ;;
-        *)
-            set_lockband_nr
-        ;;
-    esac
-    json_select "result"
+    local config="$1" band_class="" lock_band="" res="" ret=0 error=""
+    m_debug "quectel set lockband info"
+
+    # Both LuCI and RPC callers must pass a non-empty list of positive band IDs.
+    # An empty list is not an unlock command on Quectel QNWPREFCFG modems.
+    if ! printf '%s' "$config" | jq -e '
+        type == "object" and
+        (.band_class | type == "string") and
+        (.lock_band | type == "string")' >/dev/null 2>&1; then
+        error="Invalid band configuration"
+    else
+        band_class=$(printf '%s' "$config" | jq -r '.band_class')
+        # A sentinel preserves trailing newlines so validation cannot silently
+        # turn malformed input into a valid list during command substitution.
+        lock_band=$(printf '%s' "$config" | jq -r '.lock_band + "x"')
+        lock_band=${lock_band%x}
+        # The legacy QCFG getter exposes its LTE class as "Lte".
+        [ "$platform" != "lte" ] || [ "$band_class" != "Lte" ] || band_class=LTE
+        case "$band_class" in
+            UMTS|LTE|NR_NSA|NR) ;;
+            *) error="Unsupported band class" ;;
+        esac
+        case "$lock_band" in
+            *[!0-9,]*) error="Invalid band list" ;;
+        esac
+        if [ -z "$error" ]; then
+            if [ -z "$lock_band" ]; then
+                error="Select at least one band; an empty list does not unlock bands"
+            elif ! printf '%s\n' "$lock_band" | grep -Eq '^[1-9][0-9]*(,[1-9][0-9]*)*$'; then
+                error="Invalid band list"
+            elif [ "$platform" = "lte" ] && [ "$band_class" != "LTE" ]; then
+                error="Unsupported band class for LTE modem"
+            fi
+        fi
+    fi
+
+    if [ -z "$error" ]; then
+        if case "$platform" in
+            lte) set_lockband_lte ;;
+            *) set_lockband_nr ;;
+        esac; then
+            ret=0
+        else
+            ret=$?
+        fi
+        # A successful transport exit alone does not mean the modem accepted it.
+        if [ "$ret" -ne 0 ] || ! printf '%s\n' "$res" | tr -d '\r' | grep -qx 'OK' ||
+            printf '%s\n' "$res" | grep -Eq '(^|[[:space:]])(ERROR|\+CME ERROR:|\+CMS ERROR:)'; then
+            error="The modem rejected the band configuration or did not acknowledge it"
+        fi
+    fi
+
+    # modem_ctrl pre-creates result; the rpcd entry point starts at the root.
+    json_select "result" 2>/dev/null || json_add_object "result"
     json_add_string "set_lockband" "$res"
     json_add_string "config" "$config"
     json_add_string "band_class" "$band_class"
     json_add_string "lock_band" "$lock_band"
+    if [ -n "$error" ]; then
+        json_add_boolean "success" 0
+        json_add_string "error" "$error"
+    else
+        json_add_boolean "success" 1
+    fi
     json_close_object
 }
 
