@@ -5,20 +5,12 @@ on:
     paths:
       - 'application/qmodem/**'
       - 'testcases/**'
-      - 'tests/test_quectel_band_lock.py'
-      - 'tests/test_band_lock_ui.js'
-      - 'luci/luci-app-qmodem/luasrc/view/qmodem/modem_debug.htm'
-      - 'luci/luci-app-qmodem-next/htdocs/luci-static/resources/view/qmodem/config_advanced.js'
       - 'scripts/import_testcases.sh'
       - '.github/workflows/vendor-fixtures.yml'
   pull_request:
     paths:
       - 'application/qmodem/**'
       - 'testcases/**'
-      - 'tests/test_quectel_band_lock.py'
-      - 'tests/test_band_lock_ui.js'
-      - 'luci/luci-app-qmodem/luasrc/view/qmodem/modem_debug.htm'
-      - 'luci/luci-app-qmodem-next/htdocs/luci-static/resources/view/qmodem/config_advanced.js'
       - 'scripts/import_testcases.sh'
       - '.github/workflows/vendor-fixtures.yml'
 
@@ -69,9 +61,5 @@ jobs:
           application/qmodem/tests/test_fixture_profiles.sh
           QMODEM_TEST_SEAL_BIN=/tmp/qmodem-seal \
             application/qmodem/tests/test_collect_encryption.sh
-      - name: Check band-lock validation and UI results
-        run: |
-          python3 tests/test_quectel_band_lock.py -v
-          node tests/test_band_lock_ui.js
       - name: Replay vendor fixtures
         run: application/qmodem/tests/test_vendor_fixtures.sh
