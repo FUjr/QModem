@@ -16,6 +16,17 @@ mode=$(uci -q get qmodem_voip.sip.mode)
 enabled=$(uci -q get qmodem_voip.sip.enabled)
 enabled=${enabled:-0}
 
+uci -q set "qmodem_sip.$direction=direction"
+uci -q set "qmodem_sip.$direction.direction=$direction"
+uci -q set "qmodem_sip.$direction.sms_enabled=0"
+uci -q set "qmodem_sip.$direction.voip_enabled=$enabled"
+uci -q set "qmodem_sip.$direction.listen_port=5060"
+uci -q set "qmodem_sip.$direction.transport=udp_tcp"
+[ "$direction" != outbound ] || {
+ uci -q set "qmodem_sip.$direction.listen_port=5061"
+ uci -q set "qmodem_sip.$direction.transport=tls"
+}
+uci -q set qmodem_sip.main.schema_version=1
 uci -q set "qmodem_sip.$direction.enabled=$enabled"
 copy_option qmodem_voip.sip.interface "qmodem_sip.$direction.interface"
 copy_option qmodem_voip.sip.media_socket_path qmodem_sip.main.media_socket_path

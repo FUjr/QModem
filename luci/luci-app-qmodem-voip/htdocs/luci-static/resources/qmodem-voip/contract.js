@@ -32,7 +32,7 @@ const PARAMS = Object.freeze({
 });
 
 const SNAPSHOT_FIELDS = Object.freeze([
-	'state', 'enabled', 'origin', 'endpoint', 'answer_owner',
+	'state', 'enabled', 'origin', 'endpoint', 'answer_owner', 'modem_id', 'group',
 	'number_present', 'caller_id_withheld', 'remote_number',
 	'call_duration_seconds', 'revision', 'restart_epoch',
 	'sequence', 'drop_count', 'reconcile_pending', 'media', 'media_engine',

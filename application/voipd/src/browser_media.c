@@ -240,6 +240,7 @@ int qmodem_voip_browser_configure(struct qmodem_voip_browser_media *browser,
 	    parsed.s_addr == INADDR_ANY || (ntohl(parsed.s_addr) >> 24) == 127U ||
 	    copy_string(browser->address, sizeof(browser->address), address))
 		return -1;
+	strcpy(browser->socket_path,"/var/run/qmodem_voip/websocket.sock");
 	browser->engine = engine;
 	qmodem_voip_browser_tokens_init(&browser->tokens);
 	return 0;
@@ -510,7 +511,7 @@ int qmodem_voip_browser_media_start(struct qmodem_voip_browser_media *browser)
 		 * and proxies /qmodem-voip/media to this UNIX socket. */
 		info.options = LWS_SERVER_OPTION_UNIX_SOCK;
 		info.port = 0;
-		info.iface = QMODEM_VOIP_BROWSER_SOCKET_PATH;
+		info.iface = browser->socket_path;
 		info.protocols = browser_protocols;
 		info.user = browser;
 		browser->context = lws_create_context(&info);

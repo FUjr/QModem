@@ -19,6 +19,7 @@ qmodem_voip_adapter_section()
 	match=
 	for section in $(uci -q show qmodem 2>/dev/null |
 		sed -n 's/^qmodem\.\([A-Za-z0-9_]*\)=modem-device$/\1/p'); do
+		[ -z "${QMODEM_VOIP_MODEM_ID:-}" ] || [ "$section" = "$QMODEM_VOIP_MODEM_ID" ] || continue
 		case $(uci -q get "qmodem.$section.name") in
 			rm520n-gl) ;;
 			rg500q-ea) ;;

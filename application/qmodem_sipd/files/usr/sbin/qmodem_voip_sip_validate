@@ -1,30 +1,44 @@
 #!/bin/sh
-
 set -eu
-direction=${1:?direction required}
-enabled=$(uci -q get "qmodem_sip.$direction.enabled" || true)
-[ "$enabled" = 1 ] || exit 0
-interface=$(uci -q get "qmodem_sip.$direction.interface" || true)
-case "$interface" in ''|*[!A-Za-z0-9_.:-]*) echo "invalid $direction interface" >&2; exit 1 ;; esac
-[ "$(uci -q get "qmodem_sip.$direction.sms_enabled" || true)" != 1 ] ||
-	[ -n "$(uci -q get "qmodem_sip.$direction.sms_modem" || true)" ] || exit 1
-
-case "$direction" in
-inbound)
-	[ "$(uci -q get qmodem_sip.inbound.transport || true)" = udp_tcp ] || exit 1
-	port=$(uci -q get qmodem_sip.inbound.listen_port || true)
-	[ -n "$(uci -q get qmodem_sip.inbound.username || true)" ] || exit 1
-	[ -n "$(uci -q get qmodem_sip.inbound.password || true)" ] || exit 1
-	;;
-outbound)
-	[ "$(uci -q get qmodem_sip.outbound.transport || true)" = tls ] || exit 1
-	port=$(uci -q get qmodem_sip.outbound.port || true)
-	server=$(uci -q get qmodem_sip.outbound.server || true)
-	case "$server" in ''|*[!A-Za-z0-9_.:-]*) exit 1 ;; esac
-	[ -n "$(uci -q get qmodem_sip.outbound.username || true)" ] || exit 1
-	[ -n "$(uci -q get qmodem_sip.outbound.password || true)" ] || exit 1
-	;;
-*) exit 2 ;;
-esac
+section=${1:?section required}
+case "$section" in ''|*[!A-Za-z0-9_]*) exit 1 ;; esac
+get() { uci -q get "qmodem_sip.$section.$1" || true; }
+sms=$(get sms_enabled)
+voice=$(get voip_enabled)
+[ "$sms" = 1 ] || [ "$voice" = 1 ] || exit 0
+group=$(get group)
+case "$group" in ''|*[!A-Za-z0-9_]*) exit 1 ;; esac
+[ "$(uci -q get "qmodem_sip.$group" || true)" = group ] || exit 1
+[ ${#group} -le 47 ] || exit 1
+modem=$(uci -q get "qmodem_sip.$group.modem_id" || true)
+[ "$(uci -q get "qmodem.$modem" || true)" = modem-device ] || exit 1
+interface=$(get interface)
+case "$interface" in ''|*[!A-Za-z0-9_]*) exit 1 ;; esac
+username=$(get username)
+password=$(get password)
+case "$username" in ''|*[!A-Za-z0-9_-]*) exit 1 ;; esac
+case "$password" in ''|*[!A-Za-z0-9_-]*) exit 1 ;; esac
+[ ${#password} -ge 16 ] && [ ${#password} -le 128 ] || exit 1
+port=$(get listen_port)
 case "$port" in ''|*[!0-9]*) exit 1 ;; esac
-[ "$port" -ge 1 ] && [ "$port" -le 65535 ]
+[ "$port" -ge 1024 ] && [ "$port" -le 65535 ] || exit 1
+rtp=$(get rtp_start)
+case "$rtp" in ''|*[!0-9]*) exit 1 ;; esac
+[ "$rtp" -ge 1024 ] && [ "$rtp" -le 65534 ] || exit 1
+case "$(get direction)" in
+ inbound) [ "$(get transport)" = udp_tcp ] || exit 1 ;;
+ outbound)
+  [ "$(get transport)" = tls ] || exit 1
+  server=$(get server)
+  case "$server" in ''|*[!A-Za-z0-9.-]*) exit 1 ;; esac
+  port=$(get port)
+  case "$port" in ''|*[!0-9]*) exit 1 ;; esac
+  [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || exit 1
+  realm=$(get realm)
+  case "$realm" in ''|*[!A-Za-z0-9_.-]*) exit 1 ;; esac
+  interval=$(get register_interval)
+  case "$interval" in ''|*[!0-9]*) exit 1 ;; esac
+  [ "$interval" -ge 60 ] && [ "$interval" -le 3600 ] || exit 1
+  ;;
+ *) exit 1 ;;
+esac

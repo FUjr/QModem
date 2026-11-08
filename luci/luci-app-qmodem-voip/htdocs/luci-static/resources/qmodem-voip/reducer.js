@@ -40,6 +40,8 @@ function copySnapshot(input) {
 
 	return {
 		state: input.state,
+		modem_id: String(input.modem_id || ''),
+		group: String(input.group || ''),
 		enabled: asBoolean(input.enabled),
 		origin: String(input.origin || 'none'),
 		endpoint: String(input.endpoint || 'none'),
@@ -115,6 +117,8 @@ function reduce(state, action) {
 	case 'SNAPSHOT':
 		return applySnapshot(current, action.value, 'snapshot', '');
 	case 'EVENT':
+		if (current.snapshot?.modem_id && current.snapshot.modem_id !== action.value?.modem_id)
+			return current;
 		return applySnapshot(current, action.value, 'event', action.value?.event || '');
 	case 'ERROR':
 		return Object.assign({}, current, { error: action.value || null });

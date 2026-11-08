@@ -211,6 +211,7 @@ function forwardSip(msg, api_config) {
 	try {
 		result = conn.call('qmodem.sip', 'send_message', {
 			direction: config.direction,
+			group: config.group || '',
 			recipient_uri: config.recipient_uri,
 			sender: msg.sender || '',
 			timestamp: msg.timestamp || 0,

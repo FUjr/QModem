@@ -1,0 +1,28 @@
+{
+  "admin/modem/qmodem/qmodem-sipd": {
+    "title": "SIP Service",
+    "order": 98,
+    "action": {
+      "type": "view",
+      "path": "qmodem-sipd/sip"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-qmodem-sipd"
+      ]
+    }
+  },
+  "admin/modem/advanced/qmodem-sipd": {
+    "title": "SIP Service",
+    "order": 98,
+    "action": {
+      "type": "alias",
+      "path": "admin/modem/qmodem/qmodem-sipd"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-qmodem-sipd"
+      ]
+    }
+  }
+}

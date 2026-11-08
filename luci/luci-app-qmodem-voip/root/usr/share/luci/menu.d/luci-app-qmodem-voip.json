@@ -1,33 +1,26 @@
 {
-	"admin/modem/qmodem/qmodem-voip": {
-		"title": "Experimental Voice (unsupported)",
-		"order": 97,
-		"action": {
-			"type": "view",
-			"path": "qmodem-voip/call"
-		},
-		"depends": {
-			"acl": [ "luci-app-qmodem-voip" ]
-		}
-	},
-	"admin/modem/qmodem/qmodem-sipd": {
-		"title": "SIP Service",
-		"order": 98,
-		"action": {
-			"type": "view",
-			"path": "qmodem-voip/sip"
-		},
-		"depends": {
-			"acl": [ "luci-app-qmodem-voip" ]
-		}
-	},
-	"admin/modem/advanced/qmodem-voip": {
-		"action": {
-			"type": "alias",
-			"path": "admin/modem/qmodem/qmodem-voip"
-		},
-		"depends": {
-			"acl": [ "luci-app-qmodem-voip" ]
-		}
-	}
+  "admin/modem/qmodem/qmodem-voip": {
+    "title": "Experimental Voice (unsupported)",
+    "order": 97,
+    "action": {
+      "type": "view",
+      "path": "qmodem-voip/call"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-qmodem-voip"
+      ]
+    }
+  },
+  "admin/modem/advanced/qmodem-voip": {
+    "action": {
+      "type": "alias",
+      "path": "admin/modem/qmodem/qmodem-voip"
+    },
+    "depends": {
+      "acl": [
+        "luci-app-qmodem-voip"
+      ]
+    }
+  }
 }

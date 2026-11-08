@@ -1,8 +1,28 @@
 #!/bin/sh /etc/rc.common
 START=99
 USE_PROCD=1
-
-start_service()
+start_modem()
+{
+ local group="$1" modem enabled interface
+ groups_present=1
+ config_get modem "$group" modem_id
+ config_get enabled "$group" enabled 0
+ [ "$enabled" = 1 ] || enabled=0
+ case "$group:$modem" in *[!A-Za-z0-9_:]*|:|*: ) return 0 ;; esac
+ case " $modems " in *" $modem "*) logger -t qmodem_voip 'duplicate voice modem rejected'; return 0 ;; esac
+ modems="$modems $modem"
+ config_get interface "$group" interface lan
+ mkdir -p -m 700 "/var/run/qmodem_voip/$group" "/var/lib/qmodem_voip/$group"
+ procd_open_instance "$group"
+ procd_set_param command /usr/sbin/qmodem_voip_daemon_wait \
+  --media-interface "$interface" --media-cert /dev/null --media-key /dev/null \
+  --media-socket-path "/var/run/qmodem_voip/$group/media.sock" --start-enabled "$enabled" \
+  --group "$group" --modem-id "$modem"
+ procd_set_param env "QMODEM_VOIP_MODEM_ID=$modem" "QMODEM_VOIP_JOURNAL=/var/lib/qmodem_voip/$group/modem-safety.journal"
+ procd_set_param respawn 3600 5 5
+ procd_close_instance
+}
+start_legacy()
 {
 	mkdir -p -m 700 /etc/qmodem_voip
 	mkdir -p -m 700 /var/run/qmodem_voip
@@ -26,33 +46,45 @@ start_service()
 	/usr/sbin/qmodem_voip_web
 }
 
+start_service()
+{
+ local modems='' groups_present=0
+ mkdir -p -m 700 /etc/qmodem_voip /var/run/qmodem_voip /var/lib/qmodem_voip
+ config_load qmodem_voip
+ config_foreach start_modem modem
+ [ "$groups_present" = 1 ] || { start_legacy; return; }
+ procd_open_instance control
+ procd_set_param command /usr/sbin/qmodem_voip_control
+ procd_set_param respawn 3600 5 5
+ procd_close_instance
+ /usr/sbin/qmodem_voip_web
+}
+voice_busy()
+{
+ local group state objects='qmodem_voip'
+ for group in $(uci -q show qmodem_voip | sed -n 's/^qmodem_voip\.\([A-Za-z0-9_]*\)=modem$/\1/p'); do
+  objects="$objects qmodem.voip.$group"
+ done
+ for group in $objects; do
+  state=$(ubus -t 2 call "$group" status 2>/dev/null | jsonfilter -e '@.state')
+  case "$state" in active|incoming_ringing|outgoing_setup|early_media|terminating|recovering) return 0 ;; esac
+ done
+ return 1
+}
 reload_service()
 {
-	# An RM520 policy change may re-enumerate USB. Keep the live call intact.
-	status=$(ubus -t 2 call qmodem_voip status 2>/dev/null)
-	policy=$(printf '%s' "$status" | jsonfilter -e '@.audio_policy')
-	state=$(printf '%s' "$status" | jsonfilter -e '@.state')
-	case $policy:$state in
-	?*:active|?*:incoming_ringing|?*:outgoing_setup|?*:early_media|?*:terminating|?*:recovering)
-		(
-			exec 8>/var/run/qmodem_voip/reload.lock
-			flock -n 8 || exit 0
-			while :; do
-				state=$(ubus -t 2 call qmodem_voip status 2>/dev/null | jsonfilter -e '@.state')
-				case $state in idle|disabled|fault) break ;; esac
-				sleep 1
-			done
-			/etc/init.d/qmodem_voip restart
-		) </dev/null >/dev/null 2>&1 &
-		logger -t qmodem_voip 'audio policy apply deferred until call is idle'
-		return 0 ;;
-	esac
-	stop
-	start
-	/usr/sbin/qmodem_voip_web
+ if voice_busy; then
+  (
+   exec 8>/var/run/qmodem_voip/reload.lock
+   flock -n 8 || exit 0
+   while voice_busy; do sleep 1; done
+   /etc/init.d/qmodem_voip restart
+  ) </dev/null >/dev/null 2>&1 &
+  logger -t qmodem_voip 'audio policy apply deferred until call is idle'
+  return 0
+ fi
+ stop
+ start
+ /usr/sbin/qmodem_voip_web
 }
-
-service_triggers()
-{
-	procd_add_reload_trigger qmodem_voip
-}
+service_triggers() { procd_add_reload_trigger qmodem_voip qmodem; }

@@ -1,0 +1,1 @@
+{"luci-app-qmodem-sipd":{"description":"Manage modem SIP groups and import gateway provisioning","read":{"uci":["qmodem_sip","qmodem","network","qmodem_voip"],"ubus":{"qmodem.sip":["status"],"qmodem.sip.provision":["preview"]}},"write":{"uci":["qmodem_sip","qmodem_voip"],"ubus":{"qmodem.sip.provision":["apply"]}}}}

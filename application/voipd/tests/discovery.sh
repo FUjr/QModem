@@ -69,6 +69,16 @@ if qmodem_voip_adapter_section >/dev/null 2>&1; then
 	exit 1
 fi
 
+QMODEM_VOIP_MODEM_ID=2_1_1
+export QMODEM_VOIP_MODEM_ID
+[ "$(qmodem_voip_adapter_section)" = 2_1_1 ]
+[ "$(qmodem_voip_adapter_endpoint)" = /dev/ttyUSB3 ]
+QMODEM_VOIP_MODEM_ID=3_1_1
+[ "$(qmodem_voip_adapter_section)" = 3_1_1 ]
+QMODEM_VOIP_MODEM_ID=not_present
+if qmodem_voip_adapter_section; then exit 1; fi
+unset QMODEM_VOIP_MODEM_ID
+
 qmodem_voip_adapter_endpoint() { printf '%s\n' /dev/ttyUSB3; }
 qmodem_voip_adapter_port_open() { return 0; }
 json_init() { :; }

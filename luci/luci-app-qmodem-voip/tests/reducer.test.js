@@ -147,20 +147,23 @@ assert.match(cssSource, /\.qvoip-page \.cbi-section/);
 assert.match(cssSource, /\.qvoip-keypad \.cbi-button/);
 
 const rpcSource = fs.readFileSync(path.resolve(__dirname, '../htdocs/luci-static/resources/qmodem-voip/rpc.js'), 'utf8');
-assert.match(rpcSource, /object: 'qmodem\.sip'[\s\S]+method: 'status'/);
-assert.match(rpcSource, /object: 'qmodem\.sip'[\s\S]+method: 'generate_credentials'/);
+assert.match(rpcSource, /modem_id/);
+assert.match(rpcSource, /selectModem/);
+assert.doesNotMatch(rpcSource, /generate_credentials/);
 
-const sipViewSource = fs.readFileSync(path.resolve(__dirname, '../htdocs/luci-static/resources/view/qmodem-voip/sip.js'), 'utf8');
+const sipViewSource = fs.readFileSync(path.resolve(__dirname, '../../luci-app-qmodem-sipd/htdocs/luci-static/resources/view/qmodem-sipd/sip.js'), 'utf8');
 assert.match(sipViewSource, /new form\.Map\('qmodem_sip'/);
-assert.match(sipViewSource, /map\.section\(form\.NamedSection, 'inbound', 'direction'/);
-assert.match(sipViewSource, /map\.section\(form\.NamedSection, 'outbound', 'direction'/);
-assert.match(sipViewSource, /uci\.sections\('network', 'interface'\)/);
-assert.match(sipViewSource, /Generate credentials/);
-assert.match(sipViewSource, /rpc\.generateSipCredentials\(username\)/);
+assert.match(sipViewSource, /form\.GridSection,'group'/);
+assert.match(sipViewSource, /form\.GridSection,'direction'/);
+assert.match(sipViewSource, /uci\.sections\('network','interface'\)/);
+assert.match(sipViewSource, /qmodem\.sip\.provision/);
+assert.match(sipViewSource, /Preview and enroll/);
 
 const menu = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../root/usr/share/luci/menu.d/luci-app-qmodem-voip.json'), 'utf8'));
 assert.ok(menu['admin/modem/qmodem/qmodem-voip']);
-assert.ok(menu['admin/modem/qmodem/qmodem-sipd']);
+assert.equal(menu['admin/modem/qmodem/qmodem-sipd'], undefined);
+const sipMenu = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../luci-app-qmodem-sipd/root/usr/share/luci/menu.d/luci-app-qmodem-sipd.json'), 'utf8'));
+assert.ok(sipMenu['admin/modem/qmodem/qmodem-sipd']);
 assert.equal(menu['admin/modem/advanced/qmodem-voip'].title, undefined);
 assert.deepEqual(menu['admin/modem/advanced/qmodem-voip'].action, {
 	type: 'alias',
@@ -168,3 +171,12 @@ assert.deepEqual(menu['admin/modem/advanced/qmodem-voip'].action, {
 });
 
 console.log('PASS: qmodem voip reducer contract');
+
+{
+ const first = reducer.reduce(reducer.initialState(), { type: 'SNAPSHOT', value: {state: 'idle', enabled: true, modem_id: 'm1', group: 'first', revision: 1} });
+ assert.equal(first.snapshot.group, 'first');
+ const other = reducer.reduce(first, { type: 'EVENT', value: {event: 'state', state: 'active', modem_id: 'm2', revision: 2} });
+ assert.equal(other, first, 'another modem must not change the selected call');
+ const own = reducer.reduce(first, { type: 'EVENT', value: {event: 'state', state: 'active', modem_id: 'm1', group: 'first', revision: 2} });
+ assert.equal(own.snapshot.state, 'active');
+}

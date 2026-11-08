@@ -1,0 +1,10 @@
+#!/bin/sh
+case "$1" in
+ list) printf '%s\n' '{"preview":{"config":"","modem_id":"","interface":""},"apply":{"config":"","modem_id":"","interface":""}}' ;;
+ call)
+  case "$2" in preview|apply) ;; *) exit 1 ;; esac
+  mkdir /var/lock/qmodem-sip-import.lock 2>/dev/null || { printf '%s\n' '{"status":"error","error":"Another import is running"}'; exit 0; }
+  trap 'rmdir /var/lock/qmodem-sip-import.lock' EXIT INT TERM
+  /usr/bin/ucode /usr/share/qmodem_sip/import.uc "$2"
+  ;;
+esac
