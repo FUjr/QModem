@@ -1,0 +1,7 @@
+{
+ "admin/network/qmodem-uplink": {
+  "title": "Uplink Balancing", "order": 65,
+  "action": {"type": "view", "path": "qmodem/uplink"},
+  "depends": {"acl": ["qmodem-uplink"], "uci": {"qmodem_uplink": true}}
+ }
+}

@@ -1,0 +1,13 @@
+#!/bin/sh
+RUN=${QMODEM_UPLINK_RUN:-/var/run/qmodem-uplink}
+UP_STATE=${QMODEM_UPLINK_STATE:-/etc/qmodem-uplink}
+. "${QMODEM_UPLINK_CORE:-/usr/share/qmodem-uplink/core.sh}"
+. "${QMODEM_UPLINK_BALANCE:-/usr/share/qmodem-uplink/balance.sh}"
+. "${QMODEM_UPLINK_SETTINGS:-/usr/share/qmodem-uplink/settings.sh}"
+mkdir -p "$RUN"
+exec 9>"$RUN/lock"
+flock -n 9 || exit 0
+up_nft_cleanup
+up_cleanup_routes
+up_firewall_restore
+up_rpf_restore

@@ -170,9 +170,6 @@ msgstr "运行中"
 msgid "Stopped"
 msgstr "已停止"
 
-msgid "Loading..."
-msgstr "加载中..."
-
 msgid "Start Service"
 msgstr "启动服务"
 
@@ -220,3 +217,39 @@ msgstr "短信转发器配置"
 
 msgid "SMS Forward Daemon allows automatic forwarding of SMS messages to various APIs."
 msgstr "短信转发器允许自动将短信转发到各种API。"
+
+msgid "Country calling code (optional)"
+msgstr "国家码（可选）"
+
+msgid "As entered"
+msgstr "按原号码发送"
+
+msgid "Save for this modem"
+msgstr "保存到当前模块"
+
+msgid "Send to:"
+msgstr "实际发送至："
+
+msgid "Leave empty to send as entered, including service numbers. Use + for a complete international number. When adding a country code, omit the domestic trunk prefix."
+msgstr "留空时按原号码发送，适用于服务号码等。完整国际号码请以 + 开头。添加国家码时，请省略本地拨号前缀。"
+
+msgid "Invalid country calling code"
+msgstr "国家码无效"
+
+msgid "Invalid phone number"
+msgstr "电话号码无效"
+
+msgid "Invalid international phone number"
+msgstr "国际电话号码无效"
+
+msgid "Loading country calling code"
+msgstr "正在加载国家码"
+
+msgid "Failed to load country calling code"
+msgstr "加载国家码失败"
+
+msgid "Failed to save country calling code"
+msgstr "保存国家码失败"
+
+msgid "Configuration saved"
+msgstr "配置已保存"

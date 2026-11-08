@@ -54,3 +54,39 @@ MODEM_TEST_PATH="$fixture/pci" expect_failure "$resolver" modem0
 ln -s "$fixture/missing" "$fixture/dangling"
 MODEM_TEST_PATH="$fixture/dangling" expect_failure "$resolver" modem0
 echo 'modem endpoint tests passed (pre-dial, nested mux, USB/PCIe, symlink, ambiguity, unplug, replug)'
+
+# Additional generic MHI cases from the remote branch.
+export MODEM_TEST_PATH="$fixture/usb-slot"
+SCRIPT_DIR="$package_dir/files/usr/share/qmodem"
+modem_config=modem0
+# Generic raw MHI: the auxiliary software channel is never a data candidate.
+rmdir "$fixture/device/interface/net/usb1" "$fixture/device/interface/net"
+mkdir -p "$fixture/device/mhi4/mhi4_IP_HW0/net/mhi_hwip7"
+mkdir -p "$fixture/device/mhi4/mhi4_IP_SW0/net/mhi_swip7"
+[ "$("$resolver" modem0)" = mhi_hwip7 ]
+# Exercise protocol detection with the real resolver and driver symlinks.
+eval "$(awk '$0 == "get_driver()" { capture=1 } capture { print } capture && $0 == "}" { exit }' "$package_dir/files/usr/share/qmodem/generic.sh")"
+export QMODEM_SYSFS_ROOT="$fixture/sys"
+mkdir -p "$fixture/sys/class/net" "$fixture/drivers/mhi_net"
+ln -s "$fixture/device/mhi4/mhi4_IP_HW0/net/mhi_hwip7" "$fixture/sys/class/net/mhi_hwip7"
+ln -s "$fixture/device/mhi4/mhi4_IP_HW0" "$fixture/device/mhi4/mhi4_IP_HW0/net/mhi_hwip7/device"
+ln -s "$fixture/drivers/mhi_net" "$fixture/device/mhi4/mhi4_IP_HW0/driver"
+modem_path="$fixture/device"
+[ "$(get_driver)" = qmi ]
+# More than one independent hardware endpoint must still fail closed.
+mkdir -p "$fixture/device/mhi4/mhi4_IP_HW0/net/mhi_hwip8"
+! "$resolver" modem0
+rmdir "$fixture/device/mhi4/mhi4_IP_HW0/net/mhi_hwip8"
+rm "$fixture/device/mhi4/mhi4_IP_HW0/net/mhi_hwip7/device"
+rmdir "$fixture/device/mhi4/mhi4_IP_HW0/net/mhi_hwip7"
+# A control-only MBIM port does not create a second data endpoint.
+mkdir -p "$fixture/device/mhi4/wwan/wwan9/wwan9mbim0"
+! "$resolver" modem0
+rmdir "$fixture/device/mhi4/mhi4_IP_HW0/net"
+# Native WWAN MBIM default link can be parented directly to the controller.
+mkdir -p "$fixture/device/mhi4/net/wwan7" "$fixture/device/mhi4/mhi4_IP_HW0_MBIM" "$fixture/drivers/mhi_wwan_mbim"
+ln -s "$fixture/device/mhi4/net/wwan7" "$fixture/sys/class/net/wwan7"
+ln -s "$fixture/drivers/mhi_wwan_mbim" "$fixture/device/mhi4/mhi4_IP_HW0_MBIM/driver"
+[ "$("$resolver" modem0)" = wwan7 ]
+[ "$(get_driver)" = mbim ]
+echo 'modem endpoint tests passed (USB, nested QMI, generic MHI HW/SW, native MBIM, ambiguity, replug)'

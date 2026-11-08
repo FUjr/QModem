@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/libexec/qmodem-uplink-health enrolled "$1"
