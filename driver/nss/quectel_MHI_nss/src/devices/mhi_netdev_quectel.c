@@ -59,7 +59,6 @@ static bool netdev_is_rx_handler_busy(struct net_device *dev)
 
 #ifdef CONFIG_QCA_NSS_DRV
 #if defined(CONFIG_PINCTRL_IPQ807x) || defined(CONFIG_PINCTRL_IPQ5018) || defined(CONFIG_PINCTRL_IPQ8074)
-#define CONFIG_USE_RMNET_DATA_FOR_SKIP_MEMCPY
 #include <rmnet_nss.h>
 //#ifdef CONFIG_RMNET_DATA //spf12.x have no macro defined, just for spf11.x
 /* define at qca/src/linux-4.4/drivers/net/ethernet/qualcomm/rmnet/rmnet_config.c */ //for spf11.x
@@ -1655,8 +1654,12 @@ static struct net_device * rmnet_vnd_register_device(struct mhi_netdev *pQmapDev
 
 	priv->agg_skb = NULL;
 	priv->agg_count = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,18,0)
 	hrtimer_init(&priv->agg_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	priv->agg_hrtimer.function = rmnet_vnd_tx_agg_timer_cb;
+#else
+	hrtimer_setup(&priv->agg_hrtimer, rmnet_vnd_tx_agg_timer_cb, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+#endif
 	INIT_WORK(&priv->agg_wq, rmnet_vnd_tx_agg_work);
 	ktime_get_ts64(&priv->agg_time);
 	spin_lock_init(&priv->agg_lock);
