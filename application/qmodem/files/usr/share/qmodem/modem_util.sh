@@ -111,6 +111,8 @@ at()
 (
   qmodem_at_lock "$1" || exit $?
   local at_port=$1
+  local timeout_options=""
+  [ -z "${3:-}" ] || timeout_options="-t $3"
   local new_str="${2/[$]/$}"
   local atcmd="${new_str/\"/\"}"
   [ "$clear_buffer" == "1" ] && options="$options -M"
@@ -119,16 +121,16 @@ at()
     local response_file rc
     response_file=$(mktemp /tmp/qmodem_at_response.XXXXXX) || {
       if [ "$(uci get qmodem.main.at_tool 2>/dev/null)" == "1" ]; then
-        sms_tool_q -d $at_port at "$atcmd"
+        sms_tool_q $timeout_options -d $at_port at "$atcmd"
       else
-        tom_modem $use_ubus_flag -d $at_port -o a -c "$atcmd" $options
+        tom_modem $use_ubus_flag -d $at_port -o a -c "$atcmd" $options $timeout_options
       fi
       return $?
     }
     if [ "$(uci get qmodem.main.at_tool 2>/dev/null)" == "1" ]; then
-     sms_tool_q -d $at_port at "$atcmd" > "$response_file"
+     sms_tool_q $timeout_options -d $at_port at "$atcmd" > "$response_file"
     else
-     tom_modem $use_ubus_flag -d $at_port -o a -c "$atcmd" $options > "$response_file"
+     tom_modem $use_ubus_flag -d $at_port -o a -c "$atcmd" $options $timeout_options > "$response_file"
     fi
     rc=$?
     qmodem_record_testcase_file "at" "$atcmd" "$response_file" "$rc"
@@ -137,9 +139,9 @@ at()
     return $rc
   fi
   if [ "$(uci get qmodem.main.at_tool 2>/dev/null)" == "1" ]; then
-   sms_tool_q -d $at_port at "$atcmd"
+   sms_tool_q $timeout_options -d $at_port at "$atcmd"
   else
-   tom_modem $use_ubus_flag  -d $at_port -o a -c "$atcmd" $options
+   tom_modem $use_ubus_flag  -d $at_port -o a -c "$atcmd" $options $timeout_options
   fi
 )
 
@@ -326,6 +328,7 @@ update_sim_slot()
 
 at_get_slot()
 {
+	local vendor="${vendor:-${manufacturer:-}}"
 	case $vendor in
 		"quectel")
 			at_res=$(cmd_util_quimslot_query "$at_port" | awk -F':' '/\+(QUIMSLOT|QUSIMSLOT):/ {
@@ -347,7 +350,7 @@ at_get_slot()
 			esac
 			;;
 		"fibocom")
-			at_res=$(cmd_util_gtdualsim_query "$at_port" |grep +GTDUALSIM: |awk -F: '{print $2}')
+			at_res=$(cmd_util_gtdualsim_query "$at_port" | awk -F: '/\+GTDUALSIM:/ { gsub(/[^0-9]/, "", $2); print $2; exit }')
 			case $at_res in
 				"0")
 					sim_slot="1"
@@ -432,10 +435,10 @@ at_get_slot()
 			esac
 			;;
 		*)
-			at_q_res=$(cmd_util_qsimdet_query "$at_port" |grep +QSIMDET: |awk -F: '{print $2}')
-			at_f_res=$(cmd_util_gtdualsim_query "$at_port" |grep +GTDUALSIM: |awk -F: '{print $2}')
+			at_q_res=$(cmd_util_quimslot_query "$at_port" | awk -F: '/\+(QUIMSLOT|QUSIMSLOT):/ { gsub(/[^0-9]/, "", $2); print $2; exit }')
 			[ "$at_q_res" == "1" ] && sim_slot="1" && return
 			[ "$at_q_res" == "2" ] && sim_slot="2" && return
+			at_f_res=$(cmd_util_gtdualsim_query "$at_port" | awk -F: '/\+GTDUALSIM:/ { gsub(/[^0-9]/, "", $2); print $2; exit }')
 			[ "$at_f_res" == "0" ] && sim_slot="1" && return
 			[ "$at_f_res" == "1" ] && sim_slot="2" && return
 			sim_slot="1"
