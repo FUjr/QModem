@@ -3,7 +3,7 @@
 . /lib/functions.sh
 . /lib/functions/system.sh
 
-BOARD_DEFAULTS_VERSION=5
+BOARD_DEFAULTS_VERSION=4
 BOARD_FILE=/etc/board.json
 BOARD_SCRIPT=/etc/board.d/03_qmodem
 
@@ -12,14 +12,7 @@ merge_qmodem_board_data()
 	local board_tmp="/tmp/qmodem-board.$$.json"
 
 	[ -s "$BOARD_FILE" ] || return 1
-	# Older USB-P board JSON included a nonexistent PCIe slot. Remove it before
-	# regenerating defaults so it cannot be imported again on a later upgrade.
-	jq --arg board "$(board_name)" '
-		del(.qmodem_led) |
-		if $board == "misectel,m01k43-usb-p" then
-			del(.qmodem.slots.pcie0)
-		else . end
-	' "$BOARD_FILE" > "$board_tmp" || return 1
+	jq 'del(.qmodem_led)' "$BOARD_FILE" > "$board_tmp" || return 1
 	if CFG="$board_tmp" /bin/sh "$BOARD_SCRIPT"; then
 		mv "$board_tmp" "$BOARD_FILE"
 		return 0
@@ -301,14 +294,11 @@ configure_m01k21_leds()
 
 fix_m01k43_usb_p()
 {
-	[ "$1" = 'misectel,m01k43-usb-p' ] || return 0
+	[ "$1" = 'misectel,m01k43-usb-p' ] || return
 	[ "$(uci -q get qmodem.usb0.slot)" = '2-1' ] && \
 		uci -q set qmodem.usb0.slot='2-1.1'
-	# Match the physical USB-only topology, including preserved old configs.
-	uci -q delete qmodem.pcie0
-	uci -q set qmodem.usb0.scan_priority=usb
-	uci -q set qmodem.main.enable_pcie_scan=0
-	uci -q set qmodem.main.try_preset_pcie=0
+	[ "$(uci -q get qmodem.pcie0.associated_usb)" = '2-1' ] && \
+		uci -q set qmodem.pcie0.associated_usb='2-1.1'
 }
 
 fix_m02k88_slots()
