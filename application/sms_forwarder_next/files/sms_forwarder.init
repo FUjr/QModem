@@ -6,13 +6,22 @@ STOP=10
 USE_PROCD=1
 PROG=/usr/bin/sms_forwarder_next
 
+sip_receive_enabled() {
+ local connection="$1" receive
+ config_get_bool receive "$connection" receive_sms 0
+ [ "$receive" -eq 0 ] || sip_enabled=1
+}
+
 start_service() {
 	config_load sms_forwarder
 	
 	local enabled
 	config_get_bool enabled sms_forward enable 0
 	
-	if [ "$enabled" -eq 0 ]; then
+	local sip_enabled=0
+	config_load qmodem_sip
+	config_foreach sip_receive_enabled direction
+	if [ "$enabled" -eq 0 ] && [ "$sip_enabled" -eq 0 ]; then
 		echo "SMS Forward service is disabled"
 		return 0
 	fi
@@ -29,5 +38,5 @@ start_service() {
 }
 
 service_triggers() {
-	procd_add_reload_trigger "sms_forwarder"
+	procd_add_reload_trigger "sms_forwarder" "qmodem_sip"
 }

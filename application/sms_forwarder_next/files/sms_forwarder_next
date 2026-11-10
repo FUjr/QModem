@@ -44,17 +44,29 @@ function readConfig() {
 		return null;
 	}
 	
+	let sipInstances = [];
+	ctx.foreach('qmodem_sip', 'direction', section => {
+		if (section.receive_sms != '1' || !section.group) return;
+		let modem = ctx.get('qmodem_sip', section.group, 'modem_id');
+		if (!modem) return;
+		let recipient = section.sms_recipient_uri || (section.direction == 'outbound'
+			? sprintf('sips:sms@%s:%s;transport=tls', section.server, section.port || '5061')
+			: 'sip:sms@localhost');
+		push(sipInstances, { name: section['.name'], modem_cfg: modem,
+			poll_interval: 5, api_type: 'sip', api_config: sprintf('%J', {
+				direction: section.direction, group: section.group, recipient_uri: recipient
+			}) });
+	});
+
 	// Read global config
 	let global_cfg = ctx.get_all('sms_forwarder', 'sms_forward');
 	if (!global_cfg) {
-		log(LOG_LEVEL.ERROR, 'Failed to read sms_forward configuration');
-		return null;
+		return length(sipInstances) ? sipInstances : null;
 	}
 	
 	let enabled = global_cfg.enable == '1';
 	if (!enabled) {
-		log(LOG_LEVEL.INFO, 'SMS forwarder is disabled');
-		return null;
+		return length(sipInstances) ? sipInstances : null;
 	}
 	
 	// Set log level
@@ -65,7 +77,7 @@ function readConfig() {
 	else if (log_level_str == 'debug') current_log_level = LOG_LEVEL.DEBUG;
 	
 	// Read all instances
-	let instances = [];
+	let instances = sipInstances;
 	ctx.foreach('sms_forwarder', 'sms_forward_instance', (section) => {
 		if (section['.type'] != 'sms_forward_instance')
 			return;
@@ -86,6 +98,12 @@ function readConfig() {
 			return;
 		}
 		
+		if (section.api_type == 'sip') {
+			let config;
+			try { config = json(section.api_config || '{}'); } catch (e) { config = {}; }
+			if (length(filter(sipInstances, inst => inst.modem_cfg == section.modem_cfg &&
+				json(inst.api_config).direction == config.direction && json(inst.api_config).recipient_uri == config.recipient_uri))) return;
+		}
 		let poll_interval = int(section.poll_interval || 30);
 		if (poll_interval < 5) poll_interval = 5;
 		

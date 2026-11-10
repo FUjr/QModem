@@ -32,7 +32,10 @@ config_get()
  esac
  eval "$1=\$value"
 }
-uci() { [ "$2" = get ] && printf '%s\n' modem-device; }
+uci() {
+ [ "$2" = get ] || return 1
+ case "$3" in *.sms_mode) echo database_urc ;; *.use_ubus) echo 1 ;; *) echo modem-device ;; esac
+}
 interface_address() { printf '%s\n' 192.0.2.1; }
 logger() { :; }
 procd_open_instance() { printf '%s\n' "$1" >>"$tmp/instances"; }

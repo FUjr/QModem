@@ -258,6 +258,21 @@ static int forwarder_enabled_for(const char *section_name)
     struct uci_element *element;
     int enabled = 0;
 
+    if (uci && uci_load(uci, "qmodem_sip", &package) == UCI_OK) {
+        uci_foreach_element(&package->sections, element) {
+            struct uci_section *section = uci_to_section(element);
+            struct uci_section *group = uci_lookup_section(uci, package, option_string(uci, section, "group", ""));
+            if (group && !strcmp(section->type, "direction") &&
+                !strcmp(option_string(uci, section, "receive_sms", "0"), "1") &&
+                !strcmp(option_string(uci, group, "modem_id", ""), section_name)) {
+                uci_unload(uci, package);
+                uci_free_context(uci);
+                return 1;
+            }
+        }
+        uci_unload(uci, package);
+        package = NULL;
+    }
     if (!uci || uci_load(uci, "sms_forwarder", &package) != UCI_OK)
         goto out;
     uci_foreach_element(&package->sections, element) {

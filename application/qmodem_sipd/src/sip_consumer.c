@@ -124,6 +124,8 @@ struct consumer {
 	int incoming_caller_id_withheld;
 	int incoming_ringing;
 	struct uloop_timeout incoming_offer_timeout;
+	struct uloop_timeout fork_timeout;
+	int fork_cancelled;
 	int invite_alerted;
 	unsigned outbound_port;
 	unsigned outbound_interval;
@@ -138,6 +140,9 @@ struct consumer {
 	char voice_object[96];
 	char credentials_path[256];
 	int voice_enabled;
+	int send_voice;
+	int receive_voice;
+	int receive_sms;
 	unsigned rtp_start;
 	unsigned listen_port;
 	struct ubus_object ubus_object;
@@ -175,6 +180,7 @@ static int g711_bridge_decode(enum qmodem_voip_media_codec codec,
 static struct consumer app;
 static volatile sig_atomic_t running = 1;
 static void stop_media(void);
+static void detach_media(void);
 static void resend_incoming_invite(void);
 static int rtp_open(void);
 static int attach_media(void);
@@ -753,6 +759,10 @@ static void invite_call(pjsip_rx_data *request)
 	}
 	if (!trusted_outbound_request(request) && !authenticate(request))
 		return;
+	if (!app.send_voice) {
+		send_response(request, PJSIP_SC_FORBIDDEN, PJ_FALSE, PJ_FALSE);
+		return;
+	}
 	if (supported_sdp(request, &media) != 0) {
 		send_response(request, PJSIP_SC_NOT_ACCEPTABLE_HERE, PJ_FALSE, PJ_FALSE);
 		return;
@@ -1053,6 +1063,18 @@ static pj_status_t send_outbound_ack(pjsip_tx_data *invite,
 	return status;
 }
 
+static void offer_incoming_call(void);
+
+static void fork_expired(struct uloop_timeout *timeout)
+{
+	(void)timeout;
+	app.fork_cancelled = 0;
+	qmodem_voip_sip_call_release(&app.call);
+	remember_outbound_invite(NULL);
+	if (app.incoming_ringing)
+		offer_incoming_call();
+}
+
 static pj_bool_t on_response(pjsip_rx_data *response);
 
 static void outbound_invite_cb(void *token, pjsip_event *event)
@@ -1066,7 +1088,7 @@ static void outbound_invite_cb(void *token, pjsip_event *event)
 	transaction = event->body.tsx_state.tsx;
 	if (!transaction || transaction->status_code < 200)
 		return;
-	if (event->body.tsx_state.type == PJSIP_EVENT_RX_MSG &&
+	if (!app.fork_cancelled && event->body.tsx_state.type == PJSIP_EVENT_RX_MSG &&
 	    (transaction->status_code == PJSIP_SC_UNAUTHORIZED ||
 	     transaction->status_code == PJSIP_SC_PROXY_AUTHENTICATION_REQUIRED)) {
 		status = pjsip_auth_clt_reinit_req(&app.outbound_auth,
@@ -1081,7 +1103,7 @@ static void outbound_invite_cb(void *token, pjsip_event *event)
 			return;
 		syslog(LOG_WARNING, "qmodem_voip sip: outbound INVITE authentication failed status=%d",
 			(int)status);
-		(void)ubus_action("reject", NULL);
+		if (!app.group[0]) (void)ubus_action("reject", NULL);
 		qmodem_voip_sip_call_release(&app.call);
 	} else if (event->body.tsx_state.type == PJSIP_EVENT_RX_MSG) {
 		(void)on_response(event->body.tsx_state.src.rdata);
@@ -1153,6 +1175,7 @@ static void incoming_offer_timeout(struct uloop_timeout *timeout)
 
 static void offer_incoming_call(void)
 {
+	if (!app.receive_voice) return;
 	if (!app.incoming_ringing || app.call.active)
 		return;
 	if (incoming_number_valid() || app.incoming_caller_id_withheld) {
@@ -1236,6 +1259,23 @@ static pj_bool_t on_response(pjsip_rx_data *response)
 	    copy_pj_string(call_id, sizeof(call_id), &response->msg_info.cid->id) != 0 ||
 	    strcmp(call_id, app.call.call_id) != 0)
 		return PJ_FALSE;
+	if (app.fork_cancelled) {
+		if (status >= 200 && status < 300) {
+			char tag[QMODEM_VOIP_SIP_TAG_SIZE];
+			pjsip_contact_hdr *contact = pjsip_msg_find_hdr(response->msg_info.msg, PJSIP_H_CONTACT, NULL);
+			(void)send_outbound_ack(app.outbound_invite, response);
+			if (contact && response->msg_info.to && copy_pj_string(tag, sizeof(tag), &response->msg_info.to->tag) == 0) {
+				(void)pjsip_uri_print(PJSIP_URI_IN_CONTACT_HDR, contact->uri, app.dialog_contact, sizeof(app.dialog_contact) - 1);
+				if (qmodem_voip_sip_call_establish(&app.call, tag) == 0) send_dialog_bye();
+			}
+		}
+		if (status >= 200) {
+			uloop_timeout_cancel(&app.fork_timeout);
+			fork_expired(NULL);
+		}
+		return PJ_TRUE;
+	}
+
 	if (status == PJSIP_SC_UNAUTHORIZED ||
 	    status == PJSIP_SC_PROXY_AUTHENTICATION_REQUIRED)
 		return PJ_FALSE;
@@ -1255,7 +1295,7 @@ static pj_bool_t on_response(pjsip_rx_data *response)
 		if (ack_status != PJ_SUCCESS) {
 			syslog(LOG_WARNING, "qmodem_voip sip: outbound ACK failed status=%d",
 				(int)ack_status);
-			(void)ubus_action("reject", NULL);
+			if (!app.group[0]) (void)ubus_action("reject", NULL);
 			qmodem_voip_sip_call_release(&app.call);
 		} else if (media_attached) {
 			pjsip_contact_hdr *contact = (pjsip_contact_hdr *)pjsip_msg_find_hdr(
@@ -1285,18 +1325,19 @@ static pj_bool_t on_response(pjsip_rx_data *response)
 					&response->msg_info.to->tag) == 0 &&
 				    qmodem_voip_sip_call_establish(&app.call, remote_tag) == 0)
 					send_dialog_bye();
-				stop_media();
+				if (answer_status == 0) stop_media();
+				else detach_media();
 				qmodem_voip_sip_call_release(&app.call);
 			}
 		} else {
-			(void)ubus_action("reject", NULL);
+			if (!app.group[0]) (void)ubus_action("reject", NULL);
 			qmodem_voip_sip_call_release(&app.call);
 		}
 	} else if (status >= 300) {
 		syslog(LOG_INFO, "qmodem_voip sip: SIP phone declined the call (%d)", status);
 		if (status == PJSIP_SC_BUSY_HERE || status == PJSIP_SC_BUSY_EVERYWHERE ||
 		    status == PJSIP_SC_DECLINE)
-			(void)ubus_action("reject", NULL);
+			if (!app.group[0]) (void)ubus_action("reject", NULL);
 		app.incoming_ringing = 0;
 		qmodem_voip_sip_call_release(&app.call);
 		remember_outbound_invite(NULL);
@@ -1397,10 +1438,10 @@ static int message_request_id(pjsip_rx_data *request, char output[64])
     } else {
         if (!request->msg_info.cid || !request->msg_info.cseq) return -1;
         length=(size_t)request->msg_info.cid->id.slen;
-        input=malloc(length+64);
+        input=malloc(length+160);
         if(!input)return -1;
         memcpy(input,request->msg_info.cid->id.ptr,length);
-        length += (size_t)snprintf(input+length,64,":%ld:%s",(long)request->msg_info.cseq->cseq,app.direction);
+        length += (size_t)snprintf(input+length,160,":%ld:%s:%s",(long)request->msg_info.cseq->cseq,app.group,app.direction);
         SHA256((unsigned char *)input,length,digest);
         free(input);
     }
@@ -1542,6 +1583,9 @@ static int send_message_method(struct ubus_context *context, struct ubus_object 
 	const char *sender = NULL;
 	(void)context; (void)object; (void)method;
 	blobmsg_parse(message_policy, MESSAGE_MAX, values, blob_data(message), blob_len(message));
+	if (!app.receive_sms || (app.modem_id[0] && (!values[MESSAGE_MODEM] ||
+	    strcmp(blobmsg_get_string(values[MESSAGE_MODEM]), app.modem_id))))
+		return UBUS_STATUS_PERMISSION_DENIED;
 	if (!values[MESSAGE_RECIPIENT] || !values[MESSAGE_CONTENT] ||
 	    !values[MESSAGE_ID] || app.pending_message.active)
 		return UBUS_STATUS_INVALID_ARGUMENT;
@@ -2098,6 +2142,17 @@ static void consumer_event(struct ubus_context *context,
 		 app.call.origin == QMODEM_VOIP_SIP_CALL_CELLULAR &&
 		 strcmp(owner, "none") != 0 &&
 		 strcmp(owner, app.outbound ? "external_sip" : "lan_sip") != 0);
+	if (ended && app.group[0] && app.call.active && !app.call.established && app.call.origin == QMODEM_VOIP_SIP_CALL_CELLULAR) {
+		if (!app.fork_cancelled) {
+			send_invite_cancel();
+			detach_media();
+			app.fork_cancelled = 1;
+			app.fork_timeout.cb = fork_expired;
+			uloop_timeout_set(&app.fork_timeout, 32000);
+		}
+		return;
+	}
+
 	if (ended) {
 		syslog(LOG_INFO, "qmodem_voip sip: end event=%s state=%s active=%d established=%d origin=%d",
 			 event, state, app.call.active, app.call.established, app.call.origin);
@@ -2237,6 +2292,7 @@ int main(int argc, char **argv)
 	(void)snprintf(app.pidfile, sizeof(app.pidfile), "%s", DEFAULT_PIDFILE);
 	app.listen_port = 5060;
 	app.voice_enabled = 1;
+	app.send_voice = app.receive_voice = app.receive_sms = 1;
 	app.rtp_start = 40000;
 	strcpy(app.voice_object, "qmodem_voip");
 	strcpy(app.credentials_path, QMODEM_VOIP_SIP_CONFIG);
@@ -2274,6 +2330,12 @@ int main(int argc, char **argv)
             if (copy_config_value(app.modem_id, sizeof(app.modem_id), argv[++i]) != 0) return 2;
         } else if (strcmp(argv[i], "--voice-enabled") == 0 && i + 1 < argc) {
             app.voice_enabled = !strcmp(argv[++i], "1");
+        } else if (strcmp(argv[i], "--send-voice") == 0 && i + 1 < argc) {
+            app.send_voice = !strcmp(argv[++i], "1");
+        } else if (strcmp(argv[i], "--receive-voice") == 0 && i + 1 < argc) {
+            app.receive_voice = !strcmp(argv[++i], "1");
+        } else if (strcmp(argv[i], "--receive-sms") == 0 && i + 1 < argc) {
+            app.receive_sms = !strcmp(argv[++i], "1");
         } else if (strcmp(argv[i], "--credentials") == 0 && i + 1 < argc) {
             if (copy_config_value(app.credentials_path, sizeof(app.credentials_path), argv[++i]) != 0) return 2;
         } else if (strcmp(argv[i], "--rtp-start") == 0 && i + 1 < argc) {

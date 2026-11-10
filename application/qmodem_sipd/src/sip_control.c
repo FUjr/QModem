@@ -80,7 +80,7 @@ static void add_groups(struct ubus_context *context, struct blob_buf *buffer)
     if (uci && uci_load(uci, "qmodem_sip", &package) == UCI_OK) {
         uci_foreach_element(&package->sections, element) {
             struct uci_section *section = uci_to_section(element);
-            const char *group, *direction, *sms, *voice;
+            const char *group, *direction, *sms, *voice, *receive;
             char object_name[160], pidfile[256]; uint32_t id;
             struct direction_status_reply reply = { .buffer=buffer };
             void *table;
@@ -90,13 +90,14 @@ static void add_groups(struct ubus_context *context, struct blob_buf *buffer)
             if (!group || !direction) continue;
             sms=uci_lookup_option_string(uci,section,"sms_enabled");
             voice=uci_lookup_option_string(uci,section,"voip_enabled");
+            receive=uci_lookup_option_string(uci,section,"receive_sms");
             snprintf(object_name,sizeof(object_name),"qmodem.sip.%s.%s",group,direction);
             snprintf(pidfile,sizeof(pidfile),"/var/run/qmodem_sip/%s-%s.pid",group,direction);
             table=blobmsg_open_table(buffer,NULL);
             blobmsg_add_string(buffer,"section",section->e.name);
             blobmsg_add_string(buffer,"group",group);
             blobmsg_add_string(buffer,"direction",direction);
-            blobmsg_add_u8(buffer,"enabled",(sms&&!strcmp(sms,"1"))||(voice&&!strcmp(voice,"1")));
+            blobmsg_add_u8(buffer,"enabled",(sms&&!strcmp(sms,"1"))||(voice&&!strcmp(voice,"1"))||(receive&&!strcmp(receive,"1")));
             blobmsg_add_u8(buffer,"running",process_live(pidfile));
             if (!ubus_lookup_id(context,object_name,&id)) ubus_invoke(context,id,"status",NULL,direction_status_cb,&reply,1000);
             blobmsg_close_table(buffer,table);

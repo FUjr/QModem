@@ -1,0 +1,99 @@
+#!/bin/sh
+# Generate and validate a complete configuration before publishing any connection.
+set -eu
+config_dir=${QMODEM_SIP_CONFIG_DIR:-/etc/config}
+share_dir=${QMODEM_SIP_SHARE_DIR:-/usr/share/qmodem_sip}
+sbin_dir=${QMODEM_SIP_SBIN_DIR:-/usr/sbin}
+status_only=0
+if [ "${1:-}" = --status ]; then status_only=1; shift; fi
+modem=${1:-}
+case "$modem" in *[!A-Za-z0-9_]*) printf '{"status":"invalid","reason":"invalid_modem"}\n'; exit 1 ;; esac
+# Serialize UI retries and the two boot services. The lock contains no secrets.
+lock=${QMODEM_SIP_MIGRATE_LOCK:-/var/lock/qmodem-sip-migrate.lock}
+exec 9>"$lock"
+flock 9
+umask 077
+for package in qmodem qmodem_voip qmodem_sip sms_forwarder; do
+ if [ -n "$(uci -q -c "$config_dir" changes "$package" 2>/dev/null || :)" ]; then
+  printf '{"status":"conflict","reason":"pending_changes"}\n'
+  exit 0
+ fi
+done
+stage=$(mktemp -d "$config_dir/.sip-migrate.XXXXXX")
+publishing=0
+cleanup() {
+ if [ "$publishing" = 1 ]; then
+  for package in qmodem_voip sms_forwarder qmodem qmodem_sip; do
+   if [ -f "$stage/original/$package" ]; then cp -p "$stage/original/$package" "$config_dir/$package";
+   else rm -f "$config_dir/$package"; fi
+  done
+ fi
+ rm -rf "$stage"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+mkdir "$stage/original"
+for package in qmodem qmodem_voip qmodem_sip sms_forwarder; do
+ [ ! -f "$config_dir/$package" ] || cp -p "$config_dir/$package" "$stage/original/$package"
+done
+for package in qmodem qmodem_voip qmodem_sip sms_forwarder; do
+ if [ -f "$config_dir/$package" ]; then cp "$config_dir/$package" "$stage/$package"; else : > "$stage/$package"; fi
+done
+mkdir "$stage/.uci"
+result=$(ucode "$share_dir/migrate.uc" "$stage" "$modem")
+if [ "$(jsonfilter -s "$result" -e '@.status')" != ready ]; then printf '%s\n' "$result"; exit 0; fi
+# Both the helper and its validator must read the staged files, including children.
+mkdir "$stage/bin"
+uci_path=$(command -v uci)
+cat > "$stage/bin/uci" <<'EOF'
+#!/bin/sh
+exec "$QMODEM_MIGRATE_UCI" -c "$QMODEM_MIGRATE_STAGE" -P "$QMODEM_MIGRATE_STAGE/.uci" "$@"
+EOF
+chmod 700 "$stage/bin/uci"
+export QMODEM_MIGRATE_UCI="$uci_path" QMODEM_MIGRATE_STAGE="$stage"
+export PATH="$stage/bin:$PATH"
+ports=' '; rtps=' '
+for section in $(uci -q show qmodem_sip | sed -n 's/^qmodem_sip\.\([A-Za-z0-9_]*\)=direction$/\1/p'); do
+ [ -n "$(uci -q get "qmodem_sip.$section.group" || :)" ] || continue
+ if ! "$sbin_dir/qmodem_voip_sip_validate" "$section"; then
+  printf '{"status":"invalid","reason":"connection_validation_failed"}\n'; exit 0
+ fi
+ port=$(uci -q get "qmodem_sip.$section.listen_port")
+ rtp=$(uci -q get "qmodem_sip.$section.rtp_start")
+ case "$ports" in *" $port "*) printf '{"status":"conflict","reason":"duplicate_port"}\n'; exit 0 ;; esac
+ case "$rtps" in *" $rtp "*|*" $((rtp + 1)) "*) printf '{"status":"conflict","reason":"duplicate_port"}\n'; exit 0 ;; esac
+ ports="$ports$port "; rtps="$rtps$rtp $((rtp + 1)) "
+done
+for port in $ports; do
+ case "$rtps" in *" $port "*) printf '{"status":"conflict","reason":"duplicate_port"}\n'; exit 0 ;; esac
+done
+if [ "$status_only" = 1 ]; then printf '%s\n' "$result"; exit 0; fi
+# The SIP file is the mode switch. Publish it atomically on the same filesystem.
+# Carry recovery baselines only to the matching physical USB slot.
+state_dir=${QMODEM_VOIP_STATE_DIR:-/var/lib/qmodem_voip}
+for group in $(uci -q show qmodem_sip | sed -n 's/^qmodem_sip\.\([A-Za-z0-9_]*\)=group$/\1/p'); do
+ modem=$(uci -q get "qmodem_sip.$group.modem_id")
+ path=$(uci -q get "qmodem.$modem.path" || :); path=${path%/}; slot=${path##*/}
+ source_dir=$state_dir
+ [ ! -f "$state_dir/$modem/modem-safety.journal" ] || source_dir="$state_dir/$modem"
+ journal="$source_dir/modem-safety.journal"
+ [ -f "$journal" ] || continue
+ if [ "$(sed -n 's/^slot=//p' "$journal")" != "$slot" ]; then
+  [ "$source_dir" != "$state_dir" ] || continue
+  printf '{"status":"conflict","reason":"voice_sms_modem_mismatch"}\n'; exit 0
+ fi
+ mkdir -p -m 700 "$state_dir/$group"
+ for file in modem-safety.journal call-history.json; do
+  [ -f "$state_dir/$group/$file" ] || [ ! -f "$source_dir/$file" ] || cp -p "$source_dir/$file" "$state_dir/$group/$file"
+ done
+done
+# Publish dependent files before the SIP schema switch, serialized against boot.
+publishing=1
+for package in qmodem_voip sms_forwarder qmodem; do
+ if ! cmp -s "$stage/$package" "$config_dir/$package"; then
+  mv -f "$stage/$package" "$config_dir/$package"
+ fi
+done
+mv -f "$stage/qmodem_sip" "$config_dir/qmodem_sip"
+publishing=0
+printf '{"status":"migrated"}\n'

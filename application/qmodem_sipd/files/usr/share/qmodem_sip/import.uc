@@ -37,9 +37,18 @@ try {
  let group = 'sip_' + request.modem_id;
  let duplicates = [];
  ctx.foreach('qmodem_sip','group', s => { if (s.modem_id == request.modem_id && s['.name'] != group) push(duplicates,s['.name']); });
- if (length(duplicates)) reject('Modem already belongs to another SIP group');
+ if (length(duplicates) > 1) reject('Modem already belongs to multiple SIP groups');
+ if (length(duplicates)) group = duplicates[0];
  let port=5061,rtp=40000;
- let existing=ctx.get_all('qmodem_sip',group+'_out');
+ let section = group + '_out', existing;
+ ctx.foreach('qmodem_sip', 'direction', s => {
+  if (s.group == group && s.direction == 'outbound') {
+   if (existing) reject('Duplicate outbound direction');
+   existing = s; section = s['.name'];
+  }
+  if (s.group != group && s.direction == 'outbound' && s.server == value.server && s.username == value.username)
+   reject('Different modems must use independent SIP accounts');
+ });
  if(existing){port=int(existing.listen_port);rtp=int(existing.rtp_start);}
  else {
   let used=[],rtps=[];
@@ -63,22 +72,16 @@ try {
  ctx=cursor('/etc/config',staging);
  function set(config,section,option,value){if(!(option == null ? ctx.set(config,section,value) : ctx.set(config,section,option,value)))reject('Unable to stage '+config);}
  set('qmodem_sip',group,null,'group');set('qmodem_sip',group,'modem_id',request.modem_id);
- let section=group+'_out';
  set('qmodem_sip',section,null,'direction');
- let options={group,direction:'outbound',interface:request.interface,listen_port:''+port,rtp_start:''+rtp,transport:'tls',server:value.server,port:''+value.port,username:value.username,password:value.password,realm:value.realm,register_interval:''+value.register_interval,sms_enabled:value.sms_enabled?'1':'0',voip_enabled:value.voip_enabled?'1':'0'};
+ let options={group,direction:'outbound',interface:request.interface,listen_port:''+port,rtp_start:''+rtp,transport:'tls',server:value.server,port:''+value.port,username:value.username,password:value.password,realm:value.realm,register_interval:''+value.register_interval,sms_enabled:value.sms_enabled?'1':'0',voip_enabled:value.voip_enabled?'1':'0',send_voice:value.voip_enabled?'1':'0',receive_voice:value.voip_enabled?'1':'0',receive_sms:value.sms_enabled?'1':'0',sms_recipient_uri:expected};
  for(let key in keys(options))set('qmodem_sip',section,key,options[key]);
  if(value.sms_enabled){
   set('qmodem',request.modem_id,'use_ubus','1');
   if(!modem.sms_mode || modem.sms_mode=='direct')set('qmodem',request.modem_id,'sms_mode','database_poll');
-  set('sms_forwarder','sms_forward',null,'sms_forward');set('sms_forwarder','sms_forward','enable','1');
-  set('sms_forwarder',section,null,'sms_forward_instance');
-  set('sms_forwarder',section,'enable','1');set('sms_forwarder',section,'modem_cfg',request.modem_id);
-  set('sms_forwarder',section,'api_type','sip');set('sms_forwarder',section,'poll_interval','30');
-  set('sms_forwarder',section,'api_config',sprintf('%J',{group,direction:'outbound',recipient_uri:expected}));
- } else if(ctx.get('sms_forwarder',section))set('sms_forwarder',section,'enable','0');
+ }
  if(index(names,'qmodem_voip')>=0){
   set('qmodem_voip',group,null,'modem');set('qmodem_voip',group,'modem_id',request.modem_id);
-  set('qmodem_voip',group,'enabled',value.voip_enabled?'1':'0');set('qmodem_voip',group,'interface',request.interface);
+  set('qmodem_voip',group,'enabled',value.voip_enabled?'1':'0');set('qmodem_voip',group,'interface',ctx.get('qmodem_voip',group,'interface') || 'lan');
  }
  try {
   for(let name in names)if(!ctx.commit(name))reject('Commit failed for '+name);

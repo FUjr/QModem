@@ -1,7 +1,17 @@
 #!/bin/sh
 case "$1" in
- list) printf '%s\n' '{"preview":{"config":"","modem_id":"","interface":""},"apply":{"config":"","modem_id":"","interface":""}}' ;;
+ list) printf '%s\n' '{"migration_status":{},"migrate":{"modem_id":""},"preview":{"config":"","modem_id":"","interface":""},"apply":{"config":"","modem_id":"","interface":""}}' ;;
  call)
+  case "$2" in
+   migration_status) exec /usr/sbin/qmodem_sip_migrate --status ;;
+   migrate)
+    modem=$(jsonfilter -e '@.modem_id')
+    case "$modem" in *[!A-Za-z0-9_]*) exit 1 ;; esac
+    result=$(/usr/sbin/qmodem_sip_migrate "$modem") || exit 1
+    printf '%s\n' "$result"
+    case "$result" in *'"migrated"'*) (/etc/init.d/qmodem_voip reload; /etc/init.d/qmodem_sipd reload; /etc/init.d/sms_forwarder reload) >/dev/null 2>&1 & ;; esac
+    exit 0 ;;
+  esac
   case "$2" in preview|apply) ;; *) exit 1 ;; esac
   mkdir /var/lock/qmodem-sip-import.lock 2>/dev/null || { printf '%s\n' '{"status":"error","error":"Another import is running"}'; exit 0; }
   trap 'rmdir /var/lock/qmodem-sip-import.lock' EXIT INT TERM

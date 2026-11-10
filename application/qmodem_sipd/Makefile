@@ -13,7 +13,7 @@ define Package/$(PKG_NAME)
   SECTION:=utils
   CATEGORY:=Utilities
   TITLE:=QModem SIP transport service (experimental)
-  DEPENDS:=+uci +jsonfilter +jshn +rpcd +ucode +ucode-mod-uci +ucode-mod-fs +libubus +libubox +libblobmsg-json +libjson-c +libuci \
+  DEPENDS:=+uci +jsonfilter +jshn +rpcd +ucode +ucode-mod-uci +ucode-mod-fs +flock +libubus +libubox +libblobmsg-json +libjson-c +libuci \
 	+libopenssl +libpj +libpjlib-util +libpjsip +libpjsip-ua +libsoxr +alsa-lib
 endef
 

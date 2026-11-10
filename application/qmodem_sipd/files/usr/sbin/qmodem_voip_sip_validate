@@ -5,7 +5,8 @@ case "$section" in ''|*[!A-Za-z0-9_]*) exit 1 ;; esac
 get() { uci -q get "qmodem_sip.$section.$1" || true; }
 sms=$(get sms_enabled)
 voice=$(get voip_enabled)
-[ "$sms" = 1 ] || [ "$voice" = 1 ] || exit 0
+receive=$(get receive_sms)
+[ "$sms" = 1 ] || [ "$receive" = 1 ] || [ "$voice" = 1 ] || exit 0
 group=$(get group)
 case "$group" in ''|*[!A-Za-z0-9_]*) exit 1 ;; esac
 [ "$(uci -q get "qmodem_sip.$group" || true)" = group ] || exit 1
@@ -16,9 +17,10 @@ interface=$(get interface)
 case "$interface" in ''|*[!A-Za-z0-9_]*) exit 1 ;; esac
 username=$(get username)
 password=$(get password)
-case "$username" in ''|*[!A-Za-z0-9_-]*) exit 1 ;; esac
-case "$password" in ''|*[!A-Za-z0-9_-]*) exit 1 ;; esac
-[ ${#password} -ge 16 ] && [ ${#password} -le 128 ] || exit 1
+case "$username" in ''|*[!A-Za-z0-9_.-]*) exit 1 ;; esac
+[ ${#username} -le 63 ] || exit 1
+[ ${#password} -ge 8 ] && [ ${#password} -le 127 ] || exit 1
+[ -z "$(printf %s "$password" | LC_ALL=C tr -d '!-~')" ] || exit 1
 port=$(get listen_port)
 case "$port" in ''|*[!0-9]*) exit 1 ;; esac
 [ "$port" -ge 1024 ] && [ "$port" -le 65535 ] || exit 1
@@ -35,7 +37,7 @@ case "$(get direction)" in
   case "$port" in ''|*[!0-9]*) exit 1 ;; esac
   [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || exit 1
   realm=$(get realm)
-  case "$realm" in ''|*[!A-Za-z0-9_.-]*) exit 1 ;; esac
+  case "$realm" in ''|*[!A-Za-z0-9_.*-]*) exit 1 ;; esac
   interval=$(get register_interval)
   case "$interval" in ''|*[!0-9]*) exit 1 ;; esac
   [ "$interval" -ge 60 ] && [ "$interval" -le 3600 ] || exit 1

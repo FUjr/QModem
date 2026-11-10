@@ -50,6 +50,7 @@ start_service()
 {
  local modems='' groups_present=0
  mkdir -p -m 700 /etc/qmodem_voip /var/run/qmodem_voip /var/lib/qmodem_voip
+ [ ! -x /usr/sbin/qmodem_sip_migrate ] || /usr/sbin/qmodem_sip_migrate >/dev/null || return 1
  config_load qmodem_voip
  config_foreach start_modem modem
  [ "$groups_present" = 1 ] || { start_legacy; return; }
