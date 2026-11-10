@@ -31,6 +31,7 @@ with tempfile.TemporaryDirectory(prefix='qmodem-import-') as directory:
     assert run(modem='missing')['status']=='error'
     assert run(modem='m2')['status']=='error'
     assert run('apply')['status']=='success'
+    assert (config/'sms_forwarder').read_text()==files['sms_forwarder']
     modem_config=(config/'qmodem').read_text();assert 'database_urc' in modem_config
     assert modem_config.split("config modem-device 'm2'")[1].split()==files['qmodem'].split("config modem-device 'm2'")[1].split()
     assert (config/'qmodem_sip').stat().st_mode & 0o777 == 0o600

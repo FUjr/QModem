@@ -63,7 +63,6 @@ try {
  if (value.sms_enabled && (!stat('/etc/init.d/qmodem-smsd') || !stat('/etc/init.d/sms_forwarder') || !stat('/etc/config/sms_forwarder'))) reject('Install qmodem-smsd and sms-forwarder-next for SMS enrollment');
  let names=['qmodem_sip','qmodem'];
  if(stat('/etc/config/qmodem_voip'))push(names,'qmodem_voip');
- if(stat('/etc/config/sms_forwarder'))push(names,'sms_forwarder');
  let backup={};
  for(let name in names)backup[name]=readfile('/etc/config/'+name);
  staging=mkdtemp('/tmp/qmodem-sip-import.XXXXXX');
