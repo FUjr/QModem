@@ -165,6 +165,11 @@ function createMediaClient(dependencies) {
 			 * LAN address cannot break a WAN management session or redirect media. */
 			const endpoint = new URL(advertisedEndpoint.pathname, options.httpsOrigin);
 			endpoint.protocol = 'wss:';
+			const modem = advertisedEndpoint.searchParams.get('group');
+			if (modem !== null) {
+				if (!/^[A-Za-z0-9_]{1,47}$/.test(modem)) throw mediaError('not_ready', 'invalid modem binding');
+				endpoint.searchParams.set('group', modem);
+			}
 			endpoint.searchParams.set('session_id', options.sessionId);
 			const connectingSocket = new WebSocketCtor(endpoint.toString(),
 				[ 'qmodem-voip', `qmodem-voip-token.${token}` ]);

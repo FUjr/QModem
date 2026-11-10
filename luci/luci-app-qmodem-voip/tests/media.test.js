@@ -40,14 +40,14 @@ const client = media.createMediaClient({
 (async () => {
 	const connection = client.connect({
 		media: 'ready',
-		url: 'wss://192.168.100.1/qmodem-voip/media',
+		url: 'wss://192.168.100.1/qmodem-voip/media?group=sip_modem_a&token=untrusted',
 		sessionId: '0123456789abcdef0123456789abcdef',
 		callRevision: 42,
 		httpsOrigin: 'https://10.96.210.191'
 	});
 	const duplicateConnection = client.connect({
 		media: 'ready',
-		url: 'wss://192.168.100.1/qmodem-voip/media',
+		url: 'wss://192.168.100.1/qmodem-voip/media?group=sip_modem_a&token=untrusted',
 		sessionId: '0123456789abcdef0123456789abcdef',
 		callRevision: 43,
 		httpsOrigin: 'https://10.96.210.191'
@@ -66,6 +66,7 @@ const client = media.createMediaClient({
 	assert.equal(endpoint.origin, 'wss://10.96.210.191');
 	assert.equal(endpoint.pathname, '/qmodem-voip/media');
 	assert.equal(endpoint.searchParams.has('token'), false);
+	assert.equal(endpoint.searchParams.get('group'), 'sip_modem_a');
 	assert.equal(endpoint.searchParams.get('session_id'), '0123456789abcdef0123456789abcdef');
 
 	socket.readyState = 1;
@@ -74,7 +75,7 @@ const client = media.createMediaClient({
 	assert.equal(await duplicateConnection, socket);
 	assert.equal(await client.connect({
 		media: 'ready',
-		url: 'wss://192.168.100.1/qmodem-voip/media',
+		url: 'wss://192.168.100.1/qmodem-voip/media?group=sip_modem_a&token=untrusted',
 		sessionId: '0123456789abcdef0123456789abcdef',
 		callRevision: 44,
 		httpsOrigin: 'https://10.96.210.191'

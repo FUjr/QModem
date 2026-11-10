@@ -664,7 +664,9 @@ const char *qmodem_voip_browser_media_url(const struct qmodem_voip_browser_media
 					   char *buffer, size_t size)
 {
 	if (!browser || !browser->ready || !buffer || !size ||
-		 snprintf(buffer, size, "wss://%s/qmodem-voip/media", browser->address) >= (int)size)
+		 snprintf(buffer, size, "wss://%s/qmodem-voip/media%s%s", browser->address,
+		 browser->group[0] ? "?group=" : "",
+		 browser->group) >= (int)size)
 		return NULL;
 	return buffer;
 }

@@ -66,6 +66,7 @@ int main(int argc, char **argv)
 	app->rtp.fd = -1;
 	if (qmodem_voip_browser_configure(&app->browser, &app->media, argv[2], argv[4], argv[6]) != 0)
 		return 1;
+	snprintf(app->browser.group,sizeof(app->browser.group),"%.47s",app->group);
 	if(app->group[0])snprintf(app->browser.socket_path,sizeof(app->browser.socket_path),"/var/run/qmodem_voip/%s/websocket.sock",app->group);
 	if (uloop_init() != 0)
 		return 1;
