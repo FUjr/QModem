@@ -90,6 +90,7 @@ done
 # Publish dependent files before the SIP schema switch, serialized against boot.
 publishing=1
 for package in qmodem_voip sms_forwarder qmodem; do
+ [ -f "$stage/original/$package" ] || continue
  if ! cmp -s "$stage/$package" "$config_dir/$package"; then
   mv -f "$stage/$package" "$config_dir/$package"
  fi

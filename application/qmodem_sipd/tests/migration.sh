@@ -184,4 +184,14 @@ before=$(fingerprint)
 "$migrate" | grep -q '"status":[[:space:]]*"current"'
 [ "$(fingerprint)" = "$before" ]
 
+# SMS-only installations must not acquire empty optional-package configs.
+setup
+rm "$QMODEM_SIP_CONFIG_DIR/qmodem_voip" "$QMODEM_SIP_CONFIG_DIR/sms_forwarder"
+u set qmodem_sip.outbound.voip_enabled=0
+u set qmodem_sip.outbound.modem_id=modem_a
+u commit qmodem_sip
+"$migrate" | grep -q '"status":[[:space:]]*"migrated"'
+[ ! -e "$QMODEM_SIP_CONFIG_DIR/qmodem_voip" ]
+[ ! -e "$QMODEM_SIP_CONFIG_DIR/sms_forwarder" ]
+
 echo 'PASS: staged legacy migrations, binding selection, route conflict, validation, idempotency and publication failure'

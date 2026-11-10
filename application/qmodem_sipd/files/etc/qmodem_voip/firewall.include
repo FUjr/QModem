@@ -11,9 +11,10 @@ add_direction()
  config_get port "$section" listen_port
  config_get rtp "$section" rtp_start
  config_get voice "$section" voip_enabled 0
- local sms
+ local sms receive_sms
  config_get sms "$section" sms_enabled 0
- [ "$voice" = 1 ] || [ "$sms" = 1 ] || return 0
+ config_get receive_sms "$section" receive_sms "$sms"
+ [ "$voice" = 1 ] || [ "$sms" = 1 ] || [ "$receive_sms" = 1 ] || return 0
  status=$(ubus -t 2 call "network.interface.$interface" status 2>/dev/null) || return 0
  device=$(printf '%s\n' "$status" | jsonfilter -e '@.l3_device')
  [ -n "$device" ] || return 0
