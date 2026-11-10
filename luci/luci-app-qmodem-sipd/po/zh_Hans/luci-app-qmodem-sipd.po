@@ -1,0 +1,240 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "A legacy SIP SMS route is invalid. Correct its direction and destination first."
+msgstr "旧 SIP 短信路由无效，请先修正方向和接收目标。"
+
+msgid "A legacy SMS route has no configured SIP connection."
+msgstr "旧短信路由没有对应的 SIP 连接配置。"
+
+msgid "A legacy SMS route refers to a disabled SIP connection."
+msgstr "旧短信路由引用了未启用的 SIP 连接。"
+
+msgid "Account"
+msgstr "账号"
+
+msgid "Accounts and modem binding"
+msgstr "账号与模组绑定"
+
+msgid "Advanced"
+msgstr "高级"
+
+msgid "Allow cellular outgoing calls"
+msgstr "允许通过蜂窝网络呼出"
+
+msgid "Allow sending SMS"
+msgstr "允许发送短信"
+
+msgid "Apply"
+msgstr "应用"
+
+msgid "Apply or revert pending modem and SIP settings before migrating."
+msgstr "请先应用或撤销尚未生效的模组和 SIP 配置，再迁移。"
+
+msgid "Automatic"
+msgstr "自动"
+
+msgid "Automatic (LAN for direct clients, WAN for external server)"
+msgstr "自动（直连使用 LAN，外部服务器使用 WAN）"
+
+msgid "Automatic for SIP Gateway Manager"
+msgstr "自动使用 SIP Gateway Manager 目标"
+
+msgid "Automatic ports start at 5060 in connection order. Set a fixed port for direct clients."
+msgstr "自动端口按连接顺序从 5060 递增。建议为直连客户端设置固定端口。"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Client direct connection"
+msgstr "客户端直连"
+
+msgid "Complete the legacy SIP migration before editing connections."
+msgstr "请先完成旧 SIP 配置迁移，再编辑连接。"
+
+msgid "Configuration file is too large."
+msgstr "配置文件过大。"
+
+msgid "Configure a valid account and a password of 8 to 127 printable characters without spaces."
+msgstr "请配置有效账号，以及 8 至 127 位不含空格的可打印字符密码。"
+
+msgid "Configure an account once, then select voice and SMS routes for its modem. Each modem uses independent accounts."
+msgstr "配置账号后，为对应模组选择语音和短信路由。各模组使用独立账号。"
+
+msgid "Confirm SIP enrollment"
+msgstr "确认导入 SIP 配置"
+
+msgid "Connection"
+msgstr "连接"
+
+msgid "Connection settings"
+msgstr "连接设置"
+
+msgid "Connection type"
+msgstr "连接方式"
+
+msgid "Could not write the staged configuration. Existing settings are unchanged."
+msgstr "无法写入临时配置，现有配置未更改。"
+
+msgid "Different modems must use independent SIP accounts."
+msgstr "不同模组必须使用独立的 SIP 账号。"
+
+msgid "Disabled"
+msgstr "已禁用"
+
+msgid "Enrollment saved. SIP connects independently of voice readiness."
+msgstr "配置已保存，SIP 连接不依赖语音设备是否就绪。"
+
+msgid "Enter a SIP server."
+msgstr "请输入 SIP 服务器。"
+
+msgid "Enter a valid SIP URI."
+msgstr "请输入有效的 SIP 地址。"
+
+msgid "External SIP server"
+msgstr "外部 SIP 服务器"
+
+msgid "Forward received SMS"
+msgstr "转发收到的短信"
+
+msgid "Import an account exported from SIP Gateway Manager to manage Asterisk voice and SMS routing on the web."
+msgstr "导入 SIP Gateway Manager 导出的账号配置，可通过网页管理 Asterisk 的语音和短信路由。"
+
+msgid "Invalid provisioning"
+msgstr "导入配置无效"
+
+msgid "Legacy SIP settings are ready to migrate. Accounts, ports and routes will be preserved."
+msgstr "旧 SIP 配置可以迁移，将保留账号、端口和路由。"
+
+msgid "Legacy SMS routes have different modems or destinations. Resolve these routes before migrating."
+msgstr "旧短信路由使用不同模组或接收目标，请先处理冲突再迁移。"
+
+msgid "Legacy connections share the same modem and direction. Resolve duplicate accounts before migrating."
+msgstr "旧配置中的账号使用了相同模组和方向，请先处理重复账号再迁移。"
+
+msgid "Legacy credentials or ports do not meet the new connection requirements. Correct them before migrating."
+msgstr "旧账号密码或端口不符合新连接要求，请先修正再迁移。"
+
+msgid "Legacy voice and SMS use different modems. Resolve the binding before migrating."
+msgstr "旧语音与短信使用不同模组，请先处理绑定冲突再迁移。"
+
+msgid "Local RTP port"
+msgstr "本地 RTP 端口"
+
+msgid "Local RTP ports must not overlap."
+msgstr "本地 RTP 端口不能重叠。"
+
+msgid "Local SIP port"
+msgstr "本地 SIP 端口"
+
+msgid "Local SIP ports must be unique."
+msgstr "本地 SIP 端口不能重复。"
+
+msgid "Migrate legacy SIP settings"
+msgstr "迁移旧 SIP 配置"
+
+msgid "Migration failed. Existing settings are unchanged."
+msgstr "迁移失败，现有配置未更改。"
+
+msgid "Modem"
+msgstr "模组"
+
+msgid "Name"
+msgstr "名称"
+
+msgid "Network"
+msgstr "网络"
+
+msgid "Network interface"
+msgstr "网络接口"
+
+msgid "No free RTP port."
+msgstr "没有可用的 RTP 端口。"
+
+msgid "No free SIP port."
+msgstr "没有可用的 SIP 端口。"
+
+msgid "Only the selected modem group is updated. Existing database SMS mode is preserved."
+msgstr "仅更新所选模组，保留现有短信数据库模式。"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Paste gateway provisioning JSON here"
+msgstr "在此粘贴网关配置 JSON"
+
+msgid "Preview and enroll"
+msgstr "预览并导入"
+
+msgid "Quick enrollment"
+msgstr "快速导入"
+
+msgid "Realm"
+msgstr "认证域"
+
+msgid "Receive destination SIP URI"
+msgstr "短信接收目标 SIP URI"
+
+msgid "Registered"
+msgstr "已注册"
+
+msgid "Registration interval"
+msgstr "注册刷新间隔"
+
+msgid "Reloading SIP services. This page will refresh shortly."
+msgstr "正在重新加载 SIP 服务，页面即将刷新。"
+
+msgid "Ring on cellular incoming calls"
+msgstr "蜂窝来电时响铃"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "SIP"
+msgstr "SIP"
+
+msgid "SIP and RTP ports must be unique and must not overlap."
+msgstr "SIP 和 RTP 端口必须唯一且不能重叠。"
+
+msgid "SIP and RTP ports must not overlap."
+msgstr "SIP 和 RTP 端口不能重叠。"
+
+msgid "SIP configuration migrated"
+msgstr "SIP 配置已迁移"
+
+msgid "SIP connections"
+msgstr "SIP 账号"
+
+msgid "SMS"
+msgstr "短信"
+
+msgid "SMS routes"
+msgstr "短信路由"
+
+msgid "Select the modem used by the legacy SIP configuration."
+msgstr "请选择旧 SIP 配置使用的模组。"
+
+msgid "Server"
+msgstr "服务器"
+
+msgid "Server TLS port"
+msgstr "服务器 TLS 端口"
+
+msgid "The modem referenced by the legacy configuration no longer exists."
+msgstr "旧配置引用的模组已不存在。"
+
+msgid "The selected modem no longer exists."
+msgstr "所选模组已不存在。"
+
+msgid "Use one direct and one external SIP account per modem."
+msgstr "每个模组最多配置一个直连账号和一个外部服务器账号。"
+
+msgid "Voice"
+msgstr "语音"
+
+msgid "Voice routes"
+msgstr "语音路由"
+
+msgid "Waiting"
+msgstr "等待中"

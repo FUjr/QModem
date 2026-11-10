@@ -1,0 +1,240 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "A legacy SIP SMS route is invalid. Correct its direction and destination first."
+msgstr ""
+
+msgid "A legacy SMS route has no configured SIP connection."
+msgstr ""
+
+msgid "A legacy SMS route refers to a disabled SIP connection."
+msgstr ""
+
+msgid "Account"
+msgstr ""
+
+msgid "Accounts and modem binding"
+msgstr ""
+
+msgid "Advanced"
+msgstr ""
+
+msgid "Allow cellular outgoing calls"
+msgstr ""
+
+msgid "Allow sending SMS"
+msgstr ""
+
+msgid "Apply"
+msgstr ""
+
+msgid "Apply or revert pending modem and SIP settings before migrating."
+msgstr ""
+
+msgid "Automatic"
+msgstr ""
+
+msgid "Automatic (LAN for direct clients, WAN for external server)"
+msgstr ""
+
+msgid "Automatic for SIP Gateway Manager"
+msgstr ""
+
+msgid "Automatic ports start at 5060 in connection order. Set a fixed port for direct clients."
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Client direct connection"
+msgstr ""
+
+msgid "Complete the legacy SIP migration before editing connections."
+msgstr ""
+
+msgid "Configuration file is too large."
+msgstr ""
+
+msgid "Configure a valid account and a password of 8 to 127 printable characters without spaces."
+msgstr ""
+
+msgid "Configure an account once, then select voice and SMS routes for its modem. Each modem uses independent accounts."
+msgstr ""
+
+msgid "Confirm SIP enrollment"
+msgstr ""
+
+msgid "Connection"
+msgstr ""
+
+msgid "Connection settings"
+msgstr ""
+
+msgid "Connection type"
+msgstr ""
+
+msgid "Could not write the staged configuration. Existing settings are unchanged."
+msgstr ""
+
+msgid "Different modems must use independent SIP accounts."
+msgstr ""
+
+msgid "Disabled"
+msgstr ""
+
+msgid "Enrollment saved. SIP connects independently of voice readiness."
+msgstr ""
+
+msgid "Enter a SIP server."
+msgstr ""
+
+msgid "Enter a valid SIP URI."
+msgstr ""
+
+msgid "External SIP server"
+msgstr ""
+
+msgid "Forward received SMS"
+msgstr ""
+
+msgid "Import an account exported from SIP Gateway Manager to manage Asterisk voice and SMS routing on the web."
+msgstr ""
+
+msgid "Invalid provisioning"
+msgstr ""
+
+msgid "Legacy SIP settings are ready to migrate. Accounts, ports and routes will be preserved."
+msgstr ""
+
+msgid "Legacy SMS routes have different modems or destinations. Resolve these routes before migrating."
+msgstr ""
+
+msgid "Legacy connections share the same modem and direction. Resolve duplicate accounts before migrating."
+msgstr ""
+
+msgid "Legacy credentials or ports do not meet the new connection requirements. Correct them before migrating."
+msgstr ""
+
+msgid "Legacy voice and SMS use different modems. Resolve the binding before migrating."
+msgstr ""
+
+msgid "Local RTP port"
+msgstr ""
+
+msgid "Local RTP ports must not overlap."
+msgstr ""
+
+msgid "Local SIP port"
+msgstr ""
+
+msgid "Local SIP ports must be unique."
+msgstr ""
+
+msgid "Migrate legacy SIP settings"
+msgstr ""
+
+msgid "Migration failed. Existing settings are unchanged."
+msgstr ""
+
+msgid "Modem"
+msgstr ""
+
+msgid "Name"
+msgstr ""
+
+msgid "Network"
+msgstr ""
+
+msgid "Network interface"
+msgstr ""
+
+msgid "No free RTP port."
+msgstr ""
+
+msgid "No free SIP port."
+msgstr ""
+
+msgid "Only the selected modem group is updated. Existing database SMS mode is preserved."
+msgstr ""
+
+msgid "Password"
+msgstr ""
+
+msgid "Paste gateway provisioning JSON here"
+msgstr ""
+
+msgid "Preview and enroll"
+msgstr ""
+
+msgid "Quick enrollment"
+msgstr ""
+
+msgid "Realm"
+msgstr ""
+
+msgid "Receive destination SIP URI"
+msgstr ""
+
+msgid "Registered"
+msgstr ""
+
+msgid "Registration interval"
+msgstr ""
+
+msgid "Reloading SIP services. This page will refresh shortly."
+msgstr ""
+
+msgid "Ring on cellular incoming calls"
+msgstr ""
+
+msgid "Running"
+msgstr ""
+
+msgid "SIP"
+msgstr ""
+
+msgid "SIP and RTP ports must be unique and must not overlap."
+msgstr ""
+
+msgid "SIP and RTP ports must not overlap."
+msgstr ""
+
+msgid "SIP configuration migrated"
+msgstr ""
+
+msgid "SIP connections"
+msgstr ""
+
+msgid "SMS"
+msgstr ""
+
+msgid "SMS routes"
+msgstr ""
+
+msgid "Select the modem used by the legacy SIP configuration."
+msgstr ""
+
+msgid "Server"
+msgstr ""
+
+msgid "Server TLS port"
+msgstr ""
+
+msgid "The modem referenced by the legacy configuration no longer exists."
+msgstr ""
+
+msgid "The selected modem no longer exists."
+msgstr ""
+
+msgid "Use one direct and one external SIP account per modem."
+msgstr ""
+
+msgid "Voice"
+msgstr ""
+
+msgid "Voice routes"
+msgstr ""
+
+msgid "Waiting"
+msgstr ""

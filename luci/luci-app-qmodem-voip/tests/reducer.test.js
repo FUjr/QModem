@@ -153,9 +153,8 @@ assert.doesNotMatch(rpcSource, /generate_credentials/);
 
 const sipViewSource = fs.readFileSync(path.resolve(__dirname, '../../luci-app-qmodem-sipd/htdocs/luci-static/resources/view/qmodem-sipd/sip.js'), 'utf8');
 assert.match(sipViewSource, /new form\.Map\('qmodem_sip'/);
-assert.match(sipViewSource, /form\.GridSection,'group'/);
-assert.match(sipViewSource, /form\.GridSection,'direction'/);
-assert.match(sipViewSource, /uci\.sections\('network','interface'\)/);
+assert.match(sipViewSource, /form\.GridSection, 'direction'/);
+assert.match(sipViewSource, /uci\.sections\('network', 'interface'\)/);
 assert.match(sipViewSource, /qmodem\.sip\.provision/);
 assert.match(sipViewSource, /Preview and enroll/);
 
