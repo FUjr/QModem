@@ -1427,7 +1427,20 @@ static void queue_remove_pending_add_for_slot(const char *slot)
 	}
 }
 
-/* An associated USB control function and its PCIe data endpoint are one modem. */
+/* A shared connector may contain a USB-only modem. Only merge its USB
+ * control function when the associated PCIe data endpoint is present. */
+static int pcie_data_present(const char *slot)
+{
+    struct scan_result res = {0};
+    int present;
+    scan_pcie_slot(slot, &res);
+    present = res.net_devices.len > 0;
+    sl_free(&res.net_devices);
+    sl_free(&res.at_ports);
+    sl_free(&res.pcie_at_ports);
+    return present;
+}
+
 static int associated_pcie_slot(const char *usb, char *owner, size_t len)
 {
     char out[32768], *save=NULL, *line;
@@ -1447,7 +1460,7 @@ static int associated_pcie_slot(const char *usb, char *owner, size_t len)
         snprintf(key,sizeof(key),"qmodem.%s.type",section); uci_get(key,type,sizeof(type));
         if (strcmp(type,"pcie")) continue;
         snprintf(key,sizeof(key),"qmodem.%s.slot",section); uci_get(key,slot,sizeof(slot));
-        if (!slot[0]) continue;
+        if (!slot[0] || !pcie_data_present(slot)) continue;
         if (found && strcmp(owner,slot)) return -1;
         snprintf(owner,len,"%s",slot); found=1;
     }

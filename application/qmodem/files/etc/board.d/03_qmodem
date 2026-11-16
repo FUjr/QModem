@@ -67,6 +67,12 @@ misectel,m02k88)
 misectel,m01k21)
 	ucidef_add_qmodem_modem_status cellular enabled 1 script misectel_3led bind any
 	;;
+misectel,m01k43-usb)
+	ucidef_set_qmodem_main start_delay 15 enable_pcie_scan 0 try_preset_pcie 0
+	ucidef_add_qmodem_slot usb0 type usb slot 2-1 alias wwan0 scan_priority usb
+	ucidef_add_qmodem_network_detect internet enabled 1 script misectel_network_detect
+	ucidef_add_qmodem_modem_status cellular enabled 1 script misectel_modem_status bind any
+	;;
 misectel,m01k43-usb-p)
 	# This board routes its modem over USB only, not a shared PCIe/USB slot.
 	ucidef_set_qmodem_main start_delay 15 enable_pcie_scan 0 try_preset_pcie 0
@@ -75,7 +81,6 @@ misectel,m01k43-usb-p)
 	ucidef_add_qmodem_modem_status cellular enabled 1 script misectel_modem_status bind any
 	;;
 misectel,m01k43|\
-misectel,m01k43-usb|\
 misectel,m01k43-p|\
 misectel,m02k45)
 	usb_port=2-1
