@@ -50,11 +50,13 @@ for group in 1 2; do
     eval "$test_update"
     get_sim_state() { echo "$SIM_STATE"; }
     get_mode() { echo 1; }
+    signal_uptime() { echo 100; }
     for sample in '-120:1:0:0' '-100:1:1:0' '-80:1:1:1' '0:0:0:0'; do
         old_ifs="$IFS"; IFS=:; set -- $sample; IFS="$old_ifs"
         CELL_FIXTURE='{"modem_info":[{"key":"RSRP","value":"'"$1"'"}]}'
         SIM_STATE=present
         writes=
+        last_valid_signal_time=
         update_leds
         expected="5g${group}:sim=1 5g${group}:rf1=$2 5g${group}:rf2=$3 5g${group}:rf3=$4 "
         [ "$writes" = "$expected" ] || { echo "unexpected state: $writes" >&2; exit 1; }

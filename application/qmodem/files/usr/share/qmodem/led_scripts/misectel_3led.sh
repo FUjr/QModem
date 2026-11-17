@@ -7,6 +7,7 @@
 MODEM_CFG="$1"
 ON_OFF="$2"
 last_is_nr=0
+last_valid_signal_time=
 
 update_cfg()
 {
@@ -53,9 +54,16 @@ all_leds_off()
 	led_turn "$LED_5G" 0
 }
 
+signal_uptime()
+{
+	local seconds rest
+	read -r seconds rest < /proc/uptime
+	echo "${seconds%%.*}"
+}
+
 update_leds()
 {
-	local cell_info is_nr rsrp signal_level sim_state
+	local cell_info is_nr rsrp signal_level sim_state now
 
 	sim_state="$(get_sim_state)"
 	case "$sim_state" in
@@ -63,6 +71,7 @@ update_leds()
 		absent)
 			all_leds_off
 			last_is_nr=0
+			last_valid_signal_time=
 			return
 			;;
 		# A temporary AT failure must not blank every modem status LED.
@@ -73,11 +82,23 @@ update_leds()
 		cell_info="$(cat "/tmp/cache_cell_info_${MODEM_CFG}" 2>/dev/null)"
 	fi
 	is_nr="$(get_mode "$cell_info")"
-	last_is_nr="$is_nr"
-	led_turn "$LED_5G" "$is_nr"
 
 	rsrp="$(misectel_rsrp_value "$cell_info" "$is_nr")"
 	signal_level="$(misectel_3led_signal_level "$rsrp")"
+	# Use monotonic time so wall-clock synchronization cannot extend the hold.
+	now="$(signal_uptime)"
+	if [ "$signal_level" = none ]; then
+		if [ -n "$last_valid_signal_time" ] &&
+			[ "$((now - last_valid_signal_time))" -lt 30 ]; then
+			return
+		fi
+		misectel_3led_update_signal_leds none
+		led_turn "$LED_5G" 0
+		return
+	fi
+	last_valid_signal_time="$now"
+	last_is_nr="$is_nr"
+	led_turn "$LED_5G" "$is_nr"
 	if [ -n "${LED_SIGNAL_MAX:-}" ] && [ "$signal_level" != none ]; then
 		# Four cumulative bars: poor < -110, fair < -100, good < -90.
 		if [ "$rsrp" -ge -90 ]; then signal_level=max
