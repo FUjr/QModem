@@ -21,6 +21,14 @@ misectel_led_init()
 			LED_SIGNAL_EXCELLENT="${led_group}:rf3"
 			LED_5G=
 			;;
+		misectel,m16k43|misectel,m16k43-usb)
+			LED_SIM='blue:sim'
+			LED_SIGNAL_POOR='blue:rf1'
+			LED_SIGNAL_GOOD='blue:rf2'
+			LED_SIGNAL_EXCELLENT='blue:rf3'
+			LED_SIGNAL_MAX='blue:rf4'
+			LED_5G=
+			;;
 		misectel,m01k21)
 			LED_SIGNAL_POOR='lede:blue:4gyellow'
 			LED_SIGNAL_GOOD='lede:blue:5gblue'
@@ -217,10 +225,18 @@ misectel_3led_update_signal_leds()
 	local excellent=0
 
 	case "$signal_level" in
+		max) poor=1; good=1; excellent=1 ;;
 		poor) poor=1 ;;
 		good) poor=1; good=1 ;;
 		excellent) poor=1; good=1; excellent=1 ;;
 	esac
+	if [ -z "${LED_SIGNAL_MAX:-}" ]; then
+		:
+	elif [ "$signal_level" = max ]; then
+		led_turn "${LED_SIGNAL_MAX:-}" 1
+	else
+		led_turn "${LED_SIGNAL_MAX:-}" 0
+	fi
 	led_turn "$LED_SIGNAL_POOR" "$poor"
 	led_turn "$LED_SIGNAL_GOOD" "$good"
 	led_turn "$LED_SIGNAL_EXCELLENT" "$excellent"
