@@ -45,6 +45,7 @@ get_mode()
 
 all_leds_off()
 {
+	led_turn "${LED_SIGNAL_MAX:-}" 0
 	led_turn "$LED_SIGNAL_POOR" 0
 	led_turn "$LED_SIGNAL_GOOD" 0
 	led_turn "$LED_SIGNAL_EXCELLENT" 0
@@ -77,6 +78,13 @@ update_leds()
 
 	rsrp="$(misectel_rsrp_value "$cell_info" "$is_nr")"
 	signal_level="$(misectel_3led_signal_level "$rsrp")"
+	if [ -n "${LED_SIGNAL_MAX:-}" ] && [ "$signal_level" != none ]; then
+		# Four cumulative bars: poor < -110, fair < -100, good < -90.
+		if [ "$rsrp" -ge -90 ]; then signal_level=max
+		elif [ "$rsrp" -ge -100 ]; then signal_level=excellent
+		elif [ "$rsrp" -ge -110 ]; then signal_level=good
+		else signal_level=poor; fi
+	fi
 	misectel_3led_update_signal_leds "$signal_level"
 }
 
