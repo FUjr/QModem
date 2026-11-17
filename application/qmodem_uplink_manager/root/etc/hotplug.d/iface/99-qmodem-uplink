@@ -1,0 +1,6 @@
+#!/bin/sh
+[ -r /var/run/qmodem-uplink/pid ] || exit 0
+pid=$(cat /var/run/qmodem-uplink/pid)
+case "$pid" in ''|*[!0-9]*) exit 0;; esac
+tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q /usr/libexec/qmodem-uplink-watch || exit 0
+kill -USR1 "$pid" 2>/dev/null

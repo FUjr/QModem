@@ -7,7 +7,7 @@ path="$("${QMODEM_UCI:-uci}" -q get "qmodem.$instance.path")" || exit 1
 path="$(readlink -f "$path")" || exit 1
 [ -d "$path" ] && [ "$path" != / ] || exit 1
 # Find independent USB/PCIe endpoint directories without counting mux children.
-netdir="$(find "$path" -type d -name net -print -prune 2>/dev/null)"
+netdir="$(find "$path" -type d -name net ! -path "*/mhi*_IP_SW*/net" -print -prune 2>/dev/null)"
 [ "$(printf '%s\n' "$netdir" | wc -l)" = 1 ] || exit 1
 [ -n "$netdir" ] || exit 1
 while :; do

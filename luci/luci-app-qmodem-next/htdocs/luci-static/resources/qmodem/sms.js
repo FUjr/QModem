@@ -1,6 +1,10 @@
 'use strict';
 'require rpc';
 'require qmodem.sms-pdu as pduParser';
+'require qmodem.sms-number as smsNumber';
+
+var callGetCountryCode = rpc.declare({ object: 'qmodem_sms', method: 'get_country_code', params: [ 'config_section' ], expect: { } });
+var callSetCountryCode = rpc.declare({ object: 'qmodem_sms', method: 'set_country_code', params: [ 'config_section', 'country_code' ], expect: { } });
 
 var callQmodemSms = rpc.declare({
 	object: 'qmodem_sms',
@@ -19,7 +23,7 @@ var callGetConversation = rpc.declare({
 var callSendSms = rpc.declare({
 	object: 'qmodem_sms',
 	method: 'send_sms',
-	params: ['config_section', 'recipient', 'pdu', 'content'],
+	params: ['config_section', 'recipient', 'pdu', 'content', 'conversation_contact', 'country_code'],
 	expect: { }
 });
 
@@ -94,6 +98,18 @@ var callDeleteSimSms = rpc.declare({
 });
 
 return L.Class.extend({
+	getCountryCode: function(configSection) {
+		return callGetCountryCode(configSection || 'modem_1').then(function(result) {
+			if (result.error) throw new Error(result.error);
+			return result.country_code || '';
+		});
+	},
+	setCountryCode: function(configSection, code) {
+		return callSetCountryCode(configSection || 'modem_1', smsNumber.normalizeCode(code)).then(function(result) {
+			if (result.error) throw new Error(result.error);
+			return result;
+		});
+	},
 	/**
 	 * List all SMS conversations
 	 * @param {string} configSection - The modem configuration section
@@ -121,12 +137,13 @@ return L.Class.extend({
 	 * @param {string} encoding - Encoding type ('7bit' or '16bit')
 	 * @returns {Promise} Promise resolving to send result
 	 */
-	sendSms: function(configSection, recipient, message, encoding) {
+	sendSms: function(configSection, recipient, message, encoding, conversationContact) {
 		// Generate PDU using sms-pdu.js
 		encoding = encoding || '16bit';  // Default to 16bit for better compatibility
 		
 		
 		try {
+			recipient = smsNumber.normalize(recipient);
 			var pdus = pduParser.generate({
 				receiver: recipient,
 				text: message,
@@ -143,7 +160,7 @@ return L.Class.extend({
 			// For now, we'll send the first PDU and handle multi-part in the future
 			var pdu = pdus[0];
 
-			return callSendSms(configSection || 'modem_1', recipient, pdu, message).then(function(result) {
+			return callSendSms(configSection || 'modem_1', recipient, pdu, message, conversationContact, '').then(function(result) {
 				return result;
 			}).catch(function(error) {
 				console.error('SMS send error:', error);

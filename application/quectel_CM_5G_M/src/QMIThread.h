@@ -237,6 +237,7 @@ typedef struct __PROFILE {
     UCHAR PCSCFIpv6Addr2[16];
     bool reattach_flag;
     int hardware_interface;
+    int generic_mhi; /* 1: raw-IP QMI, 2: native WWAN MBIM */
     int software_interface;
 
     struct usb_device_info usb_dev;

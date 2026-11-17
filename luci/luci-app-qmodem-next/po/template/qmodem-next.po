@@ -3565,3 +3565,36 @@ msgstr ""
 #: view/qmodem/network_config.js:345
 msgid "quectel-CM will append the DNS server to the resolv.conf file by default.if you do not want to modify the resolv.conf file, please check this option."
 msgstr ""
+
+msgid "Country calling code (optional)"
+msgstr ""
+
+msgid "As entered"
+msgstr ""
+
+msgid "Save for this modem"
+msgstr ""
+
+msgid "Send to:"
+msgstr ""
+
+msgid "Leave empty to send as entered, including service numbers. Use + for a complete international number. When adding a country code, omit the domestic trunk prefix."
+msgstr ""
+
+msgid "Invalid country calling code"
+msgstr ""
+
+msgid "Invalid phone number"
+msgstr ""
+
+msgid "Invalid international phone number"
+msgstr ""
+
+msgid "Loading country calling code"
+msgstr ""
+
+msgid "Failed to load country calling code"
+msgstr ""
+
+msgid "Failed to save country calling code"
+msgstr ""

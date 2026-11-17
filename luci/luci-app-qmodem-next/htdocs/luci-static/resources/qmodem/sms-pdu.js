@@ -251,9 +251,16 @@ pduParser.generate = function(message) {
 
     pdu += '00'; //TODO: Reference Number;
 
-    var receiverSize = ('00'+(parseInt(message.receiver.length, 10).toString(16))).slice(-2);
-    var receiver = pduParser.swapNibbles(message.receiver);
-    var receiverType = 81; //TODO: NOT-Hardcoded PDU generation. Please note that Hamrah1 doesnt work if we set it to 91 (International).
+    var number = message.receiver.replace(/[ \t()\-]/g, '');
+    if (!/^\+?[0-9]+$/.test(number) || /[^+0-9]/.test(number)) throw new Error('Invalid phone number');
+    var international = number.charAt(0) === '+';
+    if (international && !/^\+[1-9][0-9]{0,14}$/.test(number))
+        throw new Error('Invalid international phone number');
+    if (international) number = number.substring(1);
+    if (number.length > 20) throw new Error('Invalid phone number');
+    var receiverSize = ('00' + number.length.toString(16)).slice(-2);
+    var receiver = pduParser.swapNibbles(number);
+    var receiverType = international ? '91' : '81';
 
     pdu += receiverSize.toString(16) + receiverType + receiver;
 

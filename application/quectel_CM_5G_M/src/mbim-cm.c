@@ -1495,7 +1495,9 @@ static void * mbim_read_thread(void *param) {
     mbim_verbose = debug_qmi;
     s_tid_reader = pthread_self();
 
-    if (profile->qmap_mode > 1 && profile->qmapnet_adapter[0]) {
+    if (profile->generic_mhi == 2) {
+        mbim_sessionID = 0; /* native WWAN default data link */
+    } else if (profile->qmap_mode > 1 && profile->qmapnet_adapter[0]) {
         if (!profile->proxy[0])
              sprintf(profile->proxy, "%s", QUECTEL_MBIM_PROXY);
         mbim_sessionID = profile->pdp;

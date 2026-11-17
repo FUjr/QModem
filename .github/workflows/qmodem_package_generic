@@ -2,3 +2,6 @@ luci-app-qmodem
 luci-app-qmodem-sms
 luci-app-qmodem-next
 qmodem
+
+qmodem_uplink_manager
+luci-app-qmodem-uplink

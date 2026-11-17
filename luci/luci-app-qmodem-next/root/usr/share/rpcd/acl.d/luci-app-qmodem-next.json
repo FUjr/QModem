@@ -37,6 +37,7 @@
 				],
 				"qmodem_sms": [
 					"send_sms",
+					"set_country_code",
 					"delete_sms",
 					"delete_sim_sms",
 					"mark_read",

@@ -31,6 +31,7 @@
 
 #include "QMIThread.h"
 #include "ethtool-copy.h"
+#include "mhi_generic.h"
 
 #define USB_CLASS_VENDOR_SPEC		0xff
 #define USB_CLASS_COMM			2
@@ -395,6 +396,22 @@ error:
 }
 
 int mhidevice_detect(char *qmichannel, char *usbnet_adapter, PROFILE_T *profile) {
+    struct cm_mhi_endpoint endpoint = {0};
+    int generic = cm_mhi_detect("/sys", "/dev", usbnet_adapter, &endpoint);
+    if (generic) {
+        if (generic < 0) {
+            dbg_time("generic MHI endpoint incomplete or ambiguous for '%s'", usbnet_adapter);
+            return 0;
+        }
+        if (strlen(endpoint.control) >= sizeof(profile->qmichannel)) return 0;
+        strcpy(qmichannel, endpoint.control);
+        snprintf(usbnet_adapter, sizeof(profile->usbnet_adapter), "%s", endpoint.netdev);
+        profile->software_interface = endpoint.mbim ? SOFTWARE_MBIM : SOFTWARE_QMI;
+        profile->generic_mhi = endpoint.mbim ? 2 : 1;
+        dbg_time("generic MHI %s: %s control %s", endpoint.mbim ? "MBIM" : "QMI", usbnet_adapter, qmichannel);
+        return 1;
+    }
+
     struct dirent* ent = NULL;
     DIR *pDir;
     const char *rootdir_mhi[] = {"/sys/bus/mhi_q/devices", "/sys/bus/mhi/devices", NULL};

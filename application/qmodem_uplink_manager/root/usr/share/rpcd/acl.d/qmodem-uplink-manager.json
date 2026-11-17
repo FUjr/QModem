@@ -1,0 +1,7 @@
+{
+ "qmodem-uplink": {
+  "description": "Manage QModem uplinks",
+  "read": { "ubus": {"qmodem.uplink": ["status"]}, "uci": ["qmodem_uplink", "network", "qmodem", "firewall"] },
+  "write": { "uci": ["qmodem_uplink"] }
+ }
+}
