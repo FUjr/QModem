@@ -1325,6 +1325,10 @@ return view.extend({
 				var applyBtn = E('button', {
 					'class': 'btn cbi-button-action',
 					'click': function() {
+						if (bandData.allow_empty === false && !lockbandState[bandClass].locked.length) {
+							ui.addNotification(null, E('p', _('Select at least one band; an empty list does not unlock bands')), 'error');
+							return;
+						}
 						var params = {
 							band_class: bandClass,
 							lock_band: lockbandState[bandClass].locked.sort(function(a, b) {
@@ -1336,12 +1340,16 @@ return view.extend({
 						applyBtn.textContent = _('Applying...');
 
 						qmodem.setLockBand(modem.id, params).then(function(result) {
-							if (result) {
+							var response = result && (result.result || result);
+							if (response && Object.keys(response).length && response.success !== false && !response.error &&
+								response.status !== 'error' && response.status !== 'failed' &&
+								!/(^|\s)(ERROR|\+CME ERROR:|\+CMS ERROR:)/.test(response.set_lockband || '')) {
 								ui.addNotification(null, E('p', _('Lock band configuration applied for %s').format(bandClass)), 'success');
 								// Refresh the display
 								self.loadLockBand(modem, lockbandContent);
 							} else {
-								ui.addNotification(null, E('p', _('Failed to apply lock band configuration')), 'error');
+								ui.addNotification(null, E('p', ((response && response.error) || _('Failed to apply lock band configuration')) +
+									(response && response.set_lockband ? '\n' + response.set_lockband : '')), 'error');
 								applyBtn.disabled = false;
 								applyBtn.textContent = _('Apply');
 							}
@@ -1376,7 +1384,7 @@ return view.extend({
 
 	updateLockedDisplay: function(displayElement, lockedBands, availableBands) {
 		if (lockedBands.length === 0) {
-			displayElement.textContent = _('None (All bands unlocked)');
+			displayElement.textContent = _('No bands selected');
 			displayElement.style.color = '';
 			return;
 		}
