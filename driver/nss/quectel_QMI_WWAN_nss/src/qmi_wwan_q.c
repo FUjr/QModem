@@ -2218,7 +2218,8 @@ static int qmi_wwan_bind(struct usbnet *dev, struct usb_interface *intf)
 
 				if (pQmapDev->qmap_mode > 1)
 					pQmapDev->use_rmnet_usb = 1;
-				else if (idProduct == 0x0800 || idProduct == 0x0801 || idProduct == 0x0122)
+				else if (idProduct == 0x0800 || idProduct == 0x0801 || idProduct == 0x0122 ||
+					 idProduct == 0x030B)
 					pQmapDev->use_rmnet_usb = 1; //benefit for ul data agg
 #ifdef QMI_NETDEV_ONE_CARD_MODE
 				if(pQmapDev->use_rmnet_usb == 1 && pQmapDev->qmap_mode == 1)
