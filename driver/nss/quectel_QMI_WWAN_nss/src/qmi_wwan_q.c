@@ -178,7 +178,9 @@ typedef struct sQmiWwanQmap
 #if defined(QUECTEL_UL_DATA_AGG)
 	struct tx_agg_ctx tx_ctx;
 	struct tasklet_struct	txq;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
 	struct tasklet_struct usbnet_bh;
+#endif
 #endif
 
 #ifdef QUECTEL_BRIDGE_MODE
@@ -225,6 +227,10 @@ struct qmap_priv {
 #endif
 #endif
 	uint use_qca_nss;
+#ifdef QMODEM_QMI_NSS_REGISTRATION_RETRY
+	struct delayed_work nss_retry_work;
+	unsigned int nss_retry_count;
+#endif
 };
 
 struct qmap_hdr {
@@ -872,24 +878,22 @@ static struct rtnl_link_stats64 *rmnet_vnd_get_stats64(struct net_device *net, s
 #endif
 
 #if defined(QUECTEL_UL_DATA_AGG)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
 static void usbnet_bh(unsigned long data) {
 	sQmiWwanQmap *pQmapDev = (sQmiWwanQmap *)data;
 	struct tasklet_struct *t = &pQmapDev->usbnet_bh;
 	bool use_callback = false;
-
-#if (LINUX_VERSION_CODE > KERNEL_VERSION( 5,8,0 )) //c955e329bb9d44fab75cf2116542fcc0de0473c5
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(5,8,0))
 	use_callback = t->use_callback;
 	if (use_callback)
 		t->callback(&pQmapDev->mpNetDev->bh);
 #endif
-
 	if (!use_callback)
 		t->func(t->data);
-
-	if (!netif_queue_stopped(pQmapDev->mpNetDev->net)) {
-		qmap_wake_queue((sQmiWwanQmap *)data);
-	}
+	if (!netif_queue_stopped(pQmapDev->mpNetDev->net))
+		qmap_wake_queue(pQmapDev);
 }
+#endif
 
 static void rmnet_usb_tx_wake_queue(unsigned long data) {
 	qmap_wake_queue((sQmiWwanQmap *)data);
@@ -1297,6 +1301,49 @@ static rx_handler_result_t qca_nss_rx_handler(struct sk_buff **pskb)
 	return RX_HANDLER_PASS;
 }
 
+#ifdef QMODEM_QMI_NSS_REGISTRATION_RETRY
+static void qmap_nss_retry_work(struct work_struct *work);
+#endif
+
+static int qmap_nss_try_register(struct net_device *qmap_net)
+{
+	struct qmap_priv *priv = netdev_priv(qmap_net);
+	int rc;
+
+	if (!nss_cb || priv->use_qca_nss)
+		return 0;
+	rc = nss_cb->nss_create(qmap_net);
+	if (rc)
+		goto retry;
+	rtnl_lock();
+	rc = netdev_rx_handler_register(qmap_net, qca_nss_rx_handler, NULL);
+	rtnl_unlock();
+	if (rc) {
+		nss_cb->nss_free(qmap_net);
+		goto retry;
+	}
+	WRITE_ONCE(priv->use_qca_nss, 1);
+	netdev_info(qmap_net, "NSS context created\n");
+	return 0;
+
+retry:
+	netdev_err(qmap_net, "NSS registration failed: %d\n", rc);
+#ifdef QMODEM_QMI_NSS_REGISTRATION_RETRY
+	if (priv->nss_retry_count++ < 90)
+		schedule_delayed_work(&priv->nss_retry_work, HZ);
+#endif
+	return rc;
+}
+
+#ifdef QMODEM_QMI_NSS_REGISTRATION_RETRY
+static void qmap_nss_retry_work(struct work_struct *work)
+{
+	struct qmap_priv *priv = container_of(to_delayed_work(work),
+		struct qmap_priv, nss_retry_work);
+	qmap_nss_try_register(priv->self_dev);
+}
+#endif
+
 static int qmap_register_device(sQmiWwanQmap * pDev, u8 offset_id)
 {
 	struct net_device *real_dev = pDev->mpNetDev->net;
@@ -1349,12 +1396,20 @@ static int qmap_register_device(sQmiWwanQmap * pDev, u8 offset_id)
 #endif
 	priv->agg_skb = NULL;
 	priv->agg_count = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,13,0)
+	hrtimer_setup(&priv->agg_hrtimer, rmnet_usb_tx_agg_timer_cb, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+#else
 	hrtimer_init(&priv->agg_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	priv->agg_hrtimer.function = rmnet_usb_tx_agg_timer_cb;
+#endif
 	INIT_WORK(&priv->agg_wq, rmnet_usb_tx_agg_work);
 	ktime_get_ts64(&priv->agg_time);
 	spin_lock_init(&priv->agg_lock);
 	priv->use_qca_nss = 0;
+#ifdef QMODEM_QMI_NSS_REGISTRATION_RETRY
+	INIT_DELAYED_WORK(&priv->nss_retry_work, qmap_nss_retry_work);
+	priv->nss_retry_count = 0;
+#endif
 
 #if defined(MHI_NETDEV_STATUS64)
 	priv->stats64 = netdev_alloc_pcpu_stats(struct pcpu_sw_netstats);
@@ -1372,19 +1427,8 @@ static int qmap_register_device(sQmiWwanQmap * pDev, u8 offset_id)
 	netif_device_attach (qmap_net);
 	netif_carrier_off(qmap_net);
 
-	if (nss_cb && use_qca_nss) {
-		int rc = nss_cb->nss_create(qmap_net);
-		if (rc) {
-			/* Log, but don't fail the device creation */
-			netdev_err(qmap_net, "Device will not use NSS path: %d\n", rc);
-		} else {
-			priv->use_qca_nss = 1;
-			netdev_info(qmap_net, "NSS context created\n");
-			rtnl_lock();
-			netdev_rx_handler_register(qmap_net, qca_nss_rx_handler, NULL);
-			rtnl_unlock();
-		}
-	}
+	if (nss_cb && use_qca_nss)
+		qmap_nss_try_register(qmap_net);
 
 	strcpy(pDev->rmnet_info.ifname[offset_id], qmap_net->name);
 	pDev->rmnet_info.mux_id[offset_id] = priv->mux_id;
@@ -1414,6 +1458,9 @@ static void qmap_unregister_device(sQmiWwanQmap * pDev, u8 offset_id) {
 
 		hrtimer_cancel(&priv->agg_hrtimer);
 		cancel_work_sync(&priv->agg_wq);
+#ifdef QMODEM_QMI_NSS_REGISTRATION_RETRY
+		cancel_delayed_work_sync(&priv->nss_retry_work);
+#endif
 		spin_lock_irqsave(&priv->agg_lock, flags);
 		if (priv->agg_skb) {
 			kfree_skb(priv->agg_skb);
@@ -2246,10 +2293,12 @@ static int qmi_wwan_bind(struct usbnet *dev, struct usb_interface *intf)
 					dev->driver_info = &pQmapDev->driver_info;
 				}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,10,0)
 				if (pQmapDev->use_rmnet_usb && !one_card_mode) {
 					pQmapDev->usbnet_bh = dev->bh;
 					tasklet_init(&dev->bh, usbnet_bh, (unsigned long)pQmapDev);
 				}
+#endif
 			}
 		}
 
@@ -2378,6 +2427,12 @@ static int rmnet_usb_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
 {
 	struct net_device	*net = dev->net;
 	unsigned headroom = skb_headroom(skb);
+#ifdef QMODEM_QMI_NSS_RX_WAKE_FALLBACK
+	struct qmi_wwan_state *info = (void *)&dev->data;
+	sQmiWwanQmap *pQmapDev = (sQmiWwanQmap *)info->unused;
+	if (pQmapDev && !netif_queue_stopped(dev->net))
+		qmap_wake_queue(pQmapDev);
+#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION( 3,3,1 )) //7bdd402706cf26bfef9050dfee3f229b7f33ee4f
 //some customers port to v3.2
