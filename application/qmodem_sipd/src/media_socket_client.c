@@ -46,8 +46,9 @@ int qmodem_voip_media_socket_client_attach(
 		return -1;
 	address.sun_family = AF_UNIX;
 	memcpy(address.sun_path, path, strlen(path) + 1U);
-	if (connect(fd, (struct sockaddr *)&address, sizeof(address)) != 0 ||
-	    nonblocking(fd) != 0) {
+	/* A full local listen backlog must not block SIP registration/keepalives. */
+	if (nonblocking(fd) != 0 ||
+	    connect(fd, (struct sockaddr *)&address, sizeof(address)) != 0) {
 		(void)close(fd);
 		return -1;
 	}
