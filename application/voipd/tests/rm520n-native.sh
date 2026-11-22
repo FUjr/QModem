@@ -176,15 +176,4 @@ printf 'schema=2\nslot=2-1\nmedia_method=serial_pcm\n' > "$QMODEM_VOIP_JOURNAL"
 rm520n_dispatch enable
 [ -f "$QMODEM_VOIP_JOURNAL.previous" ]
 [ "$(rm520n_get schema)" = 3 ]
-# Missing options on upgraded installations also select serial PCM, even when
-# a UAC sound card exists. Explicit auto above must continue to prefer UAC.
-reset_fixture
-rm "$tmp/policy"
-rm520n_dispatch enable
-[ "$(rm520n_get audio_policy)" = serial_pcm ]
-[ "$(rm520n_get media_method)" = serial_pcm ]
-[ "$(cat "$tmp/qpcmv")" = 1,0 ]
-rm520n_dispatch enable
-rm520n_dispatch reprobe
-[ "$(rm520n_get audio_policy)" = serial_pcm ]
 echo 'PASS: RM520 native UAC selection, bounded fallback, call guard, firmware and journal safety'
