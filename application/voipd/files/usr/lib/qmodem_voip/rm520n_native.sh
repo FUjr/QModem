@@ -110,7 +110,16 @@ rm520n_wait_usb()
 {
 	# Wait for an AT endpoint after reboot, independent of whether UAC appears.
 	# Missing audio is a selection failure, not an excuse for repeated reboot.
-	qmodem_voip_adapter_wait_reenumeration "$n_slot" any 120
+	qmodem_voip_adapter_wait_reenumeration "$n_slot" any 120 || return 1
+	# A tty node can exist before the modem's AT and voice services are ready.
+	# Only retry in this bounded post-reboot window, never during a call.
+	n_ready_tries=0
+	while [ "$n_ready_tries" -lt 30 ]; do
+		if rm520n_identity && rm520n_at 'AT+CLCC' >/dev/null; then return 0; fi
+		n_ready_tries=$((n_ready_tries+1))
+		sleep 2
+	done
+	return 1
 }
 
 rm520n_set_usb()
@@ -142,7 +151,17 @@ rm520n_configure()
 {
 	rm520n_idle || return 1
 	rm520n_write configuring || return 1
-	rm520n_at 'AT+QPCMV=0' >/dev/null || return 1
+	# CLCC can already work while the audio service still rejects QPCMV=0.
+	# Do not turn that short boot window into a durable failed journal.
+	n_stop_tries=0
+	while :; do
+		if rm520n_at 'AT+QPCMV=0' >/dev/null; then break; else n_result=$?; fi
+		[ "$n_result" = 2 ] || return 1
+		n_stop_tries=$((n_stop_tries+1))
+		[ "$n_stop_tries" -lt 15 ] || return 1
+		sleep 2
+		rm520n_idle || return 1
+	done
 	rm520n_at 'AT+QCFG="ims",1' >/dev/null || return 1
 	rm520n_at 'AT+QCALLCFG="voice_disable",2' >/dev/null || return 1
 	n_qaud=$(qmodem_voip_json '@.modems[@.model="RM520N-GL"].audio.qaudmod') || return 1
@@ -185,6 +204,9 @@ rm520n_configure()
 			return 2
 		fi
 	fi
+	# QAUDMOD is not persistent: restore the route after any USB/QDAI reboot,
+	# as well as before configuration. Never rely on the pre-reboot write.
+	rm520n_at "AT+QAUDMOD=$n_qaud" >/dev/null || return 1
 	# AT may return before the modem's native voice service after USB reboot.
 	# Give that service a bounded startup window; transport loss stays fatal.
 	n_forward_tries=0
@@ -199,12 +221,28 @@ rm520n_configure()
 	rm520n_write enabled && rm520n_verify
 }
 
+rm520n_wait_network()
+{
+	# LAN SIP registration can precede cellular registration after reboot.
+	# Do not expose an enabled gateway while ATD would fail for no service.
+	n_network_tries=0
+	while :; do
+		if [ "$(rm520n_at 'AT+CEREG?')" = registered ] ||
+		   [ "$(rm520n_at 'AT+C5GREG?')" = registered ]; then break; fi
+		n_network_tries=$((n_network_tries+1))
+		[ "$n_network_tries" -lt 30 ] || return 1
+		sleep 2
+		rm520n_idle || return 1
+	done
+	return 0
+}
+
 rm520n_select()
 {
-	if rm520n_configure; then return 0; else n_result=$?; fi
+	if rm520n_configure; then rm520n_wait_network; return $?; else n_result=$?; fi
 	if [ "$n_result" = 2 ] && [ "$n_policy:$n_method" = auto:uac ]; then
 		n_method=serial_pcm n_reason=uac_unsupported
-		rm520n_configure && return 0
+		if rm520n_configure; then rm520n_wait_network; return $?; fi
 	fi
 	rm520n_restore || :
 	rm520n_write failed
@@ -278,7 +316,7 @@ rm520n_dispatch()
 	enable)
 		if [ -f "$QMODEM_VOIP_JOURNAL" ]; then
 			[ "$n_phase" = enabled ] || return 1
-			n_requested=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_requested=auto
+			n_requested=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_requested=uac
 			case $n_requested in auto|uac|serial_pcm) ;; *) return 1 ;; esac
 			if [ "$n_requested" != "$n_policy" ]; then
 				rm520n_idle || return 1
@@ -287,17 +325,17 @@ rm520n_dispatch()
 				rm520n_select
 				return $?
 			fi
-			rm520n_verify || { rm520n_idle && rm520n_select; }
+			if rm520n_verify; then rm520n_wait_network; else rm520n_idle && rm520n_select; fi
 			return $?
 		fi
-		n_policy=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_policy=auto
+		n_policy=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_policy=uac
 		case $n_policy in auto|uac) n_method=uac ;; serial_pcm) n_method=serial_pcm ;; *) return 1 ;; esac
 		rm520n_idle && qmodem_voip_adapter_enable_ubus && rm520n_capture || return 1
 		rm520n_select ;;
 	reprobe)
 		rm520n_idle || return 1
 		[ -f "$QMODEM_VOIP_JOURNAL" ] || return 0
-		n_requested=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_requested=auto
+		n_requested=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_requested=uac
 		case $n_requested in auto|uac|serial_pcm) n_policy=$n_requested ;; *) return 1 ;; esac
 		# Explicit user request resets the durable selection budget.
 		n_attempts=0 n_reason=none

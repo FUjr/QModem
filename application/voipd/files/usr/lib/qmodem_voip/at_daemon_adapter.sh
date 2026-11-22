@@ -192,6 +192,13 @@ qmodem_voip_adapter_wait_reenumeration()
 			[ -d "$card" ] && has_audio=1 && break
 		done
 		if [ "$saw_absent" = 1 ] && [ -n "$endpoint" ] && { [ "$want_audio" = any ] || [ "$has_audio" = "$want_audio" ]; }; then
+			# The same tty name can now refer to a new USB device. Discard the
+			# daemon's pre-reboot fd and response buffer for this modem only;
+			# the next AT request opens the rediscovered endpoint afresh.
+			command -v json_init >/dev/null 2>&1 || . /usr/share/libubox/jshn.sh || return 1
+			json_init
+			json_add_string at_port "$endpoint"
+			ubus -t 5 call at-daemon close "$(json_dump)" >/dev/null 2>&1 || return 1
 			[ "$want_audio" != any ] || return 0
 			[ "$want_audio" = 0 ] && [ -n "$pcm_endpoint" ] && return 0
 			grep -q 'playback.*capture' "$proc/pcm" 2>/dev/null && return 0

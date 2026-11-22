@@ -12,7 +12,12 @@ export QMODEM_VOIP_JOURNAL QMODEM_VOIP_SYSFS_ROOT
 qmodem_voip_adapter_usb_slot() { echo 2-1; }
 qmodem_voip_adapter_usb_id() { echo 2c7c:0801; }
 qmodem_voip_adapter_enable_ubus() { :; }
-qmodem_voip_adapter_wait_reenumeration() { echo reboot >> "$tmp/events"; }
+qmodem_voip_adapter_wait_reenumeration() {
+ echo reboot >> "$tmp/events"
+ # USB exists before the voice service is ready; QAUDMOD resets on reboot.
+ echo 0 > "$tmp/qaudmod"
+ echo 2 > "$tmp/voice_wait"
+}
 sleep() { :; }
 qmodem_voip_adapter_authorize_usb() { authorized=1; echo authorize >> "$tmp/events"; }
 uci() { cat "$tmp/policy"; }
@@ -32,10 +37,22 @@ qmodem_voip_adapter_at()
  case $1 in
  'AT+CGMM') echo RM520N-GL ;;
  'AT+QGMR') cat "$tmp/firmware" ;;
- 'AT+CLCC') cat "$tmp/calls" ;;
+ 'AT+CEREG?')
+   if [ "$(cat "$tmp/network_wait")" -gt 0 ]; then
+     echo $(( $(cat "$tmp/network_wait") - 1 )) > "$tmp/network_wait"
+     echo unregistered
+   else echo registered; fi ;;
+ 'AT+C5GREG?') echo unregistered ;;
+ 'AT+CLCC')
+   if [ -f "$tmp/voice_wait" ] && [ "$(cat "$tmp/voice_wait")" -gt 0 ]; then
+     echo $(( $(cat "$tmp/voice_wait") - 1 )) > "$tmp/voice_wait"
+     return 2
+   fi
+   cat "$tmp/calls" ;;
  'AT+QCFG="ims"') echo 1 ;;
  'AT+QCALLCFG="voice_disable"') echo 2 ;;
- 'AT+QAUDMOD?') echo 2 ;;
+ 'AT+QAUDMOD?') cat "$tmp/qaudmod" ;;
+ AT+QAUDMOD=*) printf '%s\n' "${1#AT+QAUDMOD=}" > "$tmp/qaudmod" ;;
  'AT+QPCMV?') cat "$tmp/qpcmv" ;;
  'AT+QDAI?') cat "$tmp/qdai" ;;
  'AT+QAUDCFG="qpcmv_cfg"') echo 8000,20 ;;
@@ -48,7 +65,12 @@ qmodem_voip_adapter_at()
  AT+QPCMV=1,2)
    case ${reject_uac:-0} in 1) return 2 ;; 2) return 1 ;; esac
    echo 1,2 > "$tmp/qpcmv" ;;
- AT+QPCMV=*) printf '%s\n' "${1#AT+QPCMV=}" > "$tmp/qpcmv" ;;
+ AT+QPCMV=*)
+   if [ "$1" = AT+QPCMV=0 ] && [ "$(cat "$tmp/stop_wait")" -gt 0 ]; then
+     echo $(( $(cat "$tmp/stop_wait") - 1 )) > "$tmp/stop_wait"
+     return 2
+   fi
+   printf '%s\n' "${1#AT+QPCMV=}" > "$tmp/qpcmv" ;;
  *) : ;;
  esac
 }
@@ -58,6 +80,10 @@ reset_fixture()
  rm -rf "$tmp/sys"
  mkdir -p "$tmp/sys/2-1/2-1:1.6/sound/card3"
  echo auto > "$tmp/policy"
+ echo 2 > "$tmp/qaudmod"
+ echo 0 > "$tmp/stop_wait"
+ echo 0 > "$tmp/network_wait"
+ rm -f "$tmp/voice_wait"
  echo RM520NGLAAR03A03M4G_01.201.01.201 > "$tmp/firmware"
  echo 0,0 > "$tmp/qpcmv"
  echo x,0,0,4,0,0,1,1 > "$tmp/qdai"
@@ -176,4 +202,30 @@ printf 'schema=2\nslot=2-1\nmedia_method=serial_pcm\n' > "$QMODEM_VOIP_JOURNAL"
 rm520n_dispatch enable
 [ -f "$QMODEM_VOIP_JOURNAL.previous" ]
 [ "$(rm520n_get schema)" = 3 ]
+# Permanent audio rejection remains bounded and does not reboot the modem.
+reset_fixture
+echo 99 > "$tmp/stop_wait"
+if rm520n_dispatch enable; then exit 1; fi
+[ "$(rm520n_get phase)" = failed ]
+[ "$(grep -c '^AT+QPCMV=0$' "$tmp/at")" -eq 16 ]
+! grep -q '^AT+CFUN=' "$tmp/at"
+# Delayed cellular registration can be retried without resetting working audio.
+reset_fixture
+echo 31 > "$tmp/network_wait"
+if rm520n_dispatch enable; then exit 1; fi
+[ "$(rm520n_get phase)" = enabled ]
+: > "$tmp/at"
+rm520n_dispatch enable
+assert_no_writes
+# Missing options must select UAC and must not silently fall back to serial.
+reset_fixture
+echo 2 > "$tmp/stop_wait"
+echo 2 > "$tmp/network_wait"
+rm "$tmp/policy"
+rm520n_dispatch enable
+[ "$(rm520n_get audio_policy)" = uac ]
+[ "$(rm520n_get media_method)" = uac ]
+rm520n_dispatch enable
+rm520n_dispatch reprobe
+[ "$(rm520n_get audio_policy)" = uac ]
 echo 'PASS: RM520 native UAC selection, bounded fallback, call guard, firmware and journal safety'

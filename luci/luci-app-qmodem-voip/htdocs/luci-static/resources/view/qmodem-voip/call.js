@@ -84,7 +84,7 @@ return view.extend({
 				if (response?.status === 'error') this.showError(response);
 				await this.refresh();
 			};
-			policy.default = 'auto';
+			policy.default = 'uac';
 			policy.rmempty = false;
 			policy.description = _('Uses the modem firmware audio without PCM patches. Changes wait until the call ends.');
 		}
