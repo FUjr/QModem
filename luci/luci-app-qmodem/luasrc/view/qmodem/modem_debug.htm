@@ -329,6 +329,15 @@
 					this.render();
 				}
 				this.cb_set = (data) => {
+					const result = data && (data.result || data);
+					if (!result || !Object.keys(result).length || result.success === false || result.error ||
+						result.status === "error" || result.status === "failed" ||
+						/(^|\s)(ERROR|\+CME ERROR:|\+CMS ERROR:)/.test(result.set_lockband || "")) {
+						const message = (result && result.error) || "<%:Failed to apply lock band configuration%>";
+						const response = result && result.set_lockband;
+						window.alert(message + (response ? "\n" + response : ""));
+						return;
+					}
 					this.get_config();
 				}
 			}
@@ -399,7 +408,11 @@
 
 			submit(band_class)
 			{
-				var sorted = this.lockband_config[band_class].sort();
+				if (this.config[band_class].allow_empty === false && !this.lockband_config[band_class].length) {
+					window.alert("<%:Select at least one band; an empty list does not unlock bands%>");
+					return;
+				}
+				var sorted = this.lockband_config[band_class].slice().sort((a, b) => Number(a) - Number(b));
 				var config = '';
 				for (let band_id of sorted) {
 					config += band_id + ",";
