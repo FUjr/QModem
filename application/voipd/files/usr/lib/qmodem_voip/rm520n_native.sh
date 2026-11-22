@@ -278,7 +278,7 @@ rm520n_dispatch()
 	enable)
 		if [ -f "$QMODEM_VOIP_JOURNAL" ]; then
 			[ "$n_phase" = enabled ] || return 1
-			n_requested=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_requested=auto
+			n_requested=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_requested=serial_pcm
 			case $n_requested in auto|uac|serial_pcm) ;; *) return 1 ;; esac
 			if [ "$n_requested" != "$n_policy" ]; then
 				rm520n_idle || return 1
@@ -290,14 +290,14 @@ rm520n_dispatch()
 			rm520n_verify || { rm520n_idle && rm520n_select; }
 			return $?
 		fi
-		n_policy=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_policy=auto
+		n_policy=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_policy=serial_pcm
 		case $n_policy in auto|uac) n_method=uac ;; serial_pcm) n_method=serial_pcm ;; *) return 1 ;; esac
 		rm520n_idle && qmodem_voip_adapter_enable_ubus && rm520n_capture || return 1
 		rm520n_select ;;
 	reprobe)
 		rm520n_idle || return 1
 		[ -f "$QMODEM_VOIP_JOURNAL" ] || return 0
-		n_requested=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_requested=auto
+		n_requested=$(uci -q get qmodem_voip.main.audio_policy 2>/dev/null) || n_requested=serial_pcm
 		case $n_requested in auto|uac|serial_pcm) n_policy=$n_requested ;; *) return 1 ;; esac
 		# Explicit user request resets the durable selection budget.
 		n_attempts=0 n_reason=none

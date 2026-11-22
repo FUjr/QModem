@@ -4,6 +4,20 @@ This document describes the outbound SIP configuration and verification
 contract. Outbound signaling is TLS-only and server certificates are verified
 against the system CA bundle.
 
+## RM520N audio policy
+
+RM520N defaults to serial PCM. A USB sound card and successful SIP signaling
+do not prove that USB audio contains speech: RM520N firmware can deliver only
+silent UAC samples. Select UAC or automatic selection explicitly only after
+testing audio with the installed modem firmware. Serial PCM uses the USB serial
+PCM interface; the USB audio function being disabled is expected in this mode.
+
+To retain serial PCM on an existing installation, set
+`qmodem_voip.main.audio_policy` to `serial_pcm`, commit `qmodem_voip`, and reload
+the voice service while no call is active. Verify a real call after applying
+the policy and again after restarting the services; registration and packet
+counters alone are insufficient.
+
 ## Prepare the interface
 
 Set `interface` to the local OpenWrt network interface that owns the source
